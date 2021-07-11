@@ -100,7 +100,7 @@ impl TryFrom<&str> for CellRef {
     type Error = OFError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
-        let (_, cell_ref) = parse_cellref(Span::new(s))?;
+        let cell_ref = parse_cellref(Span::new(s))?;
         Ok(cell_ref)
     }
 }
@@ -480,7 +480,7 @@ impl TryFrom<&str> for CellRange {
     type Error = OFError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let (_, cellrange) = parse_cellrange(Span::new(value))?;
+        let cellrange = parse_cellrange(Span::new(value))?;
         Ok(cellrange)
     }
 }

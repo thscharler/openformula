@@ -1,7 +1,5 @@
 use std::fmt::{Display, Formatter};
 
-use nom_locate::LocatedSpan;
-
 #[derive(Debug)]
 pub enum OFError {
     Ods(String),
@@ -94,16 +92,11 @@ impl From<std::time::SystemTimeError> for OFError {
     }
 }
 
-impl<'a> From<nom::Err<nom::error::Error<&'a str>>> for OFError {
-    fn from(err: nom::Err<nom::error::Error<&'a str>>) -> OFError {
-        OFError::Nom(
-            err.map(|e| nom::error::ParseError::from_error_kind(e.input.to_string(), e.code)),
-        )
-    }
-}
-
-impl<'a> From<nom::Err<nom::error::Error<LocatedSpan<&'a str>>>> for OFError {
-    fn from(err: nom::Err<nom::error::Error<LocatedSpan<&'a str>>>) -> OFError {
+impl<'a, I> From<nom::Err<nom::error::Error<I>>> for OFError
+where
+    I: ToString,
+{
+    fn from(err: nom::Err<nom::error::Error<I>>) -> OFError {
         OFError::Nom(
             err.map(|e| nom::error::ParseError::from_error_kind(e.input.to_string(), e.code)),
         )

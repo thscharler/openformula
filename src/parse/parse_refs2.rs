@@ -1,21 +1,20 @@
 use crate::parse::{
-    CellCuboidToken, CellRangeToken, CellRefToken, CellToken, ColCuboidToken, ColRangeToken,
-    RowCuboidToken, RowRangeToken, Token,
+    colon, dot, quoted, CellCuboidToken, CellRangeToken, CellRefToken, CellToken, ColCuboidToken,
+    ColRangeToken, RowCuboidToken, RowRangeToken, Token,
 };
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_while1};
-use nom::character::complete::char as nom_char;
+use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, none_of, one_of};
 use nom::combinator::{consumed, opt, recognize};
 use nom::lib::std::ops::{RangeFrom, RangeTo};
-use nom::multi::{count, many0, many1};
-use nom::sequence::{delimited, terminated, tuple};
+use nom::multi::many1;
+use nom::sequence::{terminated, tuple};
 use nom::{
     Compare, IResult, InputIter, InputLength, InputTake, InputTakeAtPosition, Offset, Slice,
 };
 
 /// Parses all adress kinds.
-fn range_address<'a, I>(i: I) -> IResult<I, Token<I>>
+pub fn range_address<'a, I>(i: I) -> IResult<I, Token<I>>
 where
     I: Clone
         + PartialEq
@@ -36,7 +35,7 @@ where
 }
 
 /// Parse a error reference.
-fn referr<'a, I>(i: I) -> IResult<I, Token<I>>
+pub fn referr<'a, I>(i: I) -> IResult<I, Token<I>>
 where
     I: Clone
         + PartialEq
@@ -54,7 +53,7 @@ where
 }
 
 /// Parse a row cuboid or row range.
-fn rowcuboid<'a, I>(i: I) -> IResult<I, Token<I>>
+pub fn rowcuboid<'a, I>(i: I) -> IResult<I, Token<I>>
 where
     I: Clone
         + PartialEq
@@ -87,7 +86,7 @@ where
 }
 
 /// Parse a col cuboid or col range.
-fn colcuboid<'a, I>(i: I) -> IResult<I, Token<I>>
+pub fn colcuboid<'a, I>(i: I) -> IResult<I, Token<I>>
 where
     I: Clone
         + PartialEq
@@ -128,7 +127,7 @@ where
 }
 
 /// Parse a cell cuboid or cell range.
-fn cellcuboid<'a, I>(i: I) -> IResult<I, Token<I>>
+pub fn cellcuboid<'a, I>(i: I) -> IResult<I, Token<I>>
 where
     I: Clone
         + PartialEq
@@ -179,7 +178,7 @@ where
 }
 
 /// Parse a row range.
-fn rowrange<'a, I>(i: I) -> IResult<I, Token<I>>
+pub fn rowrange<'a, I>(i: I) -> IResult<I, Token<I>>
 where
     I: Clone
         + PartialEq
@@ -210,7 +209,7 @@ where
 }
 
 /// Parse a col range.
-fn colrange<'a, I>(i: I) -> IResult<I, Token<I>>
+pub fn colrange<'a, I>(i: I) -> IResult<I, Token<I>>
 where
     I: Clone
         + PartialEq
@@ -248,7 +247,7 @@ where
 }
 
 /// Parse a cell range.
-fn cellrange<'a, I>(i: I) -> IResult<I, Token<I>>
+pub fn cellrange<'a, I>(i: I) -> IResult<I, Token<I>>
 where
     I: Clone
         + PartialEq
@@ -295,7 +294,7 @@ where
 }
 
 /// Parse a cell reference.
-fn cellref<'a, I>(i: I) -> IResult<I, Token<I>>
+pub fn cellref<'a, I>(i: I) -> IResult<I, Token<I>>
 where
     I: Clone
         + PartialEq
@@ -325,7 +324,7 @@ where
 }
 
 /// IRI ... i18n something
-fn iri<'a, I>(i: I) -> IResult<I, I>
+pub fn iri<'a, I>(i: I) -> IResult<I, I>
 where
     I: Clone
         + PartialEq
@@ -343,7 +342,7 @@ where
 }
 
 /// Parse a sheetname.
-fn sheetname<'a, I>(i: I) -> IResult<I, (Option<I>, I)>
+pub fn sheetname<'a, I>(i: I) -> IResult<I, (Option<I>, I)>
 where
     I: Clone
         + PartialEq
@@ -363,7 +362,7 @@ where
 }
 
 /// Parse a row label.
-fn row<'a, I>(i: I) -> IResult<I, (Option<I>, I)>
+pub fn row<'a, I>(i: I) -> IResult<I, (Option<I>, I)>
 where
     I: Clone
         + PartialEq
@@ -383,7 +382,7 @@ where
 }
 
 /// Parse a col label.
-fn column<'a, I>(i: I) -> IResult<I, (Option<I>, I)>
+pub fn column<'a, I>(i: I) -> IResult<I, (Option<I>, I)>
 where
     I: Clone
         + PartialEq
@@ -401,74 +400,11 @@ where
     Ok((i, (abs, col)))
 }
 
-/// Parse "."
-fn dot<'a, I>(i: I) -> IResult<I, I>
-where
-    I: Clone
-        + PartialEq
-        + Compare<&'a str>
-        + InputIter<Item = char>
-        + InputLength
-        + InputTake
-        + InputTakeAtPosition<Item = char>
-        + Offset
-        + Slice<RangeFrom<usize>>
-        + Slice<RangeTo<usize>>,
-{
-    tag(".")(i)
-}
-
-/// Parse ":"
-fn colon<'a, I>(i: I) -> IResult<I, I>
-where
-    I: Clone
-        + PartialEq
-        + Compare<&'a str>
-        + InputIter<Item = char>
-        + InputLength
-        + InputTake
-        + InputTakeAtPosition<Item = char>
-        + Offset
-        + Slice<RangeFrom<usize>>
-        + Slice<RangeTo<usize>>,
-{
-    tag(":")(i)
-}
-
-/// Parse a quoted string. A double quote within is an escaped quote.
-/// Returns the string within the outer quotes. The double quotes are not
-/// reduced.
-fn quoted<I>(quote: char) -> impl FnMut(I) -> IResult<I, I, nom::error::Error<I>>
-where
-    I: Clone
-        + PartialEq
-        + InputIter<Item = char>
-        + InputLength
-        + InputTake
-        + InputTakeAtPosition<Item = char>
-        + Offset
-        + Slice<RangeFrom<usize>>
-        + Slice<RangeTo<usize>>,
-{
-    move |i: I| {
-        let (i, r) = delimited(
-            nom_char(quote),
-            recognize(many0(alt((
-                take_while1(|v| v != quote),
-                recognize(count(nom_char(quote), 2)),
-            )))),
-            nom_char(quote),
-        )(i)?;
-
-        Ok((i, r))
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
-    use crate::parse::parse_refs2::{cellref, column, iri, quoted, row, sheetname, CellRefToken};
-    use crate::parse::{CellToken, Span, Token};
+    use crate::parse::parse_refs2::{cellref, column, iri, row, sheetname, CellRefToken};
+    use crate::parse::{quoted, CellToken, Span, Token};
     use crate::OFError;
     use nom::error::{Error as NomError, ErrorKind, ParseError};
     use nom::Err as NomErr;
