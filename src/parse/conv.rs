@@ -1,7 +1,9 @@
-use crate::OFError;
+use crate::parse::CellToken;
+use crate::{cref, OFError};
 use nom::{Compare, CompareResult, InputIter};
 use std::fmt::Debug;
 
+/// Parse a bool if a '$' exists.
 pub fn try_bool_from_abs_flag<'a, I>(i: Option<I>) -> Result<bool, OFError>
 where
     I: Clone + Debug + Compare<&'a str>,
@@ -13,14 +15,28 @@ where
     }
 }
 
-pub fn try_ucell_from_rowname<'a, I>(i: I) -> Result<u32, OFError>
+/// Parse a cell reference to a cref.
+pub fn try_cref_from_token<'a, I>(i: CellToken<I>) -> Result<cref, OFError>
+where
+    I: Clone + Debug + InputIter<Item = char> + Compare<&'a str>,
+{
+    Ok(cref::new_abs(
+        try_bool_from_abs_flag(i.row.0)?,
+        try_u32_from_rowname(i.row.1)?,
+        try_bool_from_abs_flag(i.col.0)?,
+        try_u32_from_colname(i.col.1)?,
+    ))
+}
+
+/// Parse a row number to a row index.
+pub fn try_u32_from_rowname<I>(i: I) -> Result<u32, OFError>
 where
     I: Clone + Debug + InputIter<Item = char>,
 {
     let mut row = 0u32;
 
     for c in i.iter_elements() {
-        assert!(c >= '0' && c <= '9');
+        assert!(('0'..='9').contains(&c));
         let d = c as u32 - b'0' as u32;
         row = row * 10 + d;
     }
@@ -29,14 +45,14 @@ where
 }
 
 /// Parse a col label to a column index.
-pub fn try_ucell_from_colname<'a, I>(i: I) -> Result<u32, OFError>
+pub fn try_u32_from_colname<I>(i: I) -> Result<u32, OFError>
 where
     I: Clone + Debug + InputIter<Item = char>,
 {
     let mut col = 0u32;
 
     for c in i.iter_elements() {
-        assert!(c >= 'A' && c <= 'Z');
+        assert!(('A'..='Z').contains(&c));
 
         let mut v = c as u32 - b'A' as u32;
         if v == 25 {
@@ -46,7 +62,7 @@ where
             v += 1;
             col *= 26;
         }
-        col += v as u32;
+        col += v;
     }
 
     if col == 0 {
@@ -57,7 +73,7 @@ where
 }
 
 /// Unquotes a quoted table name.
-pub fn unquote_str<'a, I>(i: I) -> String
+pub fn unquote_str<I>(i: I) -> String
 where
     I: Clone + Debug + ToString,
 {
@@ -65,7 +81,7 @@ where
 }
 
 /// Unquotes a quoted table name.
-pub fn unquote_opt<'a, I>(i: Option<I>) -> Option<String>
+pub fn unquote_opt<I>(i: Option<I>) -> Option<String>
 where
     I: Clone + Debug + ToString,
 {
@@ -73,7 +89,7 @@ where
 }
 
 /// Unquotes a quoted table name.
-pub fn unquote_opt2<'a, I>(i: Option<(Option<I>, I)>) -> Option<String>
+pub fn unquote_opt2<I>(i: Option<(Option<I>, I)>) -> Option<String>
 where
     I: Clone + Debug + ToString,
 {

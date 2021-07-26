@@ -1,3 +1,7 @@
+//!
+//! to_string conversions
+//!
+
 mod str_refs;
 
 // nonsense ...

@@ -1,99 +1,5 @@
-use crate::refs::{CellCuboid, CellRange, CellRef, ColCuboid, ColRange, RowCuboid, RowRange};
-use crate::ucell;
-
-/// Appends the cell reference
-pub(crate) fn push_rowcuboid(buf: &mut String, rowcuboid: &RowCuboid) {
-    push_iri(buf, rowcuboid.iri.as_ref());
-    push_tablename(
-        buf,
-        &rowcuboid.table,
-        rowcuboid.iri.is_some() || rowcuboid.row_abs || rowcuboid.to_row_abs,
-    );
-    buf.push('.');
-    if rowcuboid.row_abs {
-        buf.push('$');
-    }
-    push_rowname(buf, rowcuboid.row);
-    buf.push(':');
-    push_tablename(
-        buf,
-        &rowcuboid.to_table,
-        rowcuboid.iri.is_some() || rowcuboid.row_abs || rowcuboid.to_row_abs,
-    );
-    buf.push('.');
-    if rowcuboid.to_row_abs {
-        buf.push('$');
-    }
-    push_rowname(buf, rowcuboid.to_row);
-}
-
-/// Appends the cell reference
-pub(crate) fn push_colcuboid(buf: &mut String, colcuboid: &ColCuboid) {
-    push_iri(buf, colcuboid.iri.as_ref());
-    push_tablename(
-        buf,
-        &colcuboid.table,
-        colcuboid.iri.is_some() || colcuboid.col_abs || colcuboid.to_col_abs,
-    );
-    buf.push('.');
-    if colcuboid.col_abs {
-        buf.push('$');
-    }
-    push_colname(buf, colcuboid.col);
-    buf.push(':');
-    push_tablename(
-        buf,
-        &colcuboid.to_table,
-        colcuboid.iri.is_some() || colcuboid.col_abs || colcuboid.to_col_abs,
-    );
-    buf.push('.');
-    if colcuboid.to_col_abs {
-        buf.push('$');
-    }
-    push_colname(buf, colcuboid.to_col);
-}
-
-/// Appends the range reference
-pub(crate) fn push_cellcuboid(buf: &mut String, cellcuboid: &CellCuboid) {
-    push_iri(buf, cellcuboid.iri.as_ref());
-    push_tablename(
-        buf,
-        &cellcuboid.table,
-        cellcuboid.iri.is_some()
-            || cellcuboid.row_abs
-            || cellcuboid.col_abs
-            || cellcuboid.to_row_abs
-            || cellcuboid.to_col_abs,
-    );
-    buf.push('.');
-    if cellcuboid.col_abs {
-        buf.push('$');
-    }
-    push_colname(buf, cellcuboid.col);
-    if cellcuboid.row_abs {
-        buf.push('$');
-    }
-    push_rowname(buf, cellcuboid.row);
-    buf.push(':');
-    push_tablename(
-        buf,
-        &cellcuboid.to_table,
-        cellcuboid.iri.is_some()
-            || cellcuboid.row_abs
-            || cellcuboid.col_abs
-            || cellcuboid.to_row_abs
-            || cellcuboid.to_col_abs,
-    );
-    buf.push('.');
-    if cellcuboid.to_col_abs {
-        buf.push('$');
-    }
-    push_colname(buf, cellcuboid.to_col);
-    if cellcuboid.to_row_abs {
-        buf.push('$');
-    }
-    push_rowname(buf, cellcuboid.to_row);
-}
+use crate::cref;
+use crate::refs::{CellRange, CellRef, ColRange, RowRange};
 
 /// Appends the range reference
 pub(crate) fn push_cellrange(buf: &mut String, cellrange: &CellRange) {
@@ -103,31 +9,28 @@ pub(crate) fn push_cellrange(buf: &mut String, cellrange: &CellRange) {
             buf,
             table,
             cellrange.iri.is_some()
-                || cellrange.row_abs
-                || cellrange.col_abs
-                || cellrange.to_row_abs
-                || cellrange.to_col_abs,
+                || cellrange.from.row_abs()
+                || cellrange.from.col_abs()
+                || cellrange.to.row_abs()
+                || cellrange.to.col_abs(),
         );
     }
     buf.push('.');
-    if cellrange.col_abs {
-        buf.push('$');
-    }
-    push_colname(buf, cellrange.col);
-    if cellrange.row_abs {
-        buf.push('$');
-    }
-    push_rowname(buf, cellrange.row);
+    push_cref(buf, cellrange.from);
     buf.push(':');
+    if let Some(to_table) = cellrange.to_table.as_ref() {
+        push_tablename(
+            buf,
+            to_table,
+            cellrange.iri.is_some()
+                || cellrange.from.row_abs()
+                || cellrange.from.col_abs()
+                || cellrange.to.row_abs()
+                || cellrange.to.col_abs(),
+        );
+    }
     buf.push('.');
-    if cellrange.to_col_abs {
-        buf.push('$');
-    }
-    push_colname(buf, cellrange.to_col);
-    if cellrange.to_row_abs {
-        buf.push('$');
-    }
-    push_rowname(buf, cellrange.to_row);
+    push_cref(buf, cellrange.to);
 }
 
 /// Appends the cell reference
@@ -137,20 +40,27 @@ pub(crate) fn push_rowrange(buf: &mut String, rowrange: &RowRange) {
         push_tablename(
             buf,
             table,
-            rowrange.iri.is_some() || rowrange.row_abs || rowrange.to_row_abs,
+            rowrange.iri.is_some() || rowrange.row.row_abs() || rowrange.to_row.row_abs(),
         );
     }
     buf.push('.');
-    if rowrange.row_abs {
+    if rowrange.row.row_abs() {
         buf.push('$');
     }
-    push_rowname(buf, rowrange.row);
+    push_rowname(buf, rowrange.row.row());
     buf.push(':');
+    if let Some(to_table) = rowrange.to_table.as_ref() {
+        push_tablename(
+            buf,
+            to_table,
+            rowrange.iri.is_some() || rowrange.row.row_abs() || rowrange.to_row.row_abs(),
+        );
+    }
     buf.push('.');
-    if rowrange.to_row_abs {
+    if rowrange.to_row.row_abs() {
         buf.push('$');
     }
-    push_rowname(buf, rowrange.to_row);
+    push_rowname(buf, rowrange.to_row.row());
 }
 
 /// Appends the cell reference
@@ -160,20 +70,27 @@ pub(crate) fn push_colrange(buf: &mut String, colrange: &ColRange) {
         push_tablename(
             buf,
             table,
-            colrange.iri.is_some() || colrange.col_abs || colrange.to_col_abs,
+            colrange.iri.is_some() || colrange.col.col_abs() || colrange.to_col.col_abs(),
         );
     }
     buf.push('.');
-    if colrange.col_abs {
+    if colrange.col.col_abs() {
         buf.push('$');
     }
-    push_colname(buf, colrange.col);
+    push_colname(buf, colrange.col.col());
     buf.push(':');
+    if let Some(to_table) = colrange.to_table.as_ref() {
+        push_tablename(
+            buf,
+            to_table,
+            colrange.iri.is_some() || colrange.col.col_abs() || colrange.to_col.col_abs(),
+        );
+    }
     buf.push('.');
-    if colrange.to_col_abs {
+    if colrange.to_col.col_abs() {
         buf.push('$');
     }
-    push_colname(buf, colrange.to_col);
+    push_colname(buf, colrange.to_col.col());
 }
 
 /// Appends the cell reference
@@ -183,18 +100,11 @@ pub(crate) fn push_cellref(buf: &mut String, cellref: &CellRef) {
         push_tablename(
             buf,
             table,
-            cellref.iri.is_some() || cellref.col_abs || cellref.row_abs,
+            cellref.iri.is_some() || cellref.cell.col_abs() || cellref.cell.row_abs(),
         );
     }
     buf.push('.');
-    if cellref.col_abs {
-        buf.push('$');
-    }
-    push_colname(buf, cellref.col);
-    if cellref.row_abs {
-        buf.push('$');
-    }
-    push_rowname(buf, cellref.row);
+    push_cref(buf, cellref.cell);
 }
 
 /// Appends the IRI
@@ -221,8 +131,19 @@ pub(crate) fn push_tablename(buf: &mut String, table: &str, abs: bool) {
     }
 }
 
+pub(crate) fn push_cref(buf: &mut String, r: cref) {
+    if r.col_abs() {
+        buf.push('$');
+    }
+    push_colname(buf, r.col());
+    if r.row_abs() {
+        buf.push('$');
+    }
+    push_rowname(buf, r.row());
+}
+
 /// Appends the spreadsheet row name
-pub(crate) fn push_rowname(buf: &mut String, row: ucell) {
+pub(crate) fn push_rowname(buf: &mut String, row: u32) {
     let mut i = 0;
     let mut dbuf = [0u8; 10];
 
@@ -245,11 +166,11 @@ pub(crate) fn push_rowname(buf: &mut String, row: ucell) {
 }
 
 /// Appends the spreadsheet column name.
-pub(crate) fn push_colname(buf: &mut String, mut col: ucell) {
+pub(crate) fn push_colname(buf: &mut String, mut col: u32) {
     let mut i = 0;
     let mut dbuf = [0u8; 7];
 
-    if col == ucell::MAX {
+    if col == u32::MAX {
         // unroll first loop because of overflow
         dbuf[0] = 21;
         i += 1;

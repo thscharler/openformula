@@ -76,9 +76,9 @@ where
             p,
             RowCuboidToken {
                 iri,
-                from_sheet: sheetname_0.1,
+                from_table: sheetname_0.1,
                 from: row_0,
-                to_sheet: sheetname_1.1,
+                to_table: sheetname_1.1,
                 to: row_1,
             },
         ),
@@ -117,9 +117,9 @@ where
             p,
             ColCuboidToken {
                 iri,
-                from_sheet: sheetname_0.1,
+                from_table: sheetname_0.1,
                 from: col_0,
-                to_sheet: sheetname_1.1,
+                to_table: sheetname_1.1,
                 to: col_1,
             },
         ),
@@ -162,12 +162,12 @@ where
             p,
             CellCuboidToken {
                 iri,
-                from_sheet: sheetname_0.1,
+                from_table: sheetname_0.1,
                 from: CellToken {
                     col: col_0,
                     row: row_0,
                 },
-                to_sheet: sheetname_1.1,
+                to_table: sheetname_1.1,
                 to: CellToken {
                     col: col_1,
                     row: row_1,
@@ -200,7 +200,7 @@ where
             p,
             RowRangeToken {
                 iri,
-                sheet: sheetname,
+                table: sheetname,
                 from: row_0,
                 to: row_1,
             },
@@ -238,7 +238,7 @@ where
             p,
             ColRangeToken {
                 iri,
-                sheet: sheetname,
+                table: sheetname,
                 from: col_0,
                 to: col_1,
             },
@@ -279,7 +279,7 @@ where
             p,
             CellRangeToken {
                 iri,
-                sheet: sheetname,
+                table: sheetname,
                 from: CellToken {
                     col: col_0,
                     row: row_0,
@@ -316,7 +316,7 @@ where
             p,
             CellRefToken {
                 iri,
-                sheet: sheetname,
+                table: sheetname,
                 cell: CellToken { col, row },
             },
         ),
@@ -419,7 +419,7 @@ mod tests {
                     ".A21",
                     CellRefToken {
                         iri: None,
-                        sheet: None,
+                        table: None,
                         cell: CellToken {
                             col: (None, "A"),
                             row: (None, "21"),
@@ -443,7 +443,7 @@ mod tests {
                         Span::from(".A21"),
                         CellRefToken {
                             iri: None,
-                            sheet: None,
+                            table: None,
                             cell: CellToken {
                                 col: (None, Span::new_from_raw_offset(1, 1, "A", ())),
                                 row: (None, Span::new_from_raw_offset(2, 1, "21", ()))

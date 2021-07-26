@@ -1,5 +1,11 @@
+//!
+//! Parser tokens
+//!
+
+/// All known tokens.
 #[non_exhaustive]
 #[derive(Debug, PartialEq)]
+#[allow(missing_docs)]
 pub enum Token<I> {
     ErrRef(I),
     CellRef(I, CellRefToken<I>),
@@ -11,66 +17,106 @@ pub enum Token<I> {
     RowCuboid(I, RowCuboidToken<I>),
 }
 
+/// Cell reference
 #[derive(Debug, PartialEq)]
 pub struct CellRefToken<I> {
+    /// External reference.
     pub iri: Option<I>,
-    pub sheet: Option<(Option<I>, I)>,
+    /// Different table.
+    pub table: Option<(Option<I>, I)>,
+    /// Cell
     pub cell: CellToken<I>,
 }
 
+/// Cell range
 #[derive(Debug, PartialEq)]
 pub struct CellRangeToken<I> {
+    /// External reference.
     pub iri: Option<I>,
-    pub sheet: Option<(Option<I>, I)>,
+    /// Different table.
+    pub table: Option<(Option<I>, I)>,
+    /// Cell
     pub from: CellToken<I>,
+    /// Cell
     pub to: CellToken<I>,
 }
 
+/// Column range
 #[derive(Debug, PartialEq)]
 pub struct ColRangeToken<I> {
+    /// External reference.
     pub iri: Option<I>,
-    pub sheet: Option<(Option<I>, I)>,
+    /// Different table.
+    pub table: Option<(Option<I>, I)>,
+    /// Cell
     pub from: (Option<I>, I),
+    /// Cell
     pub to: (Option<I>, I),
 }
 
+/// Row range
 #[derive(Debug, PartialEq)]
 pub struct RowRangeToken<I> {
+    /// External reference.
     pub iri: Option<I>,
-    pub sheet: Option<(Option<I>, I)>,
+    /// Different table.
+    pub table: Option<(Option<I>, I)>,
+    /// Cell
     pub from: (Option<I>, I),
+    /// Cell
     pub to: (Option<I>, I),
 }
 
+/// Cell cuboid spanning multiple tables.
 #[derive(Debug, PartialEq)]
 pub struct CellCuboidToken<I> {
+    /// External reference.
     pub iri: Option<I>,
-    pub from_sheet: I,
+    /// Different table.
+    pub from_table: I,
+    /// Cell
     pub from: CellToken<I>,
-    pub to_sheet: I,
+    /// Different table.
+    pub to_table: I,
+    /// Cell
     pub to: CellToken<I>,
 }
 
+/// Column cuboid spanning multiple tables.
 #[derive(Debug, PartialEq)]
 pub struct ColCuboidToken<I> {
+    /// External reference.
     pub iri: Option<I>,
-    pub from_sheet: I,
+    /// Different table.
+    pub from_table: I,
+    /// Cell
     pub from: (Option<I>, I),
-    pub to_sheet: I,
+    /// Different table.
+    pub to_table: I,
+    /// Cell
     pub to: (Option<I>, I),
 }
 
+/// Row cuboid spanning multiple tables.
 #[derive(Debug, PartialEq)]
 pub struct RowCuboidToken<I> {
+    /// External reference.
     pub iri: Option<I>,
-    pub from_sheet: I,
+    /// Different table.
+    pub from_table: I,
+    /// Cell
     pub from: (Option<I>, I),
-    pub to_sheet: I,
+    /// Different table.
+    pub to_table: I,
+    /// Cell
     pub to: (Option<I>, I),
 }
 
+/// Basic cell reference token.
 #[derive(Debug, PartialEq)]
 pub struct CellToken<I> {
+    /// Cell abs-flag + column
     pub col: (Option<I>, I),
+    /// Cell abs_flag + row
     pub row: (Option<I>, I),
 }

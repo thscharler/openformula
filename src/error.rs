@@ -1,6 +1,10 @@
 use std::fmt::{Display, Formatter};
 
+///
+/// Error type
+///
 #[derive(Debug)]
+#[allow(missing_docs)]
 pub enum OFError {
     Ods(String),
     Io(std::io::Error),
@@ -92,7 +96,7 @@ impl From<std::time::SystemTimeError> for OFError {
     }
 }
 
-impl<'a, I> From<nom::Err<nom::error::Error<I>>> for OFError
+impl<I> From<nom::Err<nom::error::Error<I>>> for OFError
 where
     I: ToString,
 {
