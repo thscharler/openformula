@@ -28,6 +28,32 @@ where
     ))
 }
 
+/// Parse a column reference to a cref.
+pub fn try_column_from_token<'a, I>(i: (Option<I>, I)) -> Result<cref, OFError>
+where
+    I: Clone + Debug + InputIter<Item = char> + Compare<&'a str>,
+{
+    Ok(cref::new_abs(
+        false,
+        0,
+        try_bool_from_abs_flag(i.0)?,
+        try_u32_from_colname(i.1)?,
+    ))
+}
+
+/// Parse a row reference to a cref.
+pub fn try_row_from_token<'a, I>(i: (Option<I>, I)) -> Result<cref, OFError>
+where
+    I: Clone + Debug + InputIter<Item = char> + Compare<&'a str>,
+{
+    Ok(cref::new_abs(
+        try_bool_from_abs_flag(i.0)?,
+        try_u32_from_colname(i.1)?,
+        false,
+        0,
+    ))
+}
+
 /// Parse a row number to a row index.
 pub fn try_u32_from_rowname<I>(i: I) -> Result<u32, OFError>
 where
