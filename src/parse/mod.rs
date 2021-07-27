@@ -4,12 +4,12 @@
 
 mod conv;
 mod parse_core;
-mod parse_refs2;
+mod parse_refs;
 mod token;
 
 pub use self::conv::*;
 pub use self::parse_core::*;
-pub use self::parse_refs2::*;
+pub use self::parse_refs::*;
 pub use self::token::*;
 use crate::refs::{CellRange, CellRef, ColRange, Reference, RowRange};
 use crate::OFError;
