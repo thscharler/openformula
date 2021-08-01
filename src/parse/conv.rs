@@ -1,5 +1,5 @@
 use crate::parse::CellToken;
-use crate::{cref, OFError};
+use crate::{CRef, OFError};
 use nom::{Compare, CompareResult, InputIter};
 use std::fmt::Debug;
 
@@ -16,11 +16,11 @@ where
 }
 
 /// Parse a cell reference to a cref.
-pub fn try_cref_from_token<'a, I>(i: CellToken<I>) -> Result<cref, OFError>
+pub fn try_cref_from_token<'a, I>(i: CellToken<I>) -> Result<CRef, OFError>
 where
     I: Clone + Debug + InputIter<Item = char> + Compare<&'a str>,
 {
-    Ok(cref::new_abs(
+    Ok(CRef::new_abs(
         try_bool_from_abs_flag(i.row.0)?,
         try_u32_from_rowname(i.row.1)?,
         try_bool_from_abs_flag(i.col.0)?,
@@ -29,11 +29,11 @@ where
 }
 
 /// Parse a column reference to a cref.
-pub fn try_column_from_token<'a, I>(i: (Option<I>, I)) -> Result<cref, OFError>
+pub fn try_column_from_token<'a, I>(i: (Option<I>, I)) -> Result<CRef, OFError>
 where
     I: Clone + Debug + InputIter<Item = char> + Compare<&'a str>,
 {
-    Ok(cref::new_abs(
+    Ok(CRef::new_abs(
         false,
         0,
         try_bool_from_abs_flag(i.0)?,
@@ -42,11 +42,11 @@ where
 }
 
 /// Parse a row reference to a cref.
-pub fn try_row_from_token<'a, I>(i: (Option<I>, I)) -> Result<cref, OFError>
+pub fn try_row_from_token<'a, I>(i: (Option<I>, I)) -> Result<CRef, OFError>
 where
     I: Clone + Debug + InputIter<Item = char> + Compare<&'a str>,
 {
-    Ok(cref::new_abs(
+    Ok(CRef::new_abs(
         try_bool_from_abs_flag(i.0)?,
         try_u32_from_colname(i.1)?,
         false,

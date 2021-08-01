@@ -9,11 +9,11 @@ use std::fmt::{Debug, Formatter};
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
 #[repr(transparent)]
-pub struct cref {
+pub struct CRef {
     cref: u32,
 }
 
-impl Debug for cref {
+impl Debug for CRef {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -28,32 +28,32 @@ impl Debug for cref {
     }
 }
 
-impl Default for cref {
+impl Default for CRef {
     fn default() -> Self {
         Self { cref: 0 }
     }
 }
 
-impl From<cref> for (u32, u32) {
-    fn from(cref: cref) -> Self {
+impl From<CRef> for (u32, u32) {
+    fn from(cref: CRef) -> Self {
         (cref.row(), cref.col())
     }
 }
 
-impl From<&cref> for (u32, u32) {
-    fn from(cref: &cref) -> Self {
+impl From<&CRef> for (u32, u32) {
+    fn from(cref: &CRef) -> Self {
         (cref.row(), cref.col())
     }
 }
 
-impl From<(u32, u32)> for cref {
+impl From<(u32, u32)> for CRef {
     fn from(v: (u32, u32)) -> Self {
-        cref::new(v.0, v.1)
+        CRef::new(v.0, v.1)
     }
 }
 
 #[allow(clippy::unusual_byte_groupings)]
-impl cref {
+impl CRef {
     const BIT_ABS_ROW: u32 = 0b0100_0000__0000_0000__0000_0000__0000_0000;
     const BIT_ABS_COL: u32 = 0b1000_0000__0000_0000__0000_0000__0000_0000;
 
@@ -67,7 +67,7 @@ impl cref {
         assert!(row < 1048576);
 
         Self {
-            cref: row | col << cref::SHIFT_COL,
+            cref: row | col << CRef::SHIFT_COL,
         }
     }
 
@@ -77,15 +77,15 @@ impl cref {
         assert!(row < 1048576);
 
         Self {
-            cref: if abs_row { cref::BIT_ABS_ROW } else { 0 }
+            cref: if abs_row { CRef::BIT_ABS_ROW } else { 0 }
                 | row
-                | if abs_col { cref::BIT_ABS_COL } else { 0 }
-                | col << cref::SHIFT_COL,
+                | if abs_col { CRef::BIT_ABS_COL } else { 0 }
+                | col << CRef::SHIFT_COL,
         }
     }
 
     /// Change the value to an absolute reference.
-    pub fn absolute(mut self) -> cref {
+    pub fn absolute(mut self) -> CRef {
         self.set_row_abs(true);
         self.set_col_abs(true);
         self
@@ -93,35 +93,35 @@ impl cref {
 
     /// Is an absolute reference
     pub fn col_abs(&self) -> bool {
-        self.cref & cref::BIT_ABS_COL == cref::BIT_ABS_COL
+        self.cref & CRef::BIT_ABS_COL == CRef::BIT_ABS_COL
     }
 
     /// Sets to an absolute reference
     pub fn set_col_abs(&mut self, abs: bool) {
         if abs {
-            self.cref |= cref::BIT_ABS_COL;
+            self.cref |= CRef::BIT_ABS_COL;
         } else {
-            self.cref &= !cref::BIT_ABS_COL;
+            self.cref &= !CRef::BIT_ABS_COL;
         }
     }
 
     /// Is an absolute reference
     pub fn row_abs(&self) -> bool {
-        self.cref & cref::BIT_ABS_ROW == cref::BIT_ABS_ROW
+        self.cref & CRef::BIT_ABS_ROW == CRef::BIT_ABS_ROW
     }
 
     /// Sets to an absolute reference
     pub fn set_row_abs(&mut self, abs: bool) {
         if abs {
-            self.cref |= cref::BIT_ABS_ROW;
+            self.cref |= CRef::BIT_ABS_ROW;
         } else {
-            self.cref &= !cref::BIT_ABS_ROW;
+            self.cref &= !CRef::BIT_ABS_ROW;
         }
     }
 
     /// Return the column.
     pub fn col(&self) -> u32 {
-        (self.cref & cref::MASK_COL) >> cref::SHIFT_COL
+        (self.cref & CRef::MASK_COL) >> CRef::SHIFT_COL
     }
 
     /// Sets the column.
@@ -131,12 +131,12 @@ impl cref {
     /// Panics if the column >= 1024.
     pub fn set_col(&mut self, col: u32) {
         assert!(col < 1024);
-        self.cref = (self.cref & !cref::MASK_COL) | (col << cref::SHIFT_COL);
+        self.cref = (self.cref & !CRef::MASK_COL) | (col << CRef::SHIFT_COL);
     }
 
     /// Return the row
     pub fn row(&self) -> u32 {
-        self.cref & cref::MASK_ROW
+        self.cref & CRef::MASK_ROW
     }
 
     /// Sets the row.
@@ -146,19 +146,19 @@ impl cref {
     /// Panics if the row >= 1048576.
     pub fn set_row(&mut self, row: u32) {
         assert!(row < 1048576);
-        self.cref = (self.cref & !cref::MASK_ROW) | row;
+        self.cref = (self.cref & !CRef::MASK_ROW) | row;
     }
 }
 
 /// A cell can span multiple rows/columns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
-pub struct cspan {
+pub struct CSpan {
     row_span: u32,
     col_span: u32,
 }
 
-impl cspan {
+impl CSpan {
     /// (1,1) span
     pub fn new() -> Self {
         Self {
@@ -188,7 +188,7 @@ impl cspan {
     }
 }
 
-impl Default for cspan {
+impl Default for CSpan {
     fn default() -> Self {
         Self {
             row_span: 1,
@@ -197,21 +197,21 @@ impl Default for cspan {
     }
 }
 
-impl From<cspan> for (u32, u32) {
-    fn from(span: cspan) -> Self {
+impl From<CSpan> for (u32, u32) {
+    fn from(span: CSpan) -> Self {
         (span.row_span, span.col_span)
     }
 }
 
-impl From<&cspan> for (u32, u32) {
-    fn from(span: &cspan) -> Self {
+impl From<&CSpan> for (u32, u32) {
+    fn from(span: &CSpan) -> Self {
         (span.row_span, span.col_span)
     }
 }
 
-impl From<(u32, u32)> for cspan {
+impl From<(u32, u32)> for CSpan {
     fn from(v: (u32, u32)) -> Self {
-        cspan {
+        CSpan {
             row_span: v.0,
             col_span: v.1,
         }
@@ -220,28 +220,28 @@ impl From<(u32, u32)> for cspan {
 
 #[cfg(test)]
 mod tests {
-    use crate::cref;
+    use crate::CRef;
 
     #[test]
     fn test_cref() {
         assert_eq!(
-            format!("{:?}", cref::new(7, 7)),
+            format!("{:?}", CRef::new(7, 7)),
             "cref: 7340039 00000000011100000000000000000111 (false 7, false 7)"
         );
         assert_eq!(
-            format!("{:?}", cref::new_abs(true, 7, true, 7)),
+            format!("{:?}", CRef::new_abs(true, 7, true, 7)),
             "cref: 3228565511 11000000011100000000000000000111 (true 7, true 7)"
         );
         assert_eq!(
-            format!("{:?}", cref::new_abs(false, 7, true, 7)),
+            format!("{:?}", CRef::new_abs(false, 7, true, 7)),
             "cref: 2154823687 10000000011100000000000000000111 (false 7, true 7)"
         );
         assert_eq!(
-            format!("{:?}", cref::new_abs(true, 7, false, 7)),
+            format!("{:?}", CRef::new_abs(true, 7, false, 7)),
             "cref: 1081081863 01000000011100000000000000000111 (true 7, false 7)"
         );
 
-        let mut c = cref::new(0, 0);
+        let mut c = CRef::new(0, 0);
         assert_eq!(c.row_abs(), false);
         assert_eq!(c.col_abs(), false);
         assert_eq!(c.row(), 0);

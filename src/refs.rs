@@ -7,7 +7,7 @@ use std::fmt::{Display, Formatter};
 
 use crate::parse::{parse_cellrange, parse_cellref, Span};
 use crate::str::{push_cellrange, push_cellref, push_colrange, push_rowrange};
-use crate::{cref, OFError};
+use crate::{CRef, OFError};
 
 /// There is a plethora of ways to reference cells,
 /// and not all of them are always applicable.
@@ -75,7 +75,7 @@ pub struct CellRef {
     /// Table to reference.
     pub table: Option<String>,
     /// Cell.
-    pub cell: cref,
+    pub cell: CRef,
 }
 
 impl Display for CellRef {
@@ -102,7 +102,7 @@ impl CellRef {
         Self {
             iri: None,
             table: None,
-            cell: cref::new(0, 0),
+            cell: CRef::new(0, 0),
         }
     }
 
@@ -111,7 +111,7 @@ impl CellRef {
         Self {
             iri: None,
             table: None,
-            cell: cref::new(row, col),
+            cell: CRef::new(row, col),
         }
     }
 
@@ -120,7 +120,7 @@ impl CellRef {
         Self {
             iri: None,
             table: Some(table.into()),
-            cell: cref::new(row, col),
+            cell: CRef::new(row, col),
         }
     }
 
@@ -232,11 +232,11 @@ pub struct CellRange {
     /// First table for the range.
     pub table: Option<String>,
     /// From
-    pub from: cref,
+    pub from: CRef,
     /// Second table for the range. Can be empty if only one table is involved.
     pub to_table: Option<String>,
     /// To
-    pub to: cref,
+    pub to: CRef,
 }
 
 impl Display for CellRange {
@@ -267,9 +267,9 @@ impl CellRange {
         Self {
             iri: None,
             table: None,
-            from: cref::new(row, col),
+            from: CRef::new(row, col),
             to_table: None,
-            to: cref::new(to_row, to_col),
+            to: CRef::new(to_row, to_col),
         }
     }
 
@@ -280,9 +280,9 @@ impl CellRange {
         Self {
             iri: None,
             table: Some(table.into()),
-            from: cref::new(row, col),
+            from: CRef::new(row, col),
             to_table: None,
-            to: cref::new(to_row, to_col),
+            to: CRef::new(to_row, to_col),
         }
     }
 
@@ -300,9 +300,9 @@ impl CellRange {
         Self {
             iri: None,
             table: Some(table.into()),
-            from: cref::new(row, col),
+            from: CRef::new(row, col),
             to_table: Some(to_table.into()),
-            to: cref::new(to_row, to_col),
+            to: CRef::new(to_row, to_col),
         }
     }
 
@@ -314,9 +314,9 @@ impl CellRange {
         Self {
             iri: None,
             table: None,
-            from: cref::new(row, col),
+            from: CRef::new(row, col),
             to_table: None,
-            to: cref::new(row + span.0 - 1, col + span.1 - 1),
+            to: CRef::new(row + span.0 - 1, col + span.1 - 1),
         }
     }
 
@@ -496,11 +496,11 @@ pub struct ColRange {
     /// Refers to another table.
     pub table: Option<String>,
     /// cref, but only the column is set. any row is ignored.
-    pub col: cref,
+    pub col: CRef,
     /// Second table for the range. Can be empty if only one table is involved.
     pub to_table: Option<String>,
     /// cref, but only the column is set. any row is ignored.
-    pub to_col: cref,
+    pub to_col: CRef,
 }
 
 impl Display for ColRange {
@@ -519,9 +519,9 @@ impl ColRange {
         Self {
             iri: None,
             table: None,
-            col: cref::new(0, col),
+            col: CRef::new(0, col),
             to_table: None,
-            to_col: cref::new(0, to_col),
+            to_col: CRef::new(0, to_col),
         }
     }
 
@@ -626,12 +626,12 @@ pub struct RowRange {
     /// Reference to another table.
     pub table: Option<String>,
     /// Row as cref, but only the row is used.
-    pub row: cref,
+    pub row: CRef,
     /// Reference to a second table. Only needed if it's different than the
     /// first one.
     pub to_table: Option<String>,
     /// To row as cref, but only the row is used.
-    pub to_row: cref,
+    pub to_row: CRef,
 }
 
 impl Display for RowRange {
@@ -651,9 +651,9 @@ impl RowRange {
         Self {
             iri: None,
             table: None,
-            row: cref::new(row, 0),
+            row: CRef::new(row, 0),
             to_table: None,
-            to_row: cref::new(to_row, 0),
+            to_row: CRef::new(to_row, 0),
         }
     }
 

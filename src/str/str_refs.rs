@@ -1,5 +1,5 @@
-use crate::cref;
 use crate::refs::{CellRange, CellRef, ColRange, RowRange};
+use crate::CRef;
 
 /// Appends the range reference
 pub(crate) fn push_cellrange(buf: &mut String, cellrange: &CellRange) {
@@ -131,7 +131,7 @@ pub(crate) fn push_tablename(buf: &mut String, table: &str, abs: bool) {
     }
 }
 
-pub(crate) fn push_cref(buf: &mut String, r: cref) {
+pub(crate) fn push_cref(buf: &mut String, r: CRef) {
     if r.col_abs() {
         buf.push('$');
     }
