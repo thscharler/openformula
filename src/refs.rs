@@ -4,6 +4,7 @@
 
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter};
+use std::mem::swap;
 
 use crate::parse::{parse_cellrange, parse_cellref, Span};
 use crate::str::{push_cellrange, push_cellref, push_colrange, push_rowrange};
@@ -261,9 +262,15 @@ impl CellRange {
     }
 
     /// Creates the cell range from from + to data.
-    pub fn local(row: u32, col: u32, to_row: u32, to_col: u32) -> Self {
-        assert!(row <= to_row);
-        assert!(col <= to_col);
+    pub fn local(mut row: u32, mut col: u32, mut to_row: u32, mut to_col: u32) -> Self {
+        debug_assert!(row <= to_row);
+        debug_assert!(col <= to_col);
+        if row > to_row {
+            swap(&mut row, &mut to_row);
+        }
+        if col > to_col {
+            swap(&mut col, &mut to_col);
+        }
         Self {
             iri: None,
             table: None,
@@ -274,9 +281,21 @@ impl CellRange {
     }
 
     /// Creates the cell range from from + to data.
-    pub fn remote<S: Into<String>>(table: S, row: u32, col: u32, to_row: u32, to_col: u32) -> Self {
-        assert!(row <= to_row);
-        assert!(col <= to_col);
+    pub fn remote<S: Into<String>>(
+        table: S,
+        mut row: u32,
+        mut col: u32,
+        mut to_row: u32,
+        mut to_col: u32,
+    ) -> Self {
+        debug_assert!(row <= to_row);
+        debug_assert!(col <= to_col);
+        if row > to_row {
+            swap(&mut row, &mut to_row);
+        }
+        if col > to_col {
+            swap(&mut col, &mut to_col);
+        }
         Self {
             iri: None,
             table: Some(table.into()),
@@ -289,14 +308,20 @@ impl CellRange {
     /// Creates a cell cuboid spanning multiple tables.
     pub fn cuboid<S: Into<String>>(
         table: S,
-        row: u32,
-        col: u32,
+        mut row: u32,
+        mut col: u32,
         to_table: S,
-        to_row: u32,
-        to_col: u32,
+        mut to_row: u32,
+        mut to_col: u32,
     ) -> Self {
-        assert!(row <= to_row);
-        assert!(col <= to_col);
+        debug_assert!(row <= to_row);
+        debug_assert!(col <= to_col);
+        if row > to_row {
+            swap(&mut row, &mut to_row);
+        }
+        if col > to_col {
+            swap(&mut col, &mut to_col);
+        }
         Self {
             iri: None,
             table: Some(table.into()),
@@ -308,9 +333,15 @@ impl CellRange {
 
     /// Creates the cell range from origin + spanning data.
     pub fn origin_span<SP: Into<(u32, u32)>>(row: u32, col: u32, span: SP) -> Self {
-        let span = span.into();
-        assert!(span.0 > 0);
-        assert!(span.1 > 0);
+        let mut span = span.into();
+        debug_assert!(span.0 > 0);
+        debug_assert!(span.1 > 0);
+        if span.0 == 0 {
+            span.0 = 1;
+        }
+        if span.1 == 0 {
+            span.1 = 1;
+        }
         Self {
             iri: None,
             table: None,
@@ -514,8 +545,11 @@ impl Display for ColRange {
 
 impl ColRange {
     /// Range
-    pub fn new(col: u32, to_col: u32) -> Self {
-        assert!(col <= to_col);
+    pub fn new(mut col: u32, mut to_col: u32) -> Self {
+        debug_assert!(col <= to_col);
+        if col > to_col {
+            swap(&mut col, &mut to_col);
+        }
         Self {
             iri: None,
             table: None,
@@ -646,8 +680,11 @@ impl Display for RowRange {
 
 impl RowRange {
     /// Range
-    pub fn new(row: u32, to_row: u32) -> Self {
-        assert!(row <= to_row);
+    pub fn new(mut row: u32, mut to_row: u32) -> Self {
+        debug_assert!(row <= to_row);
+        if row > to_row {
+            swap(&mut row, &mut to_row);
+        }
         Self {
             iri: None,
             table: None,

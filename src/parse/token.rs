@@ -3,9 +3,9 @@
 //!
 
 /// All known tokens.
+#[allow(missing_docs)]
 #[non_exhaustive]
 #[derive(Debug, PartialEq)]
-#[allow(missing_docs)]
 pub enum Token<I> {
     ErrRef(I),
     CellRef(I, CellRefToken<I>),

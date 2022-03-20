@@ -400,6 +400,7 @@ where
     Ok((i, (abs, col)))
 }
 
+#[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
 

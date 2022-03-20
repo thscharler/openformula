@@ -4,7 +4,6 @@
 
 #![warn(absolute_paths_not_starting_with_crate)]
 // NO #![warn(box_pointers)]
-#![warn(disjoint_capture_drop_reorder)]
 #![warn(elided_lifetimes_in_paths)]
 #![warn(explicit_outlives_requirements)]
 #![warn(keyword_idents)]

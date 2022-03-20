@@ -62,7 +62,9 @@ where
     let mut row = 0u32;
 
     for c in i.iter_elements() {
-        assert!(('0'..='9').contains(&c));
+        if ('0'..='9').contains(&c) {
+            return Err(OFError::Parse(format!("{:?}", i)));
+        }
         let d = c as u32 - b'0' as u32;
         row = row * 10 + d;
     }
@@ -78,7 +80,9 @@ where
     let mut col = 0u32;
 
     for c in i.iter_elements() {
-        assert!(('A'..='Z').contains(&c));
+        if ('A'..='Z').contains(&c) {
+            return Err(OFError::Parse(format!("{:?}", i)));
+        }
 
         let mut v = c as u32 - b'A' as u32;
         if v == 25 {

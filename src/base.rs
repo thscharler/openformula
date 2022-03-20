@@ -54,33 +54,37 @@ impl From<(u32, u32)> for CRef {
 
 #[allow(clippy::unusual_byte_groupings)]
 impl CRef {
-    const BIT_ABS_ROW: u32 = 0b0100_0000__0000_0000__0000_0000__0000_0000;
-    const BIT_ABS_COL: u32 = 0b1000_0000__0000_0000__0000_0000__0000_0000;
+    const BIT_ABS_ROW: u32 = 0b_0100_0000_0000_0000__0000_0000_0000_0000;
+    const BIT_ABS_COL: u32 = 0b_1000_0000_0000_0000__0000_0000_0000_0000;
 
-    const MASK_ROW: u32 = 0b0000_0000__0000_1111__1111_1111__1111_1111;
-    const MASK_COL: u32 = 0b0011_1111__1111_0000__0000_0000__0000_0000;
+    const MASK_ROW: u32 = 0b_0000_0000_0000_1111__1111_1111_1111_1111;
+    const MASK_COL: u32 = 0b_0011_1111_1111_0000__0000_0000_0000_0000;
+
     const SHIFT_COL: u32 = 20;
+
+    const CLEAN_ROW: u32 = 0b_0000_0000_0000_1111__1111_1111_1111_1111;
+    const CLEAN_COL: u32 = 0b_0000_0000_0000_0000__0000_0011_1111_1111;
 
     /// New cref with relative indexes.
     pub fn new(row: u32, col: u32) -> Self {
-        assert!(col < 1024);
-        assert!(row < 1048576);
+        debug_assert!(col < 1024);
+        debug_assert!(row < 1048576);
 
         Self {
-            cref: row | col << CRef::SHIFT_COL,
+            cref: (row & CRef::CLEAN_ROW) | (col & CRef::CLEAN_COL) << CRef::SHIFT_COL,
         }
     }
 
     /// New cref.
     pub fn new_abs(abs_row: bool, row: u32, abs_col: bool, col: u32) -> Self {
-        assert!(col < 1024);
-        assert!(row < 1048576);
+        debug_assert!(col < 1024);
+        debug_assert!(row < 1048576);
 
         Self {
             cref: if abs_row { CRef::BIT_ABS_ROW } else { 0 }
-                | row
+                | (row & CRef::CLEAN_ROW)
                 | if abs_col { CRef::BIT_ABS_COL } else { 0 }
-                | col << CRef::SHIFT_COL,
+                | (col & CRef::CLEAN_COL) << CRef::SHIFT_COL,
         }
     }
 
@@ -130,8 +134,8 @@ impl CRef {
     ///
     /// Panics if the column >= 1024.
     pub fn set_col(&mut self, col: u32) {
-        assert!(col < 1024);
-        self.cref = (self.cref & !CRef::MASK_COL) | (col << CRef::SHIFT_COL);
+        debug_assert!(col < 1024);
+        self.cref = (self.cref & !CRef::MASK_COL) | ((col & CRef::CLEAN_COL) << CRef::SHIFT_COL);
     }
 
     /// Return the row
@@ -145,8 +149,8 @@ impl CRef {
     ///
     /// Panics if the row >= 1048576.
     pub fn set_row(&mut self, row: u32) {
-        assert!(row < 1048576);
-        self.cref = (self.cref & !CRef::MASK_ROW) | row;
+        debug_assert!(row < 1048576);
+        self.cref = (self.cref & !CRef::MASK_ROW) | (row & CRef::CLEAN_ROW);
     }
 }
 
@@ -220,7 +224,14 @@ impl From<(u32, u32)> for CSpan {
 
 #[cfg(test)]
 mod tests {
-    use crate::CRef;
+    use crate::{CRef, CSpan};
+    use std::mem::size_of;
+
+    #[test]
+    fn sizes_cref() {
+        dbg!(size_of::<CRef>());
+        dbg!(size_of::<CSpan>());
+    }
 
     #[test]
     fn test_cref() {
