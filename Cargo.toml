@@ -6,9 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nom = "6.2"
-nom_locate = "3.0.1"
 time = "0.1"
+
+[dependencies.nom]
+version = "7.1.1"
+features = [ "alloc" ]
+
+[dependencies.nom_locate]
+version = "4.0.0"
 
 [dependencies.chrono]
 version = "0.4"

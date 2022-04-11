@@ -80,7 +80,7 @@ where
     let mut col = 0u32;
 
     for c in i.iter_elements() {
-        if ('A'..='Z').contains(&c) {
+        if !('A'..='Z').contains(&c) {
             return Err(OFError::Parse(format!("{:?}", i)));
         }
 
