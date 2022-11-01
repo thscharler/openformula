@@ -119,7 +119,6 @@ pub enum ParseExprError<'s, 't> {
 
     Number(&'t Tracer<'s>),
     String(&'t Tracer<'s>),
-
     Parenthesis(&'t Tracer<'s>),
 
     Elementary(&'t Tracer<'s>),
@@ -134,12 +133,7 @@ pub fn number<'s, 't>(
     match tokens::number(i) {
         Ok((rest, tok)) => match (*tok).parse::<f64>() {
             Ok(val) => Ok(trace.ok(rest, Box::new(ParseTree::Number(OFNumber(val, tok))))),
-            Err(_) => {
-                // TODO: original error is lost.
-                let err =
-                    nom::Err::Error(nom::error::Error::new(tok, nom::error::ErrorKind::Float));
-                Err(ParseExprError::Number(trace.err(err)))
-            }
+            Err(e) => Err(ParseExprError::Number(trace.dyn_err(Box::new(e)))),
         },
         Err(e) => Err(ParseExprError::Number(trace.err(e))),
     }
@@ -386,6 +380,7 @@ mod tracer {
     use crate::parse2::parse_expr::Span;
     use nom::Err;
     use std::cell::RefCell;
+    use std::error::Error;
     use std::fmt::{Debug, Formatter};
 
     /// Follows the parsing.
@@ -418,6 +413,11 @@ mod tracer {
                         indent.pop();
                         indent.pop();
                     }
+                    Track::ErrorDyn(_, _) => {
+                        writeln!(f, "{}{:?}", indent, tr)?;
+                        indent.pop();
+                        indent.pop();
+                    }
                 }
             }
             Ok(())
@@ -446,13 +446,24 @@ mod tracer {
             (rest, val)
         }
 
-        /// Erring in a parser. Assumes the error type contains a clone of this Tracer which is returned.
+        /// Erring in a parser. Accepts only nom errors.
+        ///
+        /// Returns to reference to this trace to be used in the final error type.
         pub fn err<'a>(
             &'a self,
             err: nom::Err<nom::error::Error<Span<'span>>>,
         ) -> &'a Tracer<'span> {
             let func = self.func.borrow_mut().pop().unwrap();
             self.tracks.borrow_mut().push(Track::Error(func, err));
+            self
+        }
+
+        /// Erring in a parser. Accepts boxed dyn errors for the rest.
+        ///
+        /// Returns to reference to this trace to be used in the final error type.
+        pub fn dyn_err<'a>(&'a self, err: Box<dyn Error>) -> &'a Tracer<'span> {
+            let func = self.func.borrow_mut().pop().unwrap();
+            self.tracks.borrow_mut().push(Track::ErrorDyn(func, err));
             self
         }
     }
@@ -463,8 +474,10 @@ mod tracer {
         Track(&'static str, Span<'span>),
         /// Function where this occurred and the remaining span.
         Ok(&'static str, Span<'span>),
-        /// Function where this occurred and some resulting error.
+        /// Function where this occurred and some error.
         Error(&'static str, nom::Err<nom::error::Error<Span<'span>>>),
+        /// Function where this occurred and some error.
+        ErrorDyn(&'static str, Box<dyn Error>),
     }
 
     impl<'span> Debug for Track<'span> {
@@ -479,27 +492,11 @@ mod tracer {
                 Track::Ok(func, rest) => {
                     write!(f, "{}: exit '{}'", func, rest)?;
                 }
+                Track::ErrorDyn(func, err) => {
+                    write!(f, "{}: error2 {}", func, err)?;
+                }
             }
             Ok(())
-        }
-    }
-
-    impl<'span> Clone for Track<'span> {
-        fn clone(&self) -> Self {
-            match self {
-                Track::Track(func, input) => Self::Track(func, *input),
-                Track::Error(func, err) => Self::Error(
-                    func,
-                    match err {
-                        Err::Incomplete(e) => nom::Err::Incomplete(*e),
-                        Err::Error(e) => nom::Err::Error(nom::error::Error::new(e.input, e.code)),
-                        Err::Failure(e) => {
-                            nom::Err::Failure(nom::error::Error::new(e.input, e.code))
-                        }
-                    },
-                ),
-                Track::Ok(func, rest) => Self::Ok(func, *rest),
-            }
         }
     }
 }
