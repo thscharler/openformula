@@ -6,7 +6,7 @@ use std::mem;
 pub use tracer::*;
 
 pub type Span<'a> = LocatedSpan<&'a str>;
-pub type ParseResult<'a, 'b, O> = Result<(Span<'a>, O), ParseExprError<'b>>;
+pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseExprError<'s, 't>>;
 
 #[derive(Debug)]
 pub enum ParseTree<'a> {
@@ -57,22 +57,22 @@ impl<'a> PartialEq for PostfixToken<'a> {
 }
 
 #[derive(Debug)]
-pub enum ParseExprError<'span> {
-    NomError(&'span Tracer<'span>),
-    NomFailure(&'span Tracer<'span>),
+pub enum ParseExprError<'s, 't> {
+    NomError(&'t Tracer<'s>),
+    NomFailure(&'t Tracer<'s>),
 
-    Number(&'span Tracer<'span>),
-    String(&'span Tracer<'span>),
+    Number(&'t Tracer<'s>),
+    String(&'t Tracer<'s>),
 
-    Parenthesis(&'span Tracer<'span>),
+    Parenthesis(&'t Tracer<'s>),
 
-    Elementary(&'span Tracer<'span>),
+    Elementary(&'t Tracer<'s>),
 }
 
-pub fn opt_number<'a, 'b>(
-    trace: &'b Tracer<'b>,
-    i: Span<'a>,
-) -> ParseResult<'a, 'b, Option<OFNumber<'a>>> {
+pub fn opt_number<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Option<OFNumber<'s>>> {
     trace.enter("opt_number", i);
 
     match opt(tokens::number)(i) {
@@ -85,7 +85,10 @@ pub fn opt_number<'a, 'b>(
     }
 }
 
-pub fn opt_string<'a>(trace: &'a Tracer<'a>, i: Span<'a>) -> ParseResult<'a, Option<OFString<'a>>> {
+pub fn opt_string<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Option<OFString<'s>>> {
     trace.enter("opt_string", i);
 
     match opt(tokens::string)(i) {
@@ -95,10 +98,10 @@ pub fn opt_string<'a>(trace: &'a Tracer<'a>, i: Span<'a>) -> ParseResult<'a, Opt
     }
 }
 
-pub fn opt_expr_parentheses<'a>(
-    trace: &'a Tracer<'a>,
-    i: Span<'a>,
-) -> ParseResult<'a, Option<Box<ParseTree<'a>>>> {
+pub fn opt_expr_parentheses<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Option<Box<ParseTree<'s>>>> {
     trace.enter("opt_expr_parentheses", i);
 
     match tokens::parenthesis_open(i) {
@@ -115,7 +118,10 @@ pub fn opt_expr_parentheses<'a>(
     }
 }
 
-pub fn parse_expr<'a>(trace: &'a Tracer<'a>, i: Span<'a>) -> ParseResult<'a, Box<ParseTree<'a>>> {
+pub fn parse_expr<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Box<ParseTree<'s>>> {
     trace.enter("parse_expression", i);
 
     match parse_infix_expr(&trace, i) {
@@ -124,10 +130,10 @@ pub fn parse_expr<'a>(trace: &'a Tracer<'a>, i: Span<'a>) -> ParseResult<'a, Box
     }
 }
 
-pub fn parse_infix_expr<'a>(
-    trace: &'a Tracer<'a>,
-    i: Span<'a>,
-) -> ParseResult<'a, Box<ParseTree<'a>>> {
+pub fn parse_infix_expr<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Box<ParseTree<'s>>> {
     trace.enter("parse_infix", i);
 
     match parse_postfix_expr(&trace, i) {
@@ -154,10 +160,10 @@ pub fn parse_infix_expr<'a>(
     }
 }
 
-pub fn parse_postfix_expr<'a>(
-    trace: &'a Tracer<'a>,
-    i0: Span<'a>,
-) -> ParseResult<'a, Box<ParseTree<'a>>> {
+pub fn parse_postfix_expr<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i0: Span<'s>,
+) -> ParseResult<'s, 't, Box<ParseTree<'s>>> {
     trace.enter("parse_postfix", i0);
 
     match parse_prefix(&trace, i0) {
@@ -179,7 +185,10 @@ pub fn parse_postfix_expr<'a>(
     }
 }
 
-pub fn parse_prefix<'a>(trace: &'a Tracer<'a>, i: Span<'a>) -> ParseResult<'a, Box<ParseTree<'a>>> {
+pub fn parse_prefix<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Box<ParseTree<'s>>> {
     trace.enter("parse_prefix", i);
 
     match tokens::prefix_op_mapped(i) {
@@ -199,10 +208,10 @@ pub fn parse_prefix<'a>(trace: &'a Tracer<'a>, i: Span<'a>) -> ParseResult<'a, B
 
 // Number |
 // '(' Expression ')' |
-pub fn parse_elementary<'a, 'b>(
-    trace: &'b Tracer<'b>,
-    i: Span<'a>,
-) -> ParseResult<'a, Box<ParseTree<'a>>> {
+pub fn parse_elementary<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Box<ParseTree<'s>>> {
     trace.enter("parse_elementary", i);
 
     match opt_number(&trace, i) {
@@ -249,12 +258,13 @@ pub fn parse_elementary<'a, 'b>(
 }
 
 mod tests {
-    use crate::parse2::parse_expr::{parse_elementary, ParseResult, ParseTree, Span, Tracer};
-    use nom_locate::LocatedSpan;
+    use crate::parse2::parse_expr::{
+        opt_number, parse_elementary, ParseResult, ParseTree, Span, Tracer,
+    };
 
-    fn run_test<'b>(
-        str: &'b str,
-        testfn: for<'a> fn(&'a Tracer<'a>, Span<'b>) -> ParseResult<'a, Box<ParseTree<'b>>>,
+    fn run_test<'x, T>(
+        str: &'x str,
+        testfn: for<'s, 't> fn(&'t Tracer<'s>, Span<'s>) -> ParseResult<'s, 't, Box<ParseTree<'s>>>,
     ) {
         let tracer = Tracer::new();
         {
@@ -283,40 +293,16 @@ mod tests {
 
     #[test]
     fn test_number() {
-        // let test_ok = ["25", "25e+5", "25.", "25.001", "25.003e-7"];
-        //
-        // for e in test_ok {
-        //     println!("{}", e);
-        //     let mut tracer = Tracer::new();
-        //     match opt_number(&mut tracer, Span::new(e)) {
-        //         Ok((_i, expr)) => {
-        //             println!("{:#?}", expr);
-        //         }
-        //         Err(e) => {
-        //             println!("{:#?}", e);
-        //         }
-        //     };
-        // }
+        let test_ok = ["25", "25e+5", "25.", "25.001", "25.003e-7"];
 
-        // let test_err = ["invalid", "2x5", "25ex+5", "25.x", "25.x001", "25x.003e-7"];
-        //
-        // for e in test_err {
-        //     println!("{}", e);
-        //     let tracer = Tracer::new();
-        //
-        //     dbg!(opt_number(&tracer, Span::new(e)).unwrap());
-        //
-        //     dbg!(&tracer);
-        //
-        //     // match opt_number(&mut tracer, Span::new(e)) {
-        //     //     Ok((_i, expr)) => {
-        //     //         println!("{:#?}", expr);
-        //     //     }
-        //     //     Err(e) => {
-        //     //         println!("{:#?}", e);
-        //     //     }
-        //     // };
-        // }
+        for test in test_ok {
+            run_test(test, opt_number);
+        }
+
+        let test_err = ["invalid", "2x5", "25ex+5", "25.x", "25.x001", "25x.003e-7"];
+        for test in test_err {
+            run_test(test, opt_number);
+        }
     }
 }
 
