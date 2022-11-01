@@ -51,6 +51,15 @@ pub enum PrefixToken<'a> {
     Minus(Span<'a>),
 }
 
+impl<'a> PrefixToken<'a> {
+    pub fn span(&self) -> Span<'a> {
+        match self {
+            PrefixToken::Plus(span) => *span,
+            PrefixToken::Minus(span) => *span,
+        }
+    }
+}
+
 impl<'a> Display for PrefixToken<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -75,6 +84,18 @@ pub enum InfixToken<'a> {
     Power(Span<'a>),
 }
 
+impl<'a> InfixToken<'a> {
+    pub fn span(&self) -> Span<'a> {
+        match self {
+            InfixToken::Add(span) => *span,
+            InfixToken::Subtract(span) => *span,
+            InfixToken::Multiply(span) => *span,
+            InfixToken::Divide(span) => *span,
+            InfixToken::Power(span) => *span,
+        }
+    }
+}
+
 impl<'a> Display for InfixToken<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -96,6 +117,14 @@ impl<'a> PartialEq for InfixToken<'a> {
 #[derive(Debug)]
 pub enum PostfixToken<'a> {
     Percent(Span<'a>),
+}
+
+impl<'a> PostfixToken<'a> {
+    pub fn span(&self) -> Span<'a> {
+        match self {
+            PostfixToken::Percent(span) => *span,
+        }
+    }
 }
 
 impl<'a> Display for PostfixToken<'a> {
@@ -212,13 +241,16 @@ pub fn parse_infix_expr<'s, 't>(
     match parse_postfix_expr(&trace, i) {
         Ok((mut rest1, mut expr1)) => loop {
             match tokens::infix_op_mapped(rest1) {
-                Ok((rest2, Some(tok))) => match parse_postfix_expr(trace, rest2) {
-                    Ok((rest3, expr2)) => {
-                        rest1 = rest3;
-                        expr1 = Box::new(ParseTree::InfixOp(expr1, tok, expr2));
+                Ok((rest2, Some(tok))) => {
+                    trace.step("op", tok.span());
+                    match parse_postfix_expr(trace, rest2) {
+                        Ok((rest3, expr2)) => {
+                            rest1 = rest3;
+                            expr1 = Box::new(ParseTree::InfixOp(expr1, tok, expr2));
+                        }
+                        Err(e) => break Err(e),
                     }
-                    Err(e) => break Err(e),
-                },
+                }
                 Ok((rest2, None)) => {
                     break Ok(trace.ok(rest2, expr1));
                 }
@@ -243,6 +275,7 @@ pub fn parse_postfix_expr<'s, 't>(
         Ok((mut rest1, mut expr)) => loop {
             match tokens::postfix_op_mapped(rest1) {
                 Ok((rest2, Some(tok))) => {
+                    trace.step("op", tok.span());
                     rest1 = rest2;
                     expr = Box::new(ParseTree::PostfixOp(expr, tok));
                 }
@@ -265,10 +298,13 @@ pub fn parse_prefix<'s, 't>(
     trace.enter("parse_prefix", i);
 
     match tokens::prefix_op_mapped(i) {
-        Ok((rest1, Some(prefix))) => match parse_prefix(&trace, rest1) {
-            Ok((rest2, expr)) => Ok(trace.ok(rest2, Box::new(ParseTree::PrefixOp(prefix, expr)))),
-            Err(e) => Err(e),
-        },
+        Ok((rest1, Some(tok))) => {
+            trace.step("op", tok.span());
+            match parse_prefix(&trace, rest1) {
+                Ok((rest2, expr)) => Ok(trace.ok(rest2, Box::new(ParseTree::PrefixOp(tok, expr)))),
+                Err(e) => Err(e),
+            }
+        }
         Ok((rest1, None)) => match parse_elementary(&trace, rest1) {
             Ok((rest2, expr)) => Ok(trace.ok(rest2, expr)),
             Err(e) => Err(e),
@@ -331,7 +367,7 @@ pub fn parse_elementary<'s, 't>(
 
 mod tests {
     use crate::parse2::parse_expr::{
-        number, opt_number, parse_elementary, ParseResult, ParseTree, Span, Tracer,
+        number, parse_elementary, parse_expr, ParseResult, ParseTree, Span, Tracer,
     };
 
     fn run_test<'x>(
@@ -356,7 +392,15 @@ mod tests {
 
     #[test]
     fn test_expr() {
-        let tests = ["471", r#""strdata""#, "1+1"];
+        let tests = ["471", r#""strdata""#, "1+1", "(1+1)"];
+        for test in tests {
+            run_test(test, parse_expr);
+        }
+    }
+
+    #[test]
+    fn test_elementary() {
+        let tests = ["471", r#""strdata""#, "1+1", "(1+1)"];
         for test in tests {
             run_test(test, parse_elementary);
         }
@@ -378,7 +422,6 @@ mod tests {
 
 mod tracer {
     use crate::parse2::parse_expr::Span;
-    use nom::Err;
     use std::cell::RefCell;
     use std::error::Error;
     use std::fmt::{Debug, Formatter};
@@ -399,8 +442,11 @@ mod tracer {
             let mut indent = String::new();
             for tr in tracks.iter() {
                 match tr {
-                    Track::Track(_, _) => {
+                    Track::Enter(_, _) => {
                         indent.push_str("  ");
+                        writeln!(f, "{}{:?}", indent, tr)?;
+                    }
+                    Track::Step(_, _, _) => {
                         writeln!(f, "{}{:?}", indent, tr)?;
                     }
                     Track::Ok(_, _) => {
@@ -436,10 +482,24 @@ mod tracer {
         /// Entering a parser.
         pub fn enter(&self, func: &'static str, span: Span<'span>) {
             self.func.borrow_mut().push(func);
-            self.tracks.borrow_mut().push(Track::Track(func, span));
+            self.tracks.borrow_mut().push(Track::Enter(func, span));
+        }
+
+        /// Extra step.
+        ///
+        /// Panic
+        ///
+        /// Panics if there was no call to enter() before.
+        pub fn step(&self, step: &'static str, span: Span<'span>) {
+            let func = *self.func.borrow().last().unwrap();
+            self.tracks.borrow_mut().push(Track::Step(func, step, span));
         }
 
         /// Ok in a parser.
+        ///
+        /// Panic
+        ///
+        /// Panics if there was no call to enter() before.
         pub fn ok<T>(&self, rest: Span<'span>, val: T) -> (Span<'span>, T) {
             let func = self.func.borrow_mut().pop().unwrap();
             self.tracks.borrow_mut().push(Track::Ok(func, rest));
@@ -449,6 +509,10 @@ mod tracer {
         /// Erring in a parser. Accepts only nom errors.
         ///
         /// Returns to reference to this trace to be used in the final error type.
+        ///
+        /// Panic
+        ///
+        /// Panics if there was no call to enter() before.
         pub fn err<'a>(
             &'a self,
             err: nom::Err<nom::error::Error<Span<'span>>>,
@@ -461,6 +525,10 @@ mod tracer {
         /// Erring in a parser. Accepts boxed dyn errors for the rest.
         ///
         /// Returns to reference to this trace to be used in the final error type.
+        ///
+        /// Panic
+        ///
+        /// Panics if there was no call to enter() before.
         pub fn dyn_err<'a>(&'a self, err: Box<dyn Error>) -> &'a Tracer<'span> {
             let func = self.func.borrow_mut().pop().unwrap();
             self.tracks.borrow_mut().push(Track::ErrorDyn(func, err));
@@ -471,7 +539,9 @@ mod tracer {
     /// One track of the parsing trace.
     pub enum Track<'span> {
         /// Function where this occurred and the input span.
-        Track(&'static str, Span<'span>),
+        Enter(&'static str, Span<'span>),
+        /// Function with an extra step.
+        Step(&'static str, &'static str, Span<'span>),
         /// Function where this occurred and the remaining span.
         Ok(&'static str, Span<'span>),
         /// Function where this occurred and some error.
@@ -483,14 +553,17 @@ mod tracer {
     impl<'span> Debug for Track<'span> {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
             match self {
-                Track::Track(func, input) => {
+                Track::Enter(func, input) => {
                     write!(f, "{}: enter '{}'", func, input)?;
                 }
-                Track::Error(func, err) => {
-                    write!(f, "{}: error {}", func, err)?;
+                Track::Step(func, step, input) => {
+                    write!(f, "{}: {} '{}'", func, step, input)?;
                 }
                 Track::Ok(func, rest) => {
                     write!(f, "{}: exit '{}'", func, rest)?;
+                }
+                Track::Error(func, err) => {
+                    write!(f, "{}: error {}", func, err)?;
                 }
                 Track::ErrorDyn(func, err) => {
                     write!(f, "{}: error2 {}", func, err)?;
