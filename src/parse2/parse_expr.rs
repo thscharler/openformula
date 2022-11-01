@@ -125,6 +125,26 @@ pub enum ParseExprError<'s, 't> {
     Elementary(&'t Tracer<'s>),
 }
 
+pub fn number<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Box<ParseTree<'s>>> {
+    trace.enter("opt_number", i);
+
+    match tokens::number(i) {
+        Ok((rest, tok)) => match (*tok).parse::<f64>() {
+            Ok(val) => Ok(trace.ok(rest, Box::new(ParseTree::Number(OFNumber(val, tok))))),
+            Err(_) => {
+                // TODO: original error is lost.
+                let err =
+                    nom::Err::Error(nom::error::Error::new(tok, nom::error::ErrorKind::Float));
+                Err(ParseExprError::Number(trace.err(err)))
+            }
+        },
+        Err(e) => Err(ParseExprError::Number(trace.err(e))),
+    }
+}
+
 pub fn opt_number<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
@@ -317,7 +337,7 @@ pub fn parse_elementary<'s, 't>(
 
 mod tests {
     use crate::parse2::parse_expr::{
-        opt_number, parse_elementary, ParseResult, ParseTree, Span, Tracer,
+        number, opt_number, parse_elementary, ParseResult, ParseTree, Span, Tracer,
     };
 
     fn run_test<'x>(
@@ -352,12 +372,12 @@ mod tests {
     fn test_number() {
         let test_ok = ["25", "25e+5", "25.", "25.001", "25.003e-7"];
         for test in test_ok {
-            run_test(test, opt_number);
+            run_test(test, number);
         }
 
         let test_err = ["invalid", "2x5", "25ex+5", "25.x", "25.x001", "25x.003e-7"];
         for test in test_err {
-            run_test(test, opt_number);
+            run_test(test, number);
         }
     }
 }
