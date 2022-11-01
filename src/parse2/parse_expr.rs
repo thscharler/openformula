@@ -1,7 +1,7 @@
 pub use coretypes::*;
 use nom::combinator::opt;
 use nom_locate::LocatedSpan;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter};
 use std::mem;
 pub use tracer::*;
 
@@ -10,6 +10,7 @@ pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseExprError<'s, 't>>;
 
 #[derive(Debug)]
 pub enum ParseTree<'a> {
+    Empty(),
     Number(OFNumber<'a>),
     String(OFString<'a>),
     Parenthesis(Box<ParseTree<'a>>),
@@ -18,10 +19,45 @@ pub enum ParseTree<'a> {
     PostfixOp(Box<ParseTree<'a>>, PostfixToken<'a>),
 }
 
+impl<'a> Display for ParseTree<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseTree::Empty() => Ok(()),
+            ParseTree::Number(v) => {
+                write!(f, "{}", v)
+            }
+            ParseTree::String(v) => {
+                write!(f, "{}", v)
+            }
+            ParseTree::Parenthesis(expr) => {
+                write!(f, "({})", expr)
+            }
+            ParseTree::PrefixOp(op, expr) => {
+                write!(f, "{}{}", op, expr)
+            }
+            ParseTree::InfixOp(expr1, op, expr2) => {
+                write!(f, "{} {} {}", expr1, op, expr2)
+            }
+            ParseTree::PostfixOp(expr, op) => {
+                write!(f, "{}{}", expr, op)
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum PrefixToken<'a> {
-    PrefixPlus(Span<'a>),
-    PrefixMinus(Span<'a>),
+    Plus(Span<'a>),
+    Minus(Span<'a>),
+}
+
+impl<'a> Display for PrefixToken<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PrefixToken::Plus(_) => write!(f, "+"),
+            PrefixToken::Minus(_) => write!(f, "-"),
+        }
+    }
 }
 
 impl<'a> PartialEq for PrefixToken<'a> {
@@ -32,11 +68,23 @@ impl<'a> PartialEq for PrefixToken<'a> {
 
 #[derive(Debug)]
 pub enum InfixToken<'a> {
-    InfixAdd(Span<'a>),
-    InfixSubtract(Span<'a>),
-    InfixMultiply(Span<'a>),
-    InfixDivide(Span<'a>),
-    InfixPower(Span<'a>),
+    Add(Span<'a>),
+    Subtract(Span<'a>),
+    Multiply(Span<'a>),
+    Divide(Span<'a>),
+    Power(Span<'a>),
+}
+
+impl<'a> Display for InfixToken<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InfixToken::Add(_) => write!(f, "+"),
+            InfixToken::Subtract(_) => write!(f, "-"),
+            InfixToken::Multiply(_) => write!(f, "*"),
+            InfixToken::Divide(_) => write!(f, "/"),
+            InfixToken::Power(_) => write!(f, "^"),
+        }
+    }
 }
 
 impl<'a> PartialEq for InfixToken<'a> {
@@ -47,7 +95,15 @@ impl<'a> PartialEq for InfixToken<'a> {
 
 #[derive(Debug)]
 pub enum PostfixToken<'a> {
-    PostfixPercent(Span<'a>),
+    Percent(Span<'a>),
+}
+
+impl<'a> Display for PostfixToken<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PostfixToken::Percent(_) => write!(f, "%"),
+        }
+    }
 }
 
 impl<'a> PartialEq for PostfixToken<'a> {
@@ -72,15 +128,15 @@ pub enum ParseExprError<'s, 't> {
 pub fn opt_number<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Option<OFNumber<'s>>> {
+) -> ParseResult<'s, 't, Box<ParseTree<'s>>> {
     trace.enter("opt_number", i);
 
     match opt(tokens::number)(i) {
         Ok((rest, Some(tok))) => match (*tok).parse::<f64>() {
-            Ok(val) => Ok(trace.ok(rest, Some(OFNumber(val, tok)))),
+            Ok(val) => Ok(trace.ok(rest, Box::new(ParseTree::Number(OFNumber(val, tok))))),
             Err(_) => unreachable!(),
         },
-        Ok((rest, None)) => Ok(trace.ok(rest, None)),
+        Ok((rest, None)) => Ok(trace.ok(rest, Box::new(ParseTree::Empty()))),
         Err(e) => Err(ParseExprError::Number(trace.err(e))),
     }
 }
@@ -88,12 +144,15 @@ pub fn opt_number<'s, 't>(
 pub fn opt_string<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Option<OFString<'s>>> {
+) -> ParseResult<'s, 't, Box<ParseTree<'s>>> {
     trace.enter("opt_string", i);
 
     match opt(tokens::string)(i) {
-        Ok((rest, Some(tok))) => Ok(trace.ok(rest, Some(OFString(tok.to_string(), tok)))),
-        Ok((rest, None)) => Ok(trace.ok(rest, None)),
+        Ok((rest, Some(tok))) => Ok(trace.ok(
+            rest,
+            Box::new(ParseTree::String(OFString(tok.to_string(), tok))),
+        )),
+        Ok((rest, None)) => Ok(trace.ok(rest, Box::new(ParseTree::Empty()))),
         Err(e) => Err(ParseExprError::String(trace.err(e))),
     }
 }
@@ -215,18 +274,24 @@ pub fn parse_elementary<'s, 't>(
     trace.enter("parse_elementary", i);
 
     match opt_number(&trace, i) {
-        Ok((rest, Some(tok))) => {
-            return Ok(trace.ok(rest, Box::new(ParseTree::Number(tok))));
+        Ok((rest, expr)) => {
+            match &*expr {
+                ParseTree::Empty() => { /* skip */ }
+                ParseTree::Number(_) => return Ok(trace.ok(rest, expr)),
+                _ => unreachable!(),
+            }
         }
-        Ok((_, None)) => { /* skip */ }
         Err(e) => return Err(e),
     }
 
     match opt_string(&trace, i) {
-        Ok((rest, Some(tok))) => {
-            return Ok(trace.ok(rest, Box::new(ParseTree::String(tok))));
+        Ok((rest, expr)) => {
+            match &*expr {
+                ParseTree::Empty() => { /* skip */ }
+                ParseTree::String(_) => return Ok(trace.ok(rest, expr)),
+                _ => unreachable!(),
+            }
         }
-        Ok((_, None)) => { /* skip */ }
         Err(e) => return Err(e),
     }
 
@@ -247,13 +312,6 @@ pub fn parse_elementary<'s, 't>(
         Err(e) => return Err(e),
     }
 
-    // match parse_expr(&trace, i) {
-    //     Ok((rest, tok)) => {
-    //         return Ok(trace.ok(rest, tok));
-    //     }
-    //     Err(e) => return Err(e),
-    // }
-
     Err(ParseExprError::Elementary(trace))
 }
 
@@ -262,7 +320,7 @@ mod tests {
         opt_number, parse_elementary, ParseResult, ParseTree, Span, Tracer,
     };
 
-    fn run_test<'x, T>(
+    fn run_test<'x>(
         str: &'x str,
         testfn: for<'s, 't> fn(&'t Tracer<'s>, Span<'s>) -> ParseResult<'s, 't, Box<ParseTree<'s>>>,
     ) {
@@ -272,14 +330,13 @@ mod tests {
             println!("{}", str);
             match testfn(&tracer, Span::new(str)) {
                 Ok((rest, tok)) => {
-                    dbg!(rest);
-                    dbg!(tok);
+                    println!("{} | {}", tok, rest);
                 }
                 Err(e) => {
-                    dbg!(e);
+                    println!("{:?}", e);
                 }
             }
-            dbg!(&tracer);
+            println!("{:?}", &tracer);
         }
     }
 
@@ -294,7 +351,6 @@ mod tests {
     #[test]
     fn test_number() {
         let test_ok = ["25", "25e+5", "25.", "25.001", "25.003e-7"];
-
         for test in test_ok {
             run_test(test, opt_number);
         }
@@ -539,11 +595,11 @@ mod tokens {
     pub fn infix_op_mapped<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<InfixToken<'a>>> {
         match infix_op(i) {
             Ok((rest, Some(tok))) => match *tok {
-                "+" => Ok((rest, Some(InfixToken::InfixAdd(tok)))),
-                "-" => Ok((rest, Some(InfixToken::InfixSubtract(tok)))),
-                "*" => Ok((rest, Some(InfixToken::InfixMultiply(tok)))),
-                "/" => Ok((rest, Some(InfixToken::InfixDivide(tok)))),
-                "^" => Ok((rest, Some(InfixToken::InfixPower(tok)))),
+                "+" => Ok((rest, Some(InfixToken::Add(tok)))),
+                "-" => Ok((rest, Some(InfixToken::Subtract(tok)))),
+                "*" => Ok((rest, Some(InfixToken::Multiply(tok)))),
+                "/" => Ok((rest, Some(InfixToken::Divide(tok)))),
+                "^" => Ok((rest, Some(InfixToken::Power(tok)))),
                 _ => unreachable!(),
             },
             Ok((rest, None)) => Ok((rest, None)),
@@ -558,8 +614,8 @@ mod tokens {
     pub fn prefix_op_mapped<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<PrefixToken<'a>>> {
         match prefix_op(i) {
             Ok((rest, Some(tok))) => match *tok {
-                "+" => Ok((rest, Some(PrefixToken::PrefixPlus(tok)))),
-                "-" => Ok((rest, Some(PrefixToken::PrefixMinus(tok)))),
+                "+" => Ok((rest, Some(PrefixToken::Plus(tok)))),
+                "-" => Ok((rest, Some(PrefixToken::Minus(tok)))),
                 _ => unreachable!(),
             },
             Ok((rest, None)) => Ok((rest, None)),
@@ -574,7 +630,7 @@ mod tokens {
     pub fn postfix_op_mapped<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<PostfixToken<'a>>> {
         match postfix_op(i) {
             Ok((rest, Some(tok))) => match *tok {
-                "%" => Ok((rest, Some(PostfixToken::PostfixPercent(tok)))),
+                "%" => Ok((rest, Some(PostfixToken::Percent(tok)))),
                 _ => unreachable!(),
             },
             Ok((rest, None)) => Ok((rest, None)),
@@ -603,9 +659,16 @@ mod tokens {
 
 mod coretypes {
     use crate::parse2::parse_expr::Span;
+    use std::fmt::{Display, Formatter};
 
     #[derive(Debug)]
     pub struct OFNumber<'a>(pub f64, pub Span<'a>);
+
+    impl<'a> Display for OFNumber<'a> {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
 
     impl<'a> PartialEq for OFNumber<'a> {
         fn eq(&self, other: &Self) -> bool {
@@ -615,6 +678,12 @@ mod coretypes {
 
     #[derive(Debug)]
     pub struct OFString<'a>(pub String, pub Span<'a>);
+
+    impl<'a> Display for OFString<'a> {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
 
     impl<'a> PartialEq for OFString<'a> {
         fn eq(&self, other: &Self) -> bool {
