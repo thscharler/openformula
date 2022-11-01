@@ -7,17 +7,19 @@ use std::fmt::{Debug, Display, Formatter};
 use std::num::ParseIntError;
 use std::str::FromStr;
 
-const BIT_ABS_ROW: u32 = 0b_0100_0000_0000_0000__0000_0000_0000_0000;
-const BIT_ABS_COL: u32 = 0b_1000_0000_0000_0000__0000_0000_0000_0000;
+const BIT_ABS_ROW: u32 = 0b_0100_0000_0000_0000_0000_0000_0000_0000;
+const BIT_ABS_COL: u32 = 0b_1000_0000_0000_0000_0000_0000_0000_0000;
 
-const MASK_ROW: u32 = 0b_0000_0000_0000_1111__1111_1111_1111_1111;
-const MASK_COL: u32 = 0b_0011_1111_1111_0000__0000_0000_0000_0000;
+const MASK_ROW: u32 = 0b_0000_0000_0000_1111_1111_1111_1111_1111;
+const MASK_COL: u32 = 0b_0011_1111_1111_0000_0000_0000_0000_0000;
 
 const SHIFT_COL: u32 = 20;
 
-const CLEAN_ROW: u32 = 0b_0000_0000_0000_1111__1111_1111_1111_1111;
-const CLEAN_COL: u32 = 0b_0000_0000_0000_0000__0000_0011_1111_1111;
+const CLEAN_ROW: u32 = 0b_0000_0000_0000_1111_1111_1111_1111_1111;
+const CLEAN_COL: u32 = 0b_0000_0000_0000_0000_0000_0011_1111_1111;
 
+/// Column index.
+/// Stored in an u32 in a format that can be easily combined with a CRow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
 #[repr(transparent)]
@@ -121,6 +123,8 @@ impl TryFrom<&str> for CCol {
     }
 }
 
+/// Row index.
+/// Stored in an u32 in a format that can be easily combined with a CCol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
 #[repr(transparent)]
@@ -195,7 +199,7 @@ impl CRow {
 
 /// Basic cell reference.
 /// Stores 1048576 rows and 1024 columns + 2 absolute flags in an u32.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
 #[repr(transparent)]
 pub struct CRef {
@@ -214,12 +218,6 @@ impl Debug for CRef {
             self.col_abs(),
             self.col()
         )
-    }
-}
-
-impl Default for CRef {
-    fn default() -> Self {
-        Self { cref: 0 }
     }
 }
 

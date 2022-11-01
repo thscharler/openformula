@@ -5,7 +5,7 @@
 /// All known tokens.
 #[allow(missing_docs)]
 #[non_exhaustive]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Token<I> {
     ErrRef(I),
     CellRef(I, CellRefToken<I>),
@@ -18,7 +18,7 @@ pub enum Token<I> {
 }
 
 /// Cell reference
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct CellRefToken<I> {
     /// External reference.
     pub iri: Option<I>,
@@ -29,7 +29,7 @@ pub struct CellRefToken<I> {
 }
 
 /// Cell range
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct CellRangeToken<I> {
     /// External reference.
     pub iri: Option<I>,
@@ -42,7 +42,7 @@ pub struct CellRangeToken<I> {
 }
 
 /// Column range
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct ColRangeToken<I> {
     /// External reference.
     pub iri: Option<I>,
@@ -55,7 +55,7 @@ pub struct ColRangeToken<I> {
 }
 
 /// Row range
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct RowRangeToken<I> {
     /// External reference.
     pub iri: Option<I>,
@@ -68,7 +68,7 @@ pub struct RowRangeToken<I> {
 }
 
 /// Cell cuboid spanning multiple tables.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct CellCuboidToken<I> {
     /// External reference.
     pub iri: Option<I>,
@@ -83,7 +83,7 @@ pub struct CellCuboidToken<I> {
 }
 
 /// Column cuboid spanning multiple tables.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct ColCuboidToken<I> {
     /// External reference.
     pub iri: Option<I>,
@@ -98,7 +98,7 @@ pub struct ColCuboidToken<I> {
 }
 
 /// Row cuboid spanning multiple tables.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct RowCuboidToken<I> {
     /// External reference.
     pub iri: Option<I>,
@@ -113,7 +113,7 @@ pub struct RowCuboidToken<I> {
 }
 
 /// Basic cell reference token.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct CellToken<I> {
     /// Cell abs-flag + column
     pub col: (Option<I>, I),

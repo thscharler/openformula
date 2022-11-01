@@ -281,14 +281,20 @@ pub fn parse_infix<'a, 'b>(
         {
             loop {
                 match infix_op(&trace, i1) {
-                    Ok((i2, Some(o))) => match parse_postfix(&trace, i2) {
-                        Ok((i3, exp1)) => {
-                            i1 = i3;
-                            exp0 = Box::new(ParseTree::InfixOp(exp0, o, exp1));
+                    Ok((i2, Some(o))) => {
+                        trace.clear_leafs();
+                        match parse_postfix(&trace, i2) {
+                            Ok((i3, exp1)) => {
+                                i1 = i3;
+                                exp0 = Box::new(ParseTree::InfixOp(exp0, o, exp1));
+                            }
+                            Err(e) => break Err(e),
                         }
-                        Err(e) => break Err(e),
-                    },
-                    Ok((i2, None)) => break Ok((i2, exp0)),
+                    }
+                    Ok((i2, None)) => {
+                        trace.clear_leafs();
+                        break Ok((i2, exp0));
+                    }
                     Err(e) => break Err(e),
                 }
             }
@@ -351,6 +357,7 @@ pub fn parse_elementary<'a, 'b>(
 
     match opt_number(&trace, i) {
         Ok((i, Some(o))) => {
+            trace.clear_leafs();
             return Ok((i, Box::new(ParseTree::Number(o))));
         }
         Ok((_, None)) => { /* skip */ }
@@ -359,18 +366,48 @@ pub fn parse_elementary<'a, 'b>(
 
     match opt_string(&trace, i) {
         Ok((i, Some(o))) => {
+            trace.clear_leafs();
             return Ok((i, Box::new(ParseTree::String(o))));
         }
         Ok((_, None)) => { /* skip */ }
         Err(e) => return Err(e),
     }
 
-    match cellref(&trace, i) {
-        Ok((i, o)) => return Ok((i, Box::new(ParseTree::CellRef(o)))),
-        Err(_) => { /* skip */ }
+    match opt_cellref(&trace, i) {
+        Ok((i, Some(o))) => {
+            trace.clear_leafs();
+            return Ok((i, Box::new(ParseTree::CellRef(o))));
+        }
+        Ok((_, None)) => { /* skip */ }
+        Err(e) => return Err(e),
     }
 
+    match opt_expr_parentheses(&trace, i) {
+        Ok((i, Some(o))) => {
+            trace.clear_leafs();
+            return Ok((i, o));
+        }
+        Ok((_, None)) => { /* skip */ }
+        Err(e) => return Err(e),
+    }
+
+    // match parse_expression(&trace, i) {
+    //     Ok((i, o)) => {
+    //         return Ok((i, o));
+    //     }
+    //     Err(ParseExprError::Backtracking(_)) => { /* skip */ }
+    //     Err(e) => return Err(e),
+    // }
+
+    Err(ParseExprError::Elementary(trace.collect()))
+}
+
+pub fn opt_expr_parentheses<'a, 'b>(
+    trace: &'b ParseTracer<'b, 'a>,
+    i: Span<'a>,
+) -> ParseResult<'a, Option<Box<ParseTree<'a>>>> {
     trace.leaf("(");
+
     match parenthesis_open(i) {
         Ok((i, _)) => {
             trace.clear_leafs();
@@ -381,40 +418,33 @@ pub fn parse_elementary<'a, 'b>(
             match parenthesis_close(i) {
                 Ok((i, _)) => {
                     trace.clear_leafs();
-                    return Ok((i, Box::new(ParseTree::Parenthesis(expr))));
+                    return Ok((i, Some(Box::new(ParseTree::Parenthesis(expr)))));
                 }
                 Err(e) => return Err(ParseExprError::Parenthesis(trace.collect_nom(e))),
             }
         }
-        Err(nom::Err::Error(_)) => { /* skip */ }
+        Err(nom::Err::Error(_)) => return Ok((i, None)),
         Err(e @ nom::Err::Failure(_)) => {
             return Err(ParseExprError::Parenthesis(trace.collect_nom(e)))
         }
         Err(nom::Err::Incomplete(_)) => unreachable!(),
     }
-
-    match parse_expression(&trace, i) {
-        Ok((i, o)) => {
-            return Ok((i, o));
-        }
-        Err(ParseExprError::Backtracking(_)) => { /* skip */ }
-        Err(e) => return Err(e),
-    }
-
-    Err(ParseExprError::Elementary(trace.collect()))
 }
 
 /// Parse a cell reference.
-pub fn cellref<'a, 'b>(
+pub fn opt_cellref<'a, 'b>(
     trace: &'b ParseTracer<'b, 'a>,
     input: Span<'a>,
-) -> ParseResult<'a, OFCellRef<'a>> {
+) -> ParseResult<'a, Option<OFCellRef<'a>>> {
     trace.leaf("CELLREF");
 
     let i = input.clone();
 
     let (i, _) = match brackets_open(i) {
         Ok((i, o)) => (i, o),
+        Err(nom::Err::Error(_)) => {
+            return Ok((i, None));
+        }
         Err(e) => return Err(ParseExprError::CellRef(trace.collect_nom(e))),
     };
     let (i, iri) = match opt(iri)(i) {
@@ -442,21 +472,19 @@ pub fn cellref<'a, 'b>(
         Err(e) => return Err(ParseExprError::CellRef(trace.collect_nom(e))),
     };
 
-    trace.clear_leafs();
-
     let index = input.offset(&i);
     let p = input.slice(..index);
 
     Ok((
         i,
-        OFCellRef(
+        Some(OFCellRef(
             CellRef {
                 iri: iri.map(|v| v.to_string()),
                 table: table.map(|v| v.to_string()),
                 cell: (col.0, row.0).into(),
             },
             p,
-        ),
+        )),
     ))
 }
 
@@ -523,17 +551,11 @@ pub fn opt_number<'a, 'b>(
     trace.leaf("NUMBER");
 
     match opt(pn_number)(i) {
-        Ok((i, Some(o))) => {
-            trace.clear_leafs();
-            match (*o).parse::<f64>() {
-                Ok(v) => Ok((i, Some(OFNumber(v, o)))),
-                Err(_) => unreachable!(),
-            }
-        }
-        Ok((i, None)) => {
-            trace.clear_leafs();
-            Ok((i, None))
-        }
+        Ok((i, Some(o))) => match (*o).parse::<f64>() {
+            Ok(v) => Ok((i, Some(OFNumber(v, o)))),
+            Err(_) => unreachable!(),
+        },
+        Ok((i, None)) => Ok((i, None)),
         Err(e) => Err(ParseExprError::Number(trace.collect_nom(e))),
     }
 }
@@ -584,14 +606,8 @@ pub fn opt_string<'a, 'b>(
     trace.leaf("STRING");
 
     match opt(pn_string)(i) {
-        Ok((i, Some(o))) => {
-            trace.clear_leafs();
-            Ok((i, Some(OFString(o.to_string(), o))))
-        }
-        Ok((i, None)) => {
-            trace.clear_leafs();
-            Ok((i, None))
-        }
+        Ok((i, Some(o))) => Ok((i, Some(OFString(o.to_string(), o)))),
+        Ok((i, None)) => Ok((i, None)),
         Err(e) => Err(ParseExprError::String(trace.collect_nom(e))),
     }
 }
@@ -795,9 +811,23 @@ mod tests {
 
     #[test]
     fn test_number() {
-        let test_expr = ["25ex"];
+        let test_ok = ["25", "25e+5", "25.", "25.001", "25.003e-7"];
 
-        for e in test_expr {
+        for e in test_ok {
+            println!("{}", e);
+            match parse(Span::new(e)) {
+                Ok((_i, expr)) => {
+                    println!("{:#?}", expr);
+                }
+                Err(e) => {
+                    println!("{:#?}", e);
+                }
+            };
+        }
+
+        let test_err = ["2x5", "25ex+5", "25.x", "25.x001", "25x.003e-7"];
+
+        for e in test_err {
             println!("{}", e);
             match parse(Span::new(e)) {
                 Ok((_i, expr)) => {

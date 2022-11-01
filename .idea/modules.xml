@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/openformula.iml" filepath="$PROJECT_DIR$/openformula.iml" />
       <module fileurl="file://$PROJECT_DIR$/../spreadsheet-ods/spreadsheet-ods.iml" filepath="$PROJECT_DIR$/../spreadsheet-ods/spreadsheet-ods.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../umya-spreadsheet/umya-spreadsheet.iml" filepath="$PROJECT_DIR$/../umya-spreadsheet/umya-spreadsheet.iml" />
     </modules>
   </component>
 </project>
