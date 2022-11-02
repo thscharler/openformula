@@ -101,17 +101,17 @@ impl<'span> Tracer<'span> {
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
-    pub fn err<'a>(&'a self, err: nom::Err<nom::error::Error<Span<'span>>>) -> &'a Tracer<'span> {
+    pub fn err<E>(&self, res_err: E, err: nom::Err<nom::error::Error<Span<'span>>>) -> E {
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks.borrow_mut().push(Track::Error(func, err));
-        self
+        res_err
     }
 
     ///
     /// Notes some error and converts it to a ParseExprError.
-    pub fn re_err<'s, 't, V, E>(&'t self, err: Result<V, E>) -> Result<V, ParseExprError<'s, 't>>
+    pub fn re_err<V, E>(&self, err: Result<V, E>) -> Result<V, ParseExprError>
     where
-        E: Into<ParseExprError<'s, 't>>,
+        E: Into<ParseExprError>,
         E: Display,
     {
         match err {
@@ -134,10 +134,10 @@ impl<'span> Tracer<'span> {
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
-    pub fn dyn_err<'a>(&'a self, err: Box<dyn Error>) -> &'a Tracer<'span> {
+    pub fn dyn_err<E>(&self, res_err: E, err: Box<dyn Error>) -> E {
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks.borrow_mut().push(Track::ErrorDyn(func, err));
-        self
+        res_err
     }
 }
 

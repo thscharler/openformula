@@ -10,9 +10,9 @@ pub enum AstTree<'a> {
     String(OFString<'a>),
     CellRef(OFCellRef<'a>),
     Parenthesis(Box<AstTree<'a>>),
-    PrefixOp(PrefixToken<'a>, Box<AstTree<'a>>),
-    InfixOp(Box<AstTree<'a>>, InfixToken<'a>, Box<AstTree<'a>>),
-    PostfixOp(Box<AstTree<'a>>, PostfixToken<'a>),
+    PrefixOp(OFPrefixOp<'a>, Box<AstTree<'a>>),
+    InfixOp(Box<AstTree<'a>>, OFInfixOp<'a>, Box<AstTree<'a>>),
+    PostfixOp(Box<AstTree<'a>>, OFPostfixOp<'a>),
 }
 
 impl<'a> Display for AstTree<'a> {
@@ -37,45 +37,45 @@ impl<'a> Display for AstTree<'a> {
             AstTree::PostfixOp(expr, op) => {
                 write!(f, "{}{}", expr, op)
             }
-            AstTree::CellRef(_) => {
-                todo!("ast cellref");
+            AstTree::CellRef(cellref) => {
+                write!(f, "{}", cellref)
             }
         }
     }
 }
 
 #[derive(Debug)]
-pub enum PrefixToken<'a> {
+pub enum OFPrefixOp<'a> {
     Plus(Span<'a>),
     Minus(Span<'a>),
 }
 
-impl<'a> PrefixToken<'a> {
+impl<'a> OFPrefixOp<'a> {
     pub fn span(&self) -> Span<'a> {
         match self {
-            PrefixToken::Plus(span) => *span,
-            PrefixToken::Minus(span) => *span,
+            OFPrefixOp::Plus(span) => *span,
+            OFPrefixOp::Minus(span) => *span,
         }
     }
 }
 
-impl<'a> Display for PrefixToken<'a> {
+impl<'a> Display for OFPrefixOp<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            PrefixToken::Plus(_) => write!(f, "+"),
-            PrefixToken::Minus(_) => write!(f, "-"),
+            OFPrefixOp::Plus(_) => write!(f, "+"),
+            OFPrefixOp::Minus(_) => write!(f, "-"),
         }
     }
 }
 
-impl<'a> PartialEq for PrefixToken<'a> {
+impl<'a> PartialEq for OFPrefixOp<'a> {
     fn eq(&self, other: &Self) -> bool {
         mem::discriminant(self) == mem::discriminant(other)
     }
 }
 
 #[derive(Debug)]
-pub enum InfixToken<'a> {
+pub enum OFInfixOp<'a> {
     Add(Span<'a>),
     Subtract(Span<'a>),
     Multiply(Span<'a>),
@@ -83,58 +83,58 @@ pub enum InfixToken<'a> {
     Power(Span<'a>),
 }
 
-impl<'a> InfixToken<'a> {
+impl<'a> OFInfixOp<'a> {
     pub fn span(&self) -> Span<'a> {
         match self {
-            InfixToken::Add(span) => *span,
-            InfixToken::Subtract(span) => *span,
-            InfixToken::Multiply(span) => *span,
-            InfixToken::Divide(span) => *span,
-            InfixToken::Power(span) => *span,
+            OFInfixOp::Add(span) => *span,
+            OFInfixOp::Subtract(span) => *span,
+            OFInfixOp::Multiply(span) => *span,
+            OFInfixOp::Divide(span) => *span,
+            OFInfixOp::Power(span) => *span,
         }
     }
 }
 
-impl<'a> Display for InfixToken<'a> {
+impl<'a> Display for OFInfixOp<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            InfixToken::Add(_) => write!(f, "+"),
-            InfixToken::Subtract(_) => write!(f, "-"),
-            InfixToken::Multiply(_) => write!(f, "*"),
-            InfixToken::Divide(_) => write!(f, "/"),
-            InfixToken::Power(_) => write!(f, "^"),
+            OFInfixOp::Add(_) => write!(f, "+"),
+            OFInfixOp::Subtract(_) => write!(f, "-"),
+            OFInfixOp::Multiply(_) => write!(f, "*"),
+            OFInfixOp::Divide(_) => write!(f, "/"),
+            OFInfixOp::Power(_) => write!(f, "^"),
         }
     }
 }
 
-impl<'a> PartialEq for InfixToken<'a> {
+impl<'a> PartialEq for OFInfixOp<'a> {
     fn eq(&self, other: &Self) -> bool {
         mem::discriminant(self) == mem::discriminant(other)
     }
 }
 
 #[derive(Debug)]
-pub enum PostfixToken<'a> {
+pub enum OFPostfixOp<'a> {
     Percent(Span<'a>),
 }
 
-impl<'a> PostfixToken<'a> {
+impl<'a> OFPostfixOp<'a> {
     pub fn span(&self) -> Span<'a> {
         match self {
-            PostfixToken::Percent(span) => *span,
+            OFPostfixOp::Percent(span) => *span,
         }
     }
 }
 
-impl<'a> Display for PostfixToken<'a> {
+impl<'a> Display for OFPostfixOp<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            PostfixToken::Percent(_) => write!(f, "%"),
+            OFPostfixOp::Percent(_) => write!(f, "%"),
         }
     }
 }
 
-impl<'a> PartialEq for PostfixToken<'a> {
+impl<'a> PartialEq for OFPostfixOp<'a> {
     fn eq(&self, other: &Self) -> bool {
         mem::discriminant(self) == mem::discriminant(other)
     }

@@ -13,30 +13,31 @@ use std::fmt::Debug;
 use std::num::ParseIntError;
 
 pub type Span<'a> = LocatedSpan<&'a str>;
-pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseExprError<'s, 't>>;
+pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseExprError>;
 
+#[allow(variant_size_differences)] // TODO: necessary??
 #[derive(Debug)]
-pub enum ParseExprError<'s, 't> {
-    NomError(&'t Tracer<'s>),
-    NomFailure(&'t Tracer<'s>),
+pub enum ParseExprError {
+    NomError,
+    NomFailure,
 
-    Number(&'t Tracer<'s>),
-    String(&'t Tracer<'s>),
-    Parenthesis(&'t Tracer<'s>),
+    Number,
+    String,
+    Parenthesis,
 
-    Elementary(&'t Tracer<'s>),
+    Elementary,
 
     ParseInt(ParseIntError),
     ParseColname(ParseColnameError),
 }
 
-impl<'s, 't> From<ParseIntError> for ParseExprError<'s, 't> {
+impl From<ParseIntError> for ParseExprError {
     fn from(e: ParseIntError) -> Self {
         ParseExprError::ParseInt(e)
     }
 }
 
-impl<'s, 't> From<ParseColnameError> for ParseExprError<'s, 't> {
+impl From<ParseColnameError> for ParseExprError {
     fn from(e: ParseColnameError) -> Self {
         ParseExprError::ParseColname(e)
     }

@@ -3,12 +3,13 @@
 //!
 
 use crate::parse::column;
-use crate::parse2::ast::{AstTree, InfixToken, OFNumber, OFString, PostfixToken, PrefixToken};
+use crate::parse2::ast::{AstTree, OFInfixOp, OFNumber, OFPostfixOp, OFPrefixOp, OFString};
 use crate::parse2::conv::{try_bool_from_abs_flag, try_u32_from_colname, try_u32_from_rowname};
 use crate::parse2::refs::{CRef, CellRef};
 use crate::parse2::tokens::{dot, infix_op, iri, postfix_op, prefix_op, row, sheetname};
 use crate::parse2::{ParseExprError, ParseResult, Span, Tracer};
 use nom::combinator::{consumed, opt};
+use nom::error::ErrorKind;
 use nom::sequence::tuple;
 
 // Expression ::=
@@ -37,9 +38,9 @@ pub fn number<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't,
     match super::tokens::number(i) {
         Ok((rest, tok)) => match (*tok).parse::<f64>() {
             Ok(val) => Ok(trace.ok(rest, Box::new(AstTree::Number(OFNumber(val, tok))))),
-            Err(e) => Err(ParseExprError::Number(trace.dyn_err(Box::new(e)))),
+            Err(e) => Err(trace.dyn_err(ParseExprError::Number, Box::new(e))),
         },
-        Err(e) => Err(ParseExprError::Number(trace.err(e))),
+        Err(e) => Err(trace.err(ParseExprError::Number, e)),
     }
 }
 
@@ -55,7 +56,7 @@ pub fn opt_number<'s, 't>(
             Err(_) => unreachable!(),
         },
         Ok((rest, None)) => Ok(trace.ok(rest, Box::new(AstTree::Empty()))),
-        Err(e) => Err(ParseExprError::Number(trace.err(e))),
+        Err(e) => Err(trace.err(ParseExprError::Number, e)),
     }
 }
 
@@ -71,7 +72,7 @@ pub fn opt_string<'s, 't>(
             Box::new(AstTree::String(OFString(tok.to_string(), tok))),
         )),
         Ok((rest, None)) => Ok(trace.ok(rest, Box::new(AstTree::Empty()))),
-        Err(e) => Err(ParseExprError::String(trace.err(e))),
+        Err(e) => Err(trace.err(ParseExprError::String, e)),
     }
 }
 
@@ -165,11 +166,11 @@ pub fn opt_expr_parentheses<'s, 't>(
             let (rest2, expr) = parse_expr(&trace, rest1)?;
             return match super::tokens::parenthesis_close(rest2) {
                 Ok((i, _tok)) => Ok(trace.ok(i, Some(Box::new(AstTree::Parenthesis(expr))))),
-                Err(e) => Err(ParseExprError::Parenthesis(trace.err(e))),
+                Err(e) => Err(trace.err(ParseExprError::Parenthesis, e)),
             };
         }
         Err(nom::Err::Error(_)) => return Ok(trace.ok(i, None)),
-        Err(e @ nom::Err::Failure(_)) => return Err(ParseExprError::Parenthesis(trace.err(e))),
+        Err(e @ nom::Err::Failure(_)) => return Err(trace.err(ParseExprError::Parenthesis, e)),
         Err(nom::Err::Incomplete(_)) => unreachable!(),
     }
 }
@@ -221,24 +222,27 @@ pub fn parse_elem<'s, 't>(
         Err(e) => return Err(e),
     }
 
-    Err(ParseExprError::Elementary(trace))
+    Err(trace.err(
+        ParseExprError::Elementary,
+        nom::Err::Error(nom::error::Error::new(i, ErrorKind::Float)),
+    ))
 }
 
 pub fn prefix_op_mapped<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Option<PrefixToken<'s>>> {
+) -> ParseResult<'s, 't, Option<OFPrefixOp<'s>>> {
     trace.enter("prefix_op", i);
     match prefix_op(i) {
         Ok((rest, Some(tok))) => match *tok {
-            "+" => Ok(trace.ok(rest, Some(PrefixToken::Plus(tok)))),
-            "-" => Ok(trace.ok(rest, Some(PrefixToken::Minus(tok)))),
+            "+" => Ok(trace.ok(rest, Some(OFPrefixOp::Plus(tok)))),
+            "-" => Ok(trace.ok(rest, Some(OFPrefixOp::Minus(tok)))),
             _ => unreachable!(),
         },
         Ok((rest, None)) => Ok(trace.ok(rest, None)),
 
         Err(nom::Err::Error(_)) => return Ok(trace.ok(i, None)),
-        Err(e @ nom::Err::Failure(_)) => return Err(ParseExprError::NomFailure(trace.err(e))),
+        Err(e @ nom::Err::Failure(_)) => return Err(trace.err(ParseExprError::NomFailure, e)),
         Err(nom::Err::Incomplete(_)) => unreachable!(),
     }
 }
@@ -246,21 +250,21 @@ pub fn prefix_op_mapped<'s, 't>(
 pub fn infix_op_mapped<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Option<InfixToken<'s>>> {
+) -> ParseResult<'s, 't, Option<OFInfixOp<'s>>> {
     trace.enter("infix_op", i);
     match infix_op(i) {
         Ok((rest, Some(tok))) => match *tok {
-            "+" => Ok(trace.ok(rest, Some(InfixToken::Add(tok)))),
-            "-" => Ok(trace.ok(rest, Some(InfixToken::Subtract(tok)))),
-            "*" => Ok(trace.ok(rest, Some(InfixToken::Multiply(tok)))),
-            "/" => Ok(trace.ok(rest, Some(InfixToken::Divide(tok)))),
-            "^" => Ok(trace.ok(rest, Some(InfixToken::Power(tok)))),
+            "+" => Ok(trace.ok(rest, Some(OFInfixOp::Add(tok)))),
+            "-" => Ok(trace.ok(rest, Some(OFInfixOp::Subtract(tok)))),
+            "*" => Ok(trace.ok(rest, Some(OFInfixOp::Multiply(tok)))),
+            "/" => Ok(trace.ok(rest, Some(OFInfixOp::Divide(tok)))),
+            "^" => Ok(trace.ok(rest, Some(OFInfixOp::Power(tok)))),
             _ => unreachable!(),
         },
         Ok((rest, None)) => Ok(trace.ok(rest, None)),
 
-        Err(e @ nom::Err::Error(_)) => return Err(ParseExprError::NomError(trace.err(e))),
-        Err(e @ nom::Err::Failure(_)) => return Err(ParseExprError::NomFailure(trace.err(e))),
+        Err(e @ nom::Err::Error(_)) => return Err(trace.err(ParseExprError::NomError, e)),
+        Err(e @ nom::Err::Failure(_)) => return Err(trace.err(ParseExprError::NomFailure, e)),
         Err(nom::Err::Incomplete(_)) => unreachable!(),
     }
 }
@@ -268,17 +272,17 @@ pub fn infix_op_mapped<'s, 't>(
 pub fn postfix_op_mapped<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Option<PostfixToken<'s>>> {
+) -> ParseResult<'s, 't, Option<OFPostfixOp<'s>>> {
     trace.enter("postfix_op", i);
     match postfix_op(i) {
         Ok((rest, Some(tok))) => match *tok {
-            "%" => Ok(trace.ok(rest, Some(PostfixToken::Percent(tok)))),
+            "%" => Ok(trace.ok(rest, Some(OFPostfixOp::Percent(tok)))),
             _ => unreachable!(),
         },
         Ok((rest, None)) => Ok(trace.ok(rest, None)),
 
-        Err(e @ nom::Err::Error(_)) => return Err(ParseExprError::NomError(trace.err(e))),
-        Err(e @ nom::Err::Failure(_)) => return Err(ParseExprError::NomFailure(trace.err(e))),
+        Err(e @ nom::Err::Error(_)) => return Err(trace.err(ParseExprError::NomError, e)),
+        Err(e @ nom::Err::Failure(_)) => return Err(trace.err(ParseExprError::NomFailure, e)),
         Err(nom::Err::Incomplete(_)) => unreachable!(),
     }
 }
@@ -328,7 +332,7 @@ pub fn parse_cellref<'s, 't>(
         }
 
         Err(nom::Err::Error(_)) => return Ok(trace.ok(i, None)),
-        Err(e @ nom::Err::Failure(_)) => return Err(ParseExprError::NomFailure(trace.err(e))),
+        Err(e @ nom::Err::Failure(_)) => return Err(trace.err(ParseExprError::NomFailure, e)),
         Err(nom::Err::Incomplete(_)) => unreachable!(),
     }
 }
