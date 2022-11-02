@@ -40,7 +40,7 @@ extern crate core;
 mod base;
 mod error;
 pub mod parse;
-mod parse2;
+pub mod parse2;
 pub mod refs;
 pub mod str;
 
