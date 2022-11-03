@@ -91,15 +91,17 @@ impl<'span> Tracer<'span> {
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
-    pub fn ast_err<E>(&self, res_err: E) -> E
-    where
-        E: Display,
-    {
+    pub fn ast_err(
+        &self,
+        rest: Span<'span>,
+        ferr: fn(span: Span<'span>) -> ParseExprError,
+    ) -> ParseExprError {
+        let err = ferr(rest);
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks
             .borrow_mut()
-            .push(Track::ErrorStr(func, res_err.to_string()));
-        res_err
+            .push(Track::ErrorStr(func, err.to_string()));
+        err
     }
 
     /// Erring in a parser. Handles all nom errors.
@@ -107,15 +109,18 @@ impl<'span> Tracer<'span> {
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
-    pub fn err<E>(&self, res_err: E, err: nom::Err<nom::error::Error<Span<'span>>>) -> E
-    where
-        E: Display,
-    {
+    pub fn err(
+        &self,
+        rest: Span<'span>,
+        ferr: fn(span: Span<'span>) -> ParseExprError,
+        nom: nom::Err<nom::error::Error<Span<'span>>>,
+    ) -> ParseExprError {
+        let err = ferr(rest);
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks
             .borrow_mut()
-            .push(Track::Error(func, res_err.to_string(), err));
-        res_err
+            .push(Track::Error(func, err.to_string(), nom));
+        err
     }
 
     /// Notes some error and converts it to a ParseExprError.

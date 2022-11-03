@@ -2,10 +2,9 @@
 //! Low level conversions from a Span<'a> to ...
 //!
 
-use crate::parse2::Span;
+use crate::parse2::{ParseExprError, Span};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::num::ParseIntError;
 use std::str::FromStr;
 
 /// Parse a bool if a '$' exists.
@@ -18,8 +17,11 @@ pub fn try_bool_from_abs_flag<'a>(i: Option<Span<'a>>) -> bool {
 }
 
 /// Parse a row number to a row index.
-pub fn try_u32_from_rowname<'a>(i: Span<'a>) -> Result<u32, ParseIntError> {
-    u32::from_str(*i)
+pub fn try_u32_from_rowname<'a>(i: Span<'a>) -> Result<u32, ParseExprError> {
+    match u32::from_str(*i) {
+        Ok(v) => Ok(v),
+        Err(e) => Err(ParseExprError::ParseInt(i.into(), e)),
+    }
 }
 
 /// Error for try_u32_from_colname.
@@ -49,12 +51,15 @@ impl Display for ParseColnameError {
 impl Error for ParseColnameError {}
 
 /// Parse a col label to a column index.
-pub fn try_u32_from_colname<'a>(i: Span<'a>) -> Result<u32, ParseColnameError> {
+pub fn try_u32_from_colname<'a>(i: Span<'a>) -> Result<u32, ParseExprError> {
     let mut col = 0u32;
 
     for c in (*i).chars() {
         if !('A'..='Z').contains(&c) {
-            return Err(ParseColnameError::InvalidChar(c));
+            return Err(ParseExprError::ParseColname(
+                i.into(),
+                ParseColnameError::InvalidChar(c),
+            ));
         }
 
         let mut v = c as u32 - b'A' as u32;
@@ -69,7 +74,10 @@ pub fn try_u32_from_colname<'a>(i: Span<'a>) -> Result<u32, ParseColnameError> {
     }
 
     if col == 0 {
-        Err(ParseColnameError::InvalidColname(format!("{:?}", i)))
+        Err(ParseExprError::ParseColname(
+            i.into(),
+            ParseColnameError::InvalidColname(format!("{:?}", i)),
+        ))
     } else {
         Ok(col - 1)
     }

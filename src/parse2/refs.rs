@@ -1,6 +1,8 @@
 //! Types for cell references.
 
-use crate::parse2::ast_format::{fmt_cellrange, fmt_cellref, fmt_cref, Fmt};
+use crate::parse2::ast_format::{
+    fmt_cellrange, fmt_cellref, fmt_colrange, fmt_cref, fmt_rowrange, Fmt,
+};
 use crate::parse2::ast_parser::parse_cellrange;
 use crate::parse2::tracer::Tracer;
 use crate::parse2::{ast_parser, Span, ToFormula};
@@ -116,7 +118,7 @@ impl Display for CSpan {
     }
 }
 
-/// A reference to a cell, possibly in another table in another file.
+/// A reference to a cell, possibly in another sheet in another file.
 /// ```
 /// use openformula::parse2::refs::CellRef;
 /// let c1 = CellRef::local(5,2);
@@ -128,7 +130,7 @@ impl Display for CSpan {
 pub struct CellRef {
     /// External reference.
     pub iri: Option<String>,
-    /// Table reference.
+    /// sheet reference.
     pub sheet: Option<String>,
     /// Cell reference.
     pub cell: CRef,
@@ -170,7 +172,7 @@ impl CellRef {
         }
     }
 
-    /// Reference to another table.
+    /// Reference to another sheet.
     pub fn sheet<S: Into<String>>(sheet: S, row: u32, col: u32) -> Self {
         Self {
             iri: None,
@@ -245,7 +247,7 @@ impl ToFormula for CellRef {
     }
 }
 
-/// A reference to a range of cells, possibly in another table.
+/// A reference to a range of cells, possibly in another sheet.
 /// As usual for a spreadsheet this is meant as inclusive from and to.
 ///
 /// ```
@@ -259,7 +261,7 @@ pub struct CellRange {
     /// URI to an external source for this range.
     pub iri: Option<String>,
     /// First sheet for the range.
-    pub sheet: Option<String>,
+    pub from_sheet: Option<String>,
     /// From
     pub from: CRef,
     /// Second sheet for the range. Can be empty if only one sheet is involved.
@@ -271,6 +273,16 @@ pub struct CellRange {
 impl Display for CellRange {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", Fmt(|f| fmt_cellrange(f, self)))
+    }
+}
+
+impl TryFrom<&str> for CellRange {
+    type Error = OFError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let trace = Tracer::new();
+        let (_, cellrange) = parse_cellrange(&trace, Span::new(value))?;
+        Ok(cellrange)
     }
 }
 
@@ -298,7 +310,7 @@ impl CellRange {
 
         Self {
             iri: None,
-            sheet: None,
+            from_sheet: None,
             from: CRef {
                 abs_row: false,
                 row,
@@ -330,7 +342,7 @@ impl CellRange {
 
         Self {
             iri: None,
-            sheet: None,
+            from_sheet: None,
             from: CRef {
                 abs_row: false,
                 row,
@@ -365,7 +377,7 @@ impl CellRange {
 
         Self {
             iri: None,
-            sheet: Some(sheet.into()),
+            from_sheet: Some(sheet.into()),
             from: CRef {
                 abs_row: false,
                 row,
@@ -390,7 +402,7 @@ impl CellRange {
 
     /// Sheet.
     pub fn from_sheet<S: Into<String>>(mut self, sheet: S) -> Self {
-        self.sheet = Some(sheet.into());
+        self.from_sheet = Some(sheet.into());
         self
     }
 
@@ -498,12 +510,247 @@ impl ToFormula for CellRange {
     }
 }
 
-impl TryFrom<&str> for CellRange {
+/// Range of columns.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct ColRange {
+    /// External reference.
+    pub iri: Option<String>,
+    /// Refers to another sheet.
+    pub from_sheet: Option<String>,
+    /// Column reference is fixed.
+    pub abs_from_col: bool,
+    /// Column.
+    pub from_col: u32,
+    /// Second sheet for the range. Can be empty if only one sheet is involved.
+    pub to_sheet: Option<String>,
+    /// Column reference is fixed.
+    pub abs_to_col: bool,
+    /// Column.
+    pub to_col: u32,
+}
+
+impl Display for ColRange {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", Fmt(|f| fmt_colrange(f, self)))
+    }
+}
+
+impl TryFrom<&str> for ColRange {
     type Error = OFError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
         let trace = Tracer::new();
-        let (_, cellrange) = parse_cellrange(&trace, Span::new(value))?;
-        Ok(cellrange)
+        let (_rest, col_range) = ast_parser::parse_colrange(&trace, Span::new(s))?;
+        Ok(col_range)
+    }
+}
+
+impl ColRange {
+    /// Empty
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    /// Colrange for the local sheet.
+    pub fn local(from_col: u32, to_col: u32) -> Self {
+        let mut from_col = from_col;
+        let mut to_col = to_col;
+
+        debug_assert!(from_col <= to_col);
+        if from_col > to_col {
+            mem::swap(&mut from_col, &mut to_col);
+        }
+
+        Self {
+            iri: None,
+            from_sheet: None,
+            abs_from_col: false,
+            from_col,
+            to_sheet: None,
+            abs_to_col: false,
+            to_col,
+        }
+    }
+
+    /// External reference.
+    pub fn iri<S: Into<String>>(mut self, iri: S) -> Self {
+        self.iri = Some(iri.into());
+        self
+    }
+
+    /// Sheet.
+    pub fn from_sheet<S: Into<String>>(mut self, sheet: S) -> Self {
+        self.from_sheet = Some(sheet.into());
+        self
+    }
+
+    /// Column.
+    pub fn from_col(mut self, col: u32) -> Self {
+        self.from_col = col;
+        self
+    }
+
+    /// Makes this an absolute CellRef.
+    pub fn abs_from(mut self) -> Self {
+        self.abs_from_col = true;
+        self
+    }
+
+    /// Sheet.
+    pub fn to_sheet<S: Into<String>>(mut self, sheet: S) -> Self {
+        self.to_sheet = Some(sheet.into());
+        self
+    }
+
+    /// Column.
+    pub fn to_col(mut self, col: u32) -> Self {
+        self.to_col = col;
+        self
+    }
+
+    /// Makes this an absolute reference.
+    pub fn abs_to(mut self) -> Self {
+        self.abs_to_col = true;
+        self
+    }
+
+    /// Makes this an absolute reference.
+    pub fn abs(mut self) -> Self {
+        self.abs_from_col = true;
+        self.abs_to_col = true;
+        self
+    }
+}
+
+impl ToFormula for ColRange {
+    fn to_formula(&self) -> Result<String, Error> {
+        let mut buf = String::new();
+        write!(buf, "[")?;
+        write!(buf, "{}", Fmt(|f| fmt_colrange(f, self)))?;
+        write!(buf, "]")?;
+        Ok(buf)
+    }
+}
+
+/// A range over rows.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct RowRange {
+    /// External reference
+    pub iri: Option<String>,
+    /// Reference to another sheet.
+    pub from_sheet: Option<String>,
+    /// Row reference is fixed.
+    pub abs_from_row: bool,
+    /// Row.
+    pub from_row: u32,
+    /// Reference to a second sheet. Only needed if it's different than the
+    /// first one.
+    pub to_sheet: Option<String>,
+    /// Row reference is fixed.
+    pub abs_to_row: bool,
+    /// Row.
+    pub to_row: u32,
+}
+
+impl Display for RowRange {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", Fmt(|f| fmt_rowrange(f, self)))
+    }
+}
+
+impl TryFrom<&str> for RowRange {
+    type Error = OFError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        let trace = Tracer::new();
+        let (_rest, row_range) = ast_parser::parse_rowrange(&trace, Span::new(s))?;
+        Ok(row_range)
+    }
+}
+
+impl RowRange {
+    /// Empty.
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    /// Rowrange for the local sheet.
+    pub fn local(from_row: u32, to_row: u32) -> Self {
+        let mut from_row = from_row;
+        let mut to_row = to_row;
+
+        debug_assert!(from_row <= to_row);
+        if from_row > to_row {
+            mem::swap(&mut from_row, &mut to_row);
+        }
+
+        Self {
+            iri: None,
+            from_sheet: None,
+            abs_from_row: false,
+            from_row,
+            to_sheet: None,
+            abs_to_row: false,
+            to_row,
+        }
+    }
+
+    /// External reference.
+    pub fn iri<S: Into<String>>(mut self, iri: S) -> Self {
+        self.iri = Some(iri.into());
+        self
+    }
+
+    /// Sheet.
+    pub fn from_sheet<S: Into<String>>(mut self, sheet: S) -> Self {
+        self.from_sheet = Some(sheet.into());
+        self
+    }
+
+    /// Row.
+    pub fn from_row(mut self, row: u32) -> Self {
+        self.from_row = row;
+        self
+    }
+
+    /// Makes this an absolute CellRef.
+    pub fn abs_from(mut self) -> Self {
+        self.abs_from_row = true;
+        self
+    }
+
+    /// Sheet.
+    pub fn to_sheet<S: Into<String>>(mut self, sheet: S) -> Self {
+        self.to_sheet = Some(sheet.into());
+        self
+    }
+
+    /// Row.
+    pub fn to_row(mut self, row: u32) -> Self {
+        self.to_row = row;
+        self
+    }
+
+    /// Makes this an absolute reference.
+    pub fn abs_to(mut self) -> Self {
+        self.abs_to_row = true;
+        self
+    }
+
+    /// Makes this an absolute reference.
+    pub fn abs(mut self) -> Self {
+        self.abs_from_row = true;
+        self.abs_to_row = true;
+        self
+    }
+}
+
+impl ToFormula for RowRange {
+    fn to_formula(&self) -> Result<String, Error> {
+        let mut buf = String::new();
+        write!(buf, "[")?;
+        write!(buf, "{}", Fmt(|f| fmt_rowrange(f, self)))?;
+        write!(buf, "]")?;
+        Ok(buf)
     }
 }

@@ -2,68 +2,7 @@
 //! Output formatting for the AST.
 //!
 
-//
-// /// Appends the cell reference
-// pub fn push_rowrange(buf: &mut String, rowrange: &RowRange) {
-//     push_iri(buf, rowrange.iri.as_ref());
-//     if let Some(table) = rowrange.table.as_ref() {
-//         push_tablename(
-//             buf,
-//             table,
-//             rowrange.iri.is_some() || rowrange.row.row_abs() || rowrange.to_row.row_abs(),
-//         );
-//     }
-//     buf.push('.');
-//     if rowrange.row.row_abs() {
-//         buf.push('$');
-//     }
-//     push_rowname(buf, rowrange.row.row());
-//     buf.push(':');
-//     if let Some(to_table) = rowrange.to_table.as_ref() {
-//         push_tablename(
-//             buf,
-//             to_table,
-//             rowrange.iri.is_some() || rowrange.row.row_abs() || rowrange.to_row.row_abs(),
-//         );
-//     }
-//     buf.push('.');
-//     if rowrange.to_row.row_abs() {
-//         buf.push('$');
-//     }
-//     push_rowname(buf, rowrange.to_row.row());
-// }
-//
-// /// Appends the cell reference
-// pub fn push_colrange(buf: &mut String, colrange: &ColRange) {
-//     push_iri(buf, colrange.iri.as_ref());
-//     if let Some(table) = colrange.table.as_ref() {
-//         push_tablename(
-//             buf,
-//             table,
-//             colrange.iri.is_some() || colrange.col.col_abs() || colrange.to_col.col_abs(),
-//         );
-//     }
-//     buf.push('.');
-//     if colrange.col.col_abs() {
-//         buf.push('$');
-//     }
-//     push_colname(buf, colrange.col.col());
-//     buf.push(':');
-//     if let Some(to_table) = colrange.to_table.as_ref() {
-//         push_tablename(
-//             buf,
-//             to_table,
-//             colrange.iri.is_some() || colrange.col.col_abs() || colrange.to_col.col_abs(),
-//         );
-//     }
-//     buf.push('.');
-//     if colrange.to_col.col_abs() {
-//         buf.push('$');
-//     }
-//     push_colname(buf, colrange.to_col.col());
-// }
-
-use crate::parse2::refs::{CRef, CellRange, CellRef};
+use crate::parse2::refs::{CRef, CellRange, CellRef, ColRange, RowRange};
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 
@@ -114,7 +53,7 @@ pub fn fmt_cellref(f: &mut Formatter<'_>, cellref: &CellRef) -> fmt::Result {
 /// Appends the range reference
 pub fn fmt_cellrange(f: &mut Formatter<'_>, cellrange: &CellRange) -> fmt::Result {
     fmt_iri(f, cellrange.iri.as_ref())?;
-    if let Some(sheet) = cellrange.sheet.as_ref() {
+    if let Some(sheet) = cellrange.from_sheet.as_ref() {
         fmt_sheet_name(
             f,
             sheet,
@@ -141,6 +80,68 @@ pub fn fmt_cellrange(f: &mut Formatter<'_>, cellrange: &CellRange) -> fmt::Resul
     }
     write!(f, ".")?;
     fmt_cref(f, cellrange.to)?;
+    Ok(())
+}
+
+/// Appends the cell reference
+pub fn fmt_colrange(f: &mut Formatter<'_>, colrange: &ColRange) -> fmt::Result {
+    fmt_iri(f, colrange.iri.as_ref())?;
+    if let Some(sheet) = colrange.from_sheet.as_ref() {
+        fmt_sheet_name(
+            f,
+            sheet,
+            colrange.iri.is_some() || colrange.abs_from_col || colrange.abs_to_col,
+        )?;
+    }
+    write!(f, ".")?;
+    if colrange.abs_from_col {
+        write!(f, "$")?;
+    }
+    fmt_colname(f, colrange.from_col)?;
+    write!(f, ":")?;
+    if let Some(to_sheet) = colrange.to_sheet.as_ref() {
+        fmt_sheet_name(
+            f,
+            to_sheet,
+            colrange.iri.is_some() || colrange.abs_from_col || colrange.abs_to_col,
+        )?;
+    }
+    write!(f, ".")?;
+    if colrange.abs_to_col {
+        write!(f, "$")?;
+    }
+    fmt_colname(f, colrange.to_col)?;
+    Ok(())
+}
+
+/// Appends the cell reference
+pub fn fmt_rowrange(f: &mut Formatter<'_>, rowrange: &RowRange) -> fmt::Result {
+    fmt_iri(f, rowrange.iri.as_ref())?;
+    if let Some(sheet) = rowrange.from_sheet.as_ref() {
+        fmt_sheet_name(
+            f,
+            sheet,
+            rowrange.iri.is_some() || rowrange.abs_from_row || rowrange.abs_to_row,
+        )?;
+    }
+    write!(f, ".")?;
+    if rowrange.abs_from_row {
+        write!(f, "$")?;
+    }
+    fmt_rowname(f, rowrange.from_row)?;
+    write!(f, ":")?;
+    if let Some(to_sheet) = rowrange.to_sheet.as_ref() {
+        fmt_sheet_name(
+            f,
+            to_sheet,
+            rowrange.iri.is_some() || rowrange.abs_from_row || rowrange.abs_to_row,
+        )?;
+    }
+    write!(f, ".")?;
+    if rowrange.abs_to_row {
+        write!(f, "$")?;
+    }
+    fmt_rowname(f, rowrange.to_row)?;
     Ok(())
 }
 

@@ -68,9 +68,9 @@ impl<'a> From<Span<'a>> for ErrSpan {
 #[derive(Debug)]
 pub enum ParseExprError {
     /// TODO:
-    NomError,
+    NomError(ErrSpan),
     /// TODO:
-    NomFailure,
+    NomFailure(ErrSpan),
 
     /// TODO:
     Expr(ErrSpan),
@@ -78,28 +78,62 @@ pub enum ParseExprError {
     /// TODO:
     Number(ErrSpan),
     /// TODO:
-    String,
+    String(ErrSpan),
     /// TODO:
-    Parenthesis,
+    Parenthesis(ErrSpan),
 
     /// TODO:
-    Elementary,
+    Elementary(ErrSpan),
 
     /// TODO:
     CellRef(ErrSpan),
     /// TODO:
     CellRange(ErrSpan),
+    /// TODO:
+    ColRange(ErrSpan),
+    /// TODO:
+    RowRange(ErrSpan),
 
     /// TODO:
-    ParseInt(ParseIntError),
+    ParseInt(ErrSpan, ParseIntError),
     /// TODO:
-    ParseColname(ParseColnameError),
+    ParseColname(ErrSpan, ParseColnameError),
 }
 
 impl ParseExprError {
+    /// NomError variant.
+    pub fn nom_error<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::NomError(span.into())
+    }
+
+    /// NomFailure variant.
+    pub fn nom_failure<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::NomFailure(span.into())
+    }
+
     /// Expr variant.
     pub fn expr<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::Expr(span.into())
+    }
+
+    /// Number variant.
+    pub fn number<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Number(span.into())
+    }
+
+    /// String variant.
+    pub fn string<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::String(span.into())
+    }
+
+    /// Parenthesis variant.
+    pub fn parenthesis<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Parenthesis(span.into())
+    }
+
+    /// Expr variant.
+    pub fn elementary<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Elementary(span.into())
     }
 
     /// Ref variant.
@@ -111,6 +145,16 @@ impl ParseExprError {
     pub fn cellrange<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::CellRange(span.into())
     }
+
+    /// Range variant.
+    pub fn colrange<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::ColRange(span.into())
+    }
+
+    /// Range variant.
+    pub fn rowrange<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::RowRange(span.into())
+    }
 }
 
 impl Error for ParseExprError {}
@@ -118,30 +162,20 @@ impl Error for ParseExprError {}
 impl Display for ParseExprError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseExprError::NomError => write!(f, "NomError"),
-            ParseExprError::NomFailure => write!(f, "NomFailure"),
+            ParseExprError::NomError(s) => write!(f, "NomError {}", s),
+            ParseExprError::NomFailure(s) => write!(f, "NomFailure {}", s),
             ParseExprError::Expr(s) => write!(f, "Number {}", s),
             ParseExprError::Number(s) => write!(f, "Number {}", s),
-            ParseExprError::String => write!(f, "String"),
-            ParseExprError::Parenthesis => write!(f, "Parenthesis"),
-            ParseExprError::Elementary => write!(f, "Elementary"),
-            ParseExprError::ParseInt(e) => write!(f, "ParseInt {:?}", e),
-            ParseExprError::ParseColname(e) => write!(f, "ParseColname {:?}", e),
-            ParseExprError::CellRef(s) => write!(f, "Number {}", s),
-            ParseExprError::CellRange(s) => write!(f, "Number {}", s),
+            ParseExprError::String(s) => write!(f, "String {}", s),
+            ParseExprError::Parenthesis(s) => write!(f, "Parenthesis {}", s),
+            ParseExprError::Elementary(s) => write!(f, "Elementary {}", s),
+            ParseExprError::CellRef(s) => write!(f, "CellRef {}", s),
+            ParseExprError::CellRange(s) => write!(f, "CellRange {}", s),
+            ParseExprError::ColRange(s) => write!(f, "ColRange {}", s),
+            ParseExprError::RowRange(s) => write!(f, "RowRange {}", s),
+            ParseExprError::ParseInt(s, e) => write!(f, "ParseInt {} {:?}", s, e),
+            ParseExprError::ParseColname(s, e) => write!(f, "ParseColname {} {:?}", s, e),
         }
-    }
-}
-
-impl From<ParseIntError> for ParseExprError {
-    fn from(e: ParseIntError) -> Self {
-        ParseExprError::ParseInt(e)
-    }
-}
-
-impl From<ParseColnameError> for ParseExprError {
-    fn from(e: ParseColnameError) -> Self {
-        ParseExprError::ParseColname(e)
     }
 }
 
