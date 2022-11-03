@@ -6,10 +6,10 @@
 
 use crate::parse2::{ParseExprError, Span};
 use std::cell::RefCell;
-use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
 /// Follows the parsing.
+#[derive(Default)]
 pub struct Tracer<'span> {
     /// Collected tracks.
     pub tracks: RefCell<Vec<Track<'span>>>,
@@ -37,12 +37,7 @@ impl<'span> Debug for Tracer<'span> {
                     indent.pop();
                     indent.pop();
                 }
-                Track::Error(_, _) => {
-                    writeln!(f, "{}{:?}", indent, tr)?;
-                    indent.pop();
-                    indent.pop();
-                }
-                Track::ErrorDyn(_, _) => {
+                Track::Error(_, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
                     indent.pop();
                     indent.pop();
@@ -61,10 +56,7 @@ impl<'span> Debug for Tracer<'span> {
 impl<'span> Tracer<'span> {
     /// New one.
     pub fn new() -> Self {
-        Self {
-            tracks: Default::default(),
-            func: Default::default(),
-        }
+        Default::default()
     }
 
     /// Entering a parser.
@@ -94,21 +86,40 @@ impl<'span> Tracer<'span> {
         (rest, val)
     }
 
-    /// Erring in a parser. Accepts only nom errors.
-    ///
-    /// Returns to reference to this trace to be used in the final error type.
+    /// Error in a parser. Handles an error at the AST level.
     ///
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
-    pub fn err<E>(&self, res_err: E, err: nom::Err<nom::error::Error<Span<'span>>>) -> E {
+    pub fn ast_err<E>(&self, res_err: E) -> E
+    where
+        E: Display,
+    {
         let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks.borrow_mut().push(Track::Error(func, err));
+        self.tracks
+            .borrow_mut()
+            .push(Track::ErrorStr(func, res_err.to_string()));
         res_err
     }
 
+    /// Erring in a parser. Handles all nom errors.
     ///
+    /// Panic
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn err<E>(&self, res_err: E, err: nom::Err<nom::error::Error<Span<'span>>>) -> E
+    where
+        E: Display,
+    {
+        let func = self.func.borrow_mut().pop().unwrap();
+        self.tracks
+            .borrow_mut()
+            .push(Track::Error(func, res_err.to_string(), err));
+        res_err
+    }
+
     /// Notes some error and converts it to a ParseExprError.
+    /// Used for ParseIntError et al.
     pub fn re_err<V, E>(&self, err: Result<V, E>) -> Result<V, ParseExprError>
     where
         E: Into<ParseExprError>,
@@ -126,19 +137,6 @@ impl<'span> Tracer<'span> {
             }
         }
     }
-
-    /// Erring in a parser. Accepts boxed dyn errors for the rest.
-    ///
-    /// Returns to reference to this trace to be used in the final error type.
-    ///
-    /// Panic
-    ///
-    /// Panics if there was no call to enter() before.
-    pub fn dyn_err<E>(&self, res_err: E, err: Box<dyn Error>) -> E {
-        let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks.borrow_mut().push(Track::ErrorDyn(func, err));
-        res_err
-    }
 }
 
 /// One track of the parsing trace.
@@ -150,9 +148,11 @@ pub enum Track<'span> {
     /// Function where this occurred and the remaining span.
     Ok(&'static str, Span<'span>),
     /// Function where this occurred and some error.
-    Error(&'static str, nom::Err<nom::error::Error<Span<'span>>>),
-    /// Function where this occurred and some error.
-    ErrorDyn(&'static str, Box<dyn Error>),
+    Error(
+        &'static str,
+        String,
+        nom::Err<nom::error::Error<Span<'span>>>,
+    ),
     /// Some errors don't impl Error.
     ErrorStr(&'static str, String),
 }
@@ -169,14 +169,11 @@ impl<'span> Debug for Track<'span> {
             Track::Ok(func, rest) => {
                 write!(f, "{}: exit '{}'", func, rest)?;
             }
-            Track::Error(func, err) => {
-                write!(f, "{}: error {}", func, err)?;
+            Track::Error(func, err_str, err) => {
+                write!(f, "{}: E1 {} : {}", func, err_str, err)?;
             }
-            Track::ErrorDyn(func, err) => {
-                write!(f, "{}: error2 {}", func, err)?;
-            }
-            Track::ErrorStr(func, err) => {
-                write!(f, "{}: error3 {}", func, err)?;
+            Track::ErrorStr(func, err_str) => {
+                write!(f, "{}: E3 {}", func, err_str)?;
             }
         }
         Ok(())

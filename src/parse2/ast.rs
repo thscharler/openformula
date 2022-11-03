@@ -15,6 +15,16 @@ pub enum AstTree<'a> {
     PostfixOp(Box<AstTree<'a>>, OFPostfixOp<'a>),
 }
 
+impl<'a> AstTree<'a> {
+    pub fn number(v: f64, s: Span<'a>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::Number(OFNumber(v, s)))
+    }
+
+    pub fn string(v: String, s: Span<'a>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::String(OFString(v, s)))
+    }
+}
+
 impl<'a> Display for AstTree<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {

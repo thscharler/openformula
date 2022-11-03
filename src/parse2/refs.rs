@@ -1,4 +1,7 @@
 use crate::parse2::ast_format::fmt_cref;
+use crate::parse2::tracer::Tracer;
+use crate::parse2::{ast_parser, Span};
+use crate::OFError;
 use std::fmt::{Display, Formatter};
 
 /// Basic cell reference.
@@ -130,14 +133,12 @@ impl Display for CellRef {
     }
 }
 
-// TODO: this
+impl TryFrom<&str> for CellRef {
+    type Error = OFError;
 
-// impl TryFrom<&str> for CellRef {
-//     type Error = OFError;
-//
-//     fn try_from(s: &str) -> Result<Self, Self::Error> {
-//         let mut trace = Tracer::new();
-//         let (_, cell_ref) = parse_cellref(&mut trace, Span::new(s))?;
-//         Ok(cell_ref)
-//     }
-// }
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        let trace = Tracer::new();
+        let (_rest, cell_ref) = ast_parser::parse_cellref(&trace, Span::new(s))?;
+        Ok(cell_ref)
+    }
+}

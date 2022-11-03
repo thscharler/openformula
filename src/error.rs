@@ -12,6 +12,7 @@ pub enum OFError {
     ParseInt(std::num::ParseIntError),
     ParseBool(std::str::ParseBoolError),
     ParseFloat(std::num::ParseFloatError),
+    ParseExpr(crate::parse2::ParseExprError),
     Chrono(chrono::format::ParseError),
     Duration(time::OutOfRangeError),
     SystemTime(std::time::SystemTimeError),
@@ -31,6 +32,7 @@ impl Display for OFError {
             OFError::Duration(e) => write!(f, "Duration {}", e)?,
             OFError::SystemTime(e) => write!(f, "SystemTime {}", e)?,
             OFError::Nom(e) => write!(f, "Nom {}", e)?,
+            OFError::ParseExpr(e) => write!(f, "ParseExpr {}", e)?,
         }
 
         Ok(())
@@ -50,6 +52,7 @@ impl std::error::Error for OFError {
             OFError::Duration(e) => Some(e),
             OFError::SystemTime(e) => Some(e),
             OFError::Nom(e) => Some(e),
+            OFError::ParseExpr(e) => Some(e),
         }
     }
 }
@@ -75,6 +78,12 @@ impl From<std::str::ParseBoolError> for OFError {
 impl From<std::num::ParseIntError> for OFError {
     fn from(err: std::num::ParseIntError) -> OFError {
         OFError::ParseInt(err)
+    }
+}
+
+impl From<crate::parse2::ParseExprError> for OFError {
+    fn from(err: crate::parse2::ParseExprError) -> OFError {
+        OFError::ParseExpr(err)
     }
 }
 
