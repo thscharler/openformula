@@ -148,7 +148,7 @@ impl TryFrom<&str> for CellRef {
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         let trace = Tracer::new();
-        let (_rest, cell_ref) = ast_parser::parse_cellref(&trace, Span::new(s))?;
+        let (_rest, (_span, cell_ref)) = ast_parser::parse_cellref(&trace, Span::new(s))?;
         Ok(cell_ref)
     }
 }
@@ -282,7 +282,7 @@ impl TryFrom<&str> for CellRange {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let trace = Tracer::new();
-        let (_, cellrange) = parse_cellrange(&trace, Span::new(value))?;
+        let (_, (_, cellrange)) = parse_cellrange(&trace, Span::new(value))?;
         Ok(cellrange)
     }
 }
@@ -549,7 +549,7 @@ impl TryFrom<&str> for ColRange {
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         let trace = Tracer::new();
-        let (_rest, col_range) = ast_parser::parse_colrange(&trace, Span::new(s))?;
+        let (_, (_, col_range)) = ast_parser::parse_colrange(&trace, Span::new(s))?;
         Ok(col_range)
     }
 }
@@ -676,7 +676,7 @@ impl TryFrom<&str> for RowRange {
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         let trace = Tracer::new();
-        let (_rest, row_range) = ast_parser::parse_rowrange(&trace, Span::new(s))?;
+        let (_, (_, row_range)) = ast_parser::parse_rowrange(&trace, Span::new(s))?;
         Ok(row_range)
     }
 }
@@ -767,6 +767,56 @@ impl ToFormula for RowRange {
         let mut buf = String::new();
         write!(buf, "[")?;
         write!(buf, "{}", Fmt(|f| fmt_rowrange(f, self)))?;
+        write!(buf, "]")?;
+        Ok(buf)
+    }
+}
+
+/// Any reference.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Reference {
+    /// Cell reference
+    Cell(CellRef),
+    /// Range reference
+    Range(CellRange),
+    /// Colrange reference
+    Col(ColRange),
+    /// Rowrange reference
+    Row(RowRange),
+}
+
+impl Display for Reference {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Reference::Cell(v) => write!(f, "{}", v)?,
+            Reference::Range(v) => write!(f, "{}", v)?,
+            Reference::Col(v) => write!(f, "{}", v)?,
+            Reference::Row(v) => write!(f, "{}", v)?,
+        }
+        Ok(())
+    }
+}
+
+// impl TryFrom<&str> for Reference {
+//     type Error = OFError;
+//
+//     fn try_from(s: &str) -> Result<Self, Self::Error> {
+//         let trace = Tracer::new();
+//         let (_rest, row_range) = ast_parser::parse_rowrange(&trace, Span::new(s))?;
+//         Ok(row_range)
+//     }
+// }
+
+impl ToFormula for Reference {
+    fn to_formula(&self) -> Result<String, Error> {
+        let mut buf = String::new();
+        write!(buf, "[")?;
+        match self {
+            Reference::Cell(v) => write!(buf, "{}", v)?,
+            Reference::Range(v) => write!(buf, "{}", v)?,
+            Reference::Col(v) => write!(buf, "{}", v)?,
+            Reference::Row(v) => write!(buf, "{}", v)?,
+        }
         write!(buf, "]")?;
         Ok(buf)
     }

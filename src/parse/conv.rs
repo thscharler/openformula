@@ -6,6 +6,7 @@ use crate::error::ParseExprError;
 use crate::parse::Span;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::num::IntErrorKind;
 use std::str::FromStr;
 
 /// Parse a bool if a '$' exists.
@@ -17,11 +18,55 @@ pub fn try_bool_from_abs_flag<'a>(i: Option<Span<'a>>) -> bool {
     }
 }
 
+/// Error for try_u32_from_rowname.
+#[allow(variant_size_differences)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParseRownameError {
+    /// Value being parsed is empty.
+    ///
+    /// This variant will be constructed when parsing an empty string.
+    Empty,
+    /// Contains an invalid digit in its context.
+    ///
+    /// Among other causes, this variant will be constructed when parsing a string that
+    /// contains a non-ASCII char.
+    ///
+    /// This variant is also constructed when a `+` or `-` is misplaced within a string
+    /// either on its own or in the middle of a number.
+    InvalidDigit,
+    /// Integer is too large to store in target integer type.
+    PosOverflow,
+    /// Integer is too small to store in target integer type.
+    NegOverflow,
+    /// Value was Zero
+    ///
+    /// This variant will be emitted when the parsing string has a value of zero, which
+    /// would be illegal for non-zero types.
+    Zero,
+    /// Something else.
+    Other,
+}
+
 /// Parse a row number to a row index.
+#[allow(clippy::explicit_auto_deref)]
 pub fn try_u32_from_rowname<'a>(i: Span<'a>) -> Result<u32, ParseExprError> {
     match u32::from_str(*i) {
-        Ok(v) => Ok(v),
-        Err(e) => Err(ParseExprError::ParseInt(i.into(), e)),
+        Ok(v) if v > 0 => Ok(v - 1),
+        Ok(_v) => Err(ParseExprError::ParseRowname(
+            i.into(),
+            ParseRownameError::Zero,
+        )),
+        Err(e) => Err(ParseExprError::ParseRowname(
+            i.into(),
+            match e.kind() {
+                IntErrorKind::Empty => ParseRownameError::Empty,
+                IntErrorKind::InvalidDigit => ParseRownameError::InvalidDigit,
+                IntErrorKind::PosOverflow => ParseRownameError::PosOverflow,
+                IntErrorKind::NegOverflow => ParseRownameError::NegOverflow,
+                IntErrorKind::Zero => ParseRownameError::Zero,
+                _ => ParseRownameError::Other,
+            },
+        )),
     }
 }
 

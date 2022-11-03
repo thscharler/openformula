@@ -105,6 +105,20 @@ impl<'span> Tracer<'span> {
         err
     }
 
+    /// Error in a Parser.
+    ///
+    /// Panic
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn parse_err(&self, err: ParseExprError) -> ParseExprError {
+        let func = self.func.borrow_mut().pop().unwrap();
+        self.tracks
+            .borrow_mut()
+            .push(Track::ErrorStr(func, err.to_string()));
+
+        err
+    }
+
     /// Erring in a parser. Handles all nom errors.
     ///
     /// Panic
@@ -167,19 +181,19 @@ impl<'span> Debug for Track<'span> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Track::Enter(func, input) => {
-                write!(f, "{}: enter '{}'", func, input)?;
+                write!(f, "{}: '{}'", func, input)?;
             }
             Track::Step(func, step, input) => {
                 write!(f, "{}: {} '{}'", func, step, input)?;
             }
             Track::Ok(func, rest) => {
-                write!(f, "{}: exit '{}'", func, rest)?;
+                write!(f, "{}: return '{}'", func, rest)?;
             }
             Track::Error(func, err_str, err) => {
-                write!(f, "{}: E1 {} : {}", func, err_str, err)?;
+                write!(f, "{}: !!! {} : {}", func, err_str, err)?;
             }
             Track::ErrorStr(func, err_str) => {
-                write!(f, "{}: E3 {}", func, err_str)?;
+                write!(f, "{}: !!! {}", func, err_str)?;
             }
         }
         Ok(())

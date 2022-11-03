@@ -4,6 +4,7 @@
 
 use crate::parse::Span;
 use crate::refs::CellRef;
+use crate::{CellRange, ColRange, RowRange};
 use std::fmt::{Display, Formatter};
 use std::mem;
 
@@ -16,6 +17,12 @@ pub enum AstTree<'a> {
     String(OFString<'a>),
     /// TODO:
     CellRef(OFCellRef<'a>),
+    /// TODO:
+    CellRange(OFCellRange<'a>),
+    /// TODO:
+    ColRange(OFColRange<'a>),
+    /// TODO:
+    RowRange(OFRowRange<'a>),
     /// TODO:
     Parenthesis(Box<AstTree<'a>>),
     /// TODO:
@@ -35,6 +42,26 @@ impl<'a> AstTree<'a> {
     /// String variant
     pub fn string(v: String, s: Span<'a>) -> Box<AstTree<'a>> {
         Box::new(AstTree::String(OFString(v, s)))
+    }
+
+    /// CellRef variant
+    pub fn cellref(v: CellRef, s: Span<'a>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::CellRef(OFCellRef(v, s)))
+    }
+
+    /// CellRange variant
+    pub fn cellrange(v: CellRange, s: Span<'a>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::CellRange(OFCellRange(v, s)))
+    }
+
+    /// ColRange variant
+    pub fn colrange(v: ColRange, s: Span<'a>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::ColRange(OFColRange(v, s)))
+    }
+
+    /// RowRange variant
+    pub fn rowrange(v: RowRange, s: Span<'a>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::RowRange(OFRowRange(v, s)))
     }
 }
 
@@ -59,8 +86,17 @@ impl<'a> Display for AstTree<'a> {
             AstTree::PostfixOp(expr, op) => {
                 write!(f, "{}{}", expr, op)
             }
-            AstTree::CellRef(cellref) => {
-                write!(f, "{}", cellref)
+            AstTree::CellRef(v) => {
+                write!(f, "{}", v)
+            }
+            AstTree::CellRange(v) => {
+                write!(f, "{}", v)
+            }
+            AstTree::RowRange(v) => {
+                write!(f, "{}", v)
+            }
+            AstTree::ColRange(v) => {
+                write!(f, "{}", v)
             }
         }
     }
@@ -220,6 +256,54 @@ impl<'a> Display for OFCellRef<'a> {
 }
 
 impl<'a> PartialEq for OFCellRef<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+/// CellRange
+#[derive(Debug)]
+pub struct OFCellRange<'a>(pub CellRange, pub Span<'a>);
+
+impl<'a> Display for OFCellRange<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl<'a> PartialEq for OFCellRange<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+/// RowRange
+#[derive(Debug)]
+pub struct OFRowRange<'a>(pub RowRange, pub Span<'a>);
+
+impl<'a> Display for OFRowRange<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl<'a> PartialEq for OFRowRange<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+/// ColRange
+#[derive(Debug)]
+pub struct OFColRange<'a>(pub ColRange, pub Span<'a>);
+
+impl<'a> Display for OFColRange<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl<'a> PartialEq for OFColRange<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }

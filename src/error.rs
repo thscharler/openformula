@@ -2,11 +2,11 @@
 //! Defines the error type.
 //!
 
+use crate::conv::ParseRownameError;
 use crate::parse::conv::ParseColnameError;
 use crate::parse::Span;
 use std::error::Error;
-use std::fmt::{Display, Formatter};
-use std::num::ParseIntError;
+use std::fmt::{Debug, Display, Formatter};
 
 ///
 /// Error type
@@ -156,7 +156,7 @@ pub enum ParseExprError {
     RowRange(ErrSpan),
 
     /// TODO:
-    ParseInt(ErrSpan, ParseIntError),
+    ParseRowname(ErrSpan, ParseRownameError),
     /// TODO:
     ParseColname(ErrSpan, ParseColnameError),
 }
@@ -234,14 +234,13 @@ impl Display for ParseExprError {
             ParseExprError::CellRange(s) => write!(f, "CellRange {}", s),
             ParseExprError::ColRange(s) => write!(f, "ColRange {}", s),
             ParseExprError::RowRange(s) => write!(f, "RowRange {}", s),
-            ParseExprError::ParseInt(s, e) => write!(f, "ParseInt {} {:?}", s, e),
+            ParseExprError::ParseRowname(s, e) => write!(f, "ParseRowname {} {:?}", s, e),
             ParseExprError::ParseColname(s, e) => write!(f, "ParseColname {} {:?}", s, e),
         }
     }
 }
 
 /// For the errors the lifetime is annoying. This is a owning copy of the offending span.
-#[derive(Debug)]
 pub struct ErrSpan {
     /// Offset from the start of input.
     pub offset: usize,
@@ -253,12 +252,22 @@ pub struct ErrSpan {
     pub fragment: String,
 }
 
+impl Debug for ErrSpan {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ErrSpan(@{}:{} str '{}')",
+            self.line, self.column, self.fragment
+        )
+    }
+}
+
 impl Display for ErrSpan {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}:{} <{}> '{}'",
-            self.offset, self.line, self.column, self.fragment
+            "(@{}:{} str '{}')",
+            self.line, self.column, self.fragment
         )
     }
 }

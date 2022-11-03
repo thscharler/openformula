@@ -12,23 +12,23 @@ use nom::sequence::tuple;
 
 // Expression ::=
 // Whitespace* (
-// Array |
-// FunctionName '(' ParameterList ')' |
-// Reference |
-// QuotedLabel |
-// AutomaticIntersection |
-// NamedExpression |
-// Error
+//      Array |
+//      FunctionName '(' ParameterList ')' |
+//      QuotedLabel |
+//      AutomaticIntersection |
+//      NamedExpression |
+//      Error |
+//
+//      Number |
+//      String |
+//      Reference |
+//      PrefixOp Expression |
+//      Expression InfixOp Expression |
+//      Expression PostfixOp |
+//      '(' Expression ')' |
 // ) Whitespace*
 // SingleQuoted ::= "'" ([^'] | "''")+ "'"
 //
-//
-// Number |
-// String |
-// PrefixOp Expression |
-// Expression InfixOp Expression |
-// Expression PostfixOp |
-// '(' Expression ')' |
 
 /// Number.
 pub fn number<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<AstTree<'s>>> {
@@ -80,7 +80,7 @@ pub fn expr<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, B
 
     match infix_expr(trace, i) {
         Ok((rest, expr)) => Ok(trace.ok(rest, expr)),
-        Err(e) => Err(e),
+        Err(e) => Err(trace.parse_err(e)),
     }
 }
 
@@ -99,15 +99,15 @@ pub fn infix_expr<'s, 't>(
                         rest1 = rest3;
                         expr1 = Box::new(AstTree::InfixOp(expr1, tok, expr2));
                     }
-                    Err(e) => break Err(e),
+                    Err(e) => break Err(trace.parse_err(e)),
                 },
                 Ok((rest2, None)) => {
                     break Ok(trace.ok(rest2, expr1));
                 }
-                Err(e) => break Err(e),
+                Err(e) => break Err(trace.parse_err(e)),
             }
         },
-        Err(e) => Err(e),
+        Err(e) => Err(trace.parse_err(e)),
     }
 }
 
@@ -127,10 +127,10 @@ pub fn postfix_expr<'s, 't>(
                     expr = Box::new(AstTree::PostfixOp(expr, tok));
                 }
                 Ok((i2, None)) => break Ok(trace.ok(i2, expr)),
-                Err(e) => break Err(e),
+                Err(e) => break Err(trace.parse_err(e)),
             }
         },
-        Err(e) => Err(e),
+        Err(e) => Err(trace.parse_err(e)),
     }
 }
 
@@ -144,13 +144,13 @@ pub fn prefix_expr<'s, 't>(
     match prefix_op_mapped(trace, i) {
         Ok((rest1, Some(tok))) => match prefix_expr(trace, rest1) {
             Ok((rest2, expr)) => Ok(trace.ok(rest2, Box::new(AstTree::PrefixOp(tok, expr)))),
-            Err(e) => Err(e),
+            Err(e) => Err(trace.parse_err(e)),
         },
         Ok((rest1, None)) => match elementary(trace, rest1) {
             Ok((rest2, expr)) => Ok(trace.ok(rest2, expr)),
-            Err(e) => Err(e),
+            Err(e) => Err(trace.parse_err(e)),
         },
-        Err(e) => Err(e),
+        Err(e) => Err(trace.parse_err(e)),
     }
 }
 
@@ -178,6 +178,7 @@ pub fn opt_expr_parentheses<'s, 't>(
 // Number |
 // String |
 // '(' Expression ')' |
+// Reference
 
 /// Leafs of the expression tree.
 pub fn elementary<'s, 't>(
@@ -189,19 +190,18 @@ pub fn elementary<'s, 't>(
     match opt_number(trace, i) {
         Ok((rest, Some(expr))) => return Ok(trace.ok(rest, expr)),
         Ok((_rest, None)) => { /* skip */ }
-        Err(e) => return Err(e),
+        Err(e) => return Err(trace.parse_err(e)),
     }
 
     match opt_string(trace, i) {
         Ok((rest, Some(expr))) => return Ok(trace.ok(rest, expr)),
         Ok((_rest, None)) => { /* skip */ }
-        Err(e) => return Err(e),
+        Err(e) => return Err(trace.parse_err(e)),
     }
 
-    // match opt_cellref(&trace, i) {
-    //     Ok((i, Some(o))) => {
-    //         trace.clear_leafs();
-    //         return Ok((i, Box::new(ParseTree::CellRef(o))));
+    // match opt_reference(&trace, i) {
+    //     Ok((rest, Some(expr))) => {
+    //         return Ok(trace.ok(rest, expr));
     //     }
     //     Ok((_, None)) => { /* skip */ }
     //     Err(e) => return Err(e),
@@ -212,7 +212,7 @@ pub fn elementary<'s, 't>(
             return Ok(trace.ok(rest, tok));
         }
         Ok((_, None)) => { /* skip */ }
-        Err(e) => return Err(e),
+        Err(e) => return Err(trace.parse_err(e)),
     }
 
     Err(trace.ast_err(i, ParseExprError::elementary))
@@ -291,6 +291,46 @@ fn check_eof<'a>(
     }
 }
 
+/// Tries to parse a cell reference.
+#[allow(clippy::manual_map)]
+pub fn opt_reference<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    trace.enter("opt_reference", i);
+
+    match opt_cellrange(trace, i) {
+        Ok((rest, Some((span, tok)))) => {
+            return Ok(trace.ok(rest, Some(AstTree::cellrange(tok, span))))
+        }
+        Ok((_rest, None)) => { /* skip */ }
+        Err(e) => return Err(trace.parse_err(e)),
+    }
+    match opt_cellref(trace, i) {
+        Ok((rest, Some((span, tok)))) => {
+            return Ok(trace.ok(rest, Some(AstTree::cellref(tok, span))))
+        }
+        Ok((_rest, None)) => { /* skip */ }
+        Err(e) => return Err(trace.parse_err(e)),
+    }
+    match opt_colrange(trace, i) {
+        Ok((rest, Some((span, tok)))) => {
+            return Ok(trace.ok(rest, Some(AstTree::colrange(tok, span))))
+        }
+        Ok((_rest, None)) => { /* skip */ }
+        Err(e) => return Err(trace.parse_err(e)),
+    }
+    match opt_rowrange(trace, i) {
+        Ok((rest, Some((span, tok)))) => {
+            return Ok(trace.ok(rest, Some(AstTree::rowrange(tok, span))))
+        }
+        Ok((_rest, None)) => { /* skip */ }
+        Err(e) => return Err(trace.parse_err(e)),
+    }
+
+    Ok((i, None))
+}
+
 //
 // Reference ::= '[' (Source? RangeAddress) | ReferenceError ']'
 // RangeAddress ::=
@@ -311,16 +351,19 @@ fn check_eof<'a>(
 // Source ::= "'" IRI "'" "#"
 // CellAddress ::= SheetLocatorOrEmpty '.' Column Row /* Not used directly */
 /// Parses the full string as CellRef.
-pub fn parse_cellref<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, CellRef> {
+pub fn parse_cellref<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, (Span<'s>, CellRef)> {
     trace.enter("parse_cellref", i);
 
     match opt_cellref(trace, i) {
-        Ok((rest, Some(tok))) => {
+        Ok((rest, Some((span, tok)))) => {
             check_eof(rest, ParseExprError::cellref)?;
-            Ok((rest, tok))
+            Ok(trace.ok(rest, (span, tok)))
         }
         Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::cellref)),
-        Err(e) => Err(e),
+        Err(e) => Err(trace.parse_err(e)),
     }
 }
 
@@ -329,8 +372,8 @@ pub fn parse_cellref<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<
 pub fn opt_cellref<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Option<CellRef>> {
-    trace.enter("parse_cellref", i);
+) -> ParseResult<'s, 't, Option<(Span<'s>, CellRef)>> {
+    trace.enter("opt_cellref", i);
 
     match consumed(tuple((
         opt(tokens::iri),
@@ -340,23 +383,26 @@ pub fn opt_cellref<'s, 't>(
         tokens::row,
     )))(i)
     {
-        Ok((rest, (_p, (iri, sheetname, _dot, col, row)))) => {
+        Ok((rest, (all, (iri, sheetname, _dot, col, row)))) => {
             //
             Ok(trace.ok(
                 rest,
-                Some(CellRef {
-                    iri: iri.map(|v| (*v).to_string()),
-                    sheet: match sheetname {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
+                Some((
+                    all,
+                    CellRef {
+                        iri: iri.map(|v| (*v).to_string()),
+                        sheet: match sheetname {
+                            None => None,
+                            Some((_, v)) => Some((*v).to_string()),
+                        },
+                        cell: CRef {
+                            abs_row: try_bool_from_abs_flag(row.0),
+                            row: trace.re_err(try_u32_from_rowname(row.1))?,
+                            abs_col: try_bool_from_abs_flag(col.0),
+                            col: trace.re_err(try_u32_from_colname(col.1))?,
+                        },
                     },
-                    cell: CRef {
-                        abs_row: try_bool_from_abs_flag(row.0),
-                        row: trace.re_err(try_u32_from_rowname(row.1))?,
-                        abs_col: try_bool_from_abs_flag(col.0),
-                        col: trace.re_err(try_u32_from_colname(col.1))?,
-                    },
-                }),
+                )),
             ))
         }
 
@@ -370,16 +416,16 @@ pub fn opt_cellref<'s, 't>(
 pub fn parse_cellrange<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, CellRange> {
+) -> ParseResult<'s, 't, (Span<'s>, CellRange)> {
     trace.enter("parse_cellrange", i);
 
     match opt_cellrange(trace, i) {
-        Ok((rest, Some(tok))) => {
+        Ok((rest, Some((span, tok)))) => {
             check_eof(rest, ParseExprError::cellrange)?;
-            Ok((rest, tok))
+            Ok(trace.ok(rest, (span, tok)))
         }
         Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::cellrange)),
-        Err(e) => Err(e),
+        Err(e) => Err(trace.parse_err(e)),
     }
 }
 
@@ -388,8 +434,8 @@ pub fn parse_cellrange<'s, 't>(
 pub fn opt_cellrange<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Option<CellRange>> {
-    trace.enter("parse_cellref", i);
+) -> ParseResult<'s, 't, Option<(Span<'s>, CellRange)>> {
+    trace.enter("opt_cellrange", i);
 
     match consumed(tuple((
         opt(tokens::iri),
@@ -407,36 +453,39 @@ pub fn opt_cellrange<'s, 't>(
         Ok((
             rest,
             (
-                _p,
+                tok,
                 (iri, sheetname_0, _dot_0, col_0, row_0, _colon, sheetname_1, _dot_1, col_1, row_1),
             ),
         )) => {
             //
             Ok(trace.ok(
                 rest,
-                Some(CellRange {
-                    iri: iri.map(|v| (*v).to_string()),
-                    from_sheet: match sheetname_0 {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
+                Some((
+                    tok,
+                    CellRange {
+                        iri: iri.map(|v| (*v).to_string()),
+                        from_sheet: match sheetname_0 {
+                            None => None,
+                            Some((_, v)) => Some((*v).to_string()),
+                        },
+                        from: CRef {
+                            abs_row: try_bool_from_abs_flag(row_0.0),
+                            row: trace.re_err(try_u32_from_rowname(row_0.1))?,
+                            abs_col: try_bool_from_abs_flag(col_0.0),
+                            col: trace.re_err(try_u32_from_colname(col_0.1))?,
+                        },
+                        to_sheet: match sheetname_1 {
+                            None => None,
+                            Some((_, v)) => Some((*v).to_string()),
+                        },
+                        to: CRef {
+                            abs_row: try_bool_from_abs_flag(row_1.0),
+                            row: trace.re_err(try_u32_from_rowname(row_1.1))?,
+                            abs_col: try_bool_from_abs_flag(col_1.0),
+                            col: trace.re_err(try_u32_from_colname(col_1.1))?,
+                        },
                     },
-                    from: CRef {
-                        abs_row: try_bool_from_abs_flag(row_0.0),
-                        row: trace.re_err(try_u32_from_rowname(row_0.1))?,
-                        abs_col: try_bool_from_abs_flag(col_0.0),
-                        col: trace.re_err(try_u32_from_colname(col_0.1))?,
-                    },
-                    to_sheet: match sheetname_1 {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
-                    },
-                    to: CRef {
-                        abs_row: try_bool_from_abs_flag(row_1.0),
-                        row: trace.re_err(try_u32_from_rowname(row_1.1))?,
-                        abs_col: try_bool_from_abs_flag(col_1.0),
-                        col: trace.re_err(try_u32_from_colname(col_1.1))?,
-                    },
-                }),
+                )),
             ))
         }
 
@@ -447,16 +496,19 @@ pub fn opt_cellrange<'s, 't>(
 }
 
 /// Parses the full string as ColRange.
-pub fn parse_colrange<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, ColRange> {
+pub fn parse_colrange<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, (Span<'s>, ColRange)> {
     trace.enter("parse_colrange", i);
 
     match opt_colrange(trace, i) {
-        Ok((rest, Some(tok))) => {
+        Ok((rest, Some((span, tok)))) => {
             check_eof(rest, ParseExprError::colrange)?;
-            Ok((rest, tok))
+            Ok(trace.ok(rest, (span, tok)))
         }
         Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::colrange)),
-        Err(e) => Err(e),
+        Err(e) => Err(trace.parse_err(e)),
     }
 }
 
@@ -465,7 +517,7 @@ pub fn parse_colrange<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult
 pub fn opt_colrange<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Option<ColRange>> {
+) -> ParseResult<'s, 't, Option<(Span<'s>, ColRange)>> {
     trace.enter("opt_colrange", i);
 
     match consumed(tuple((
@@ -479,25 +531,31 @@ pub fn opt_colrange<'s, 't>(
         tokens::col,
     )))(i)
     {
-        Ok((rest, (_p, (iri, sheetname_0, _dot_0, col_0, _colon, sheetname_1, _dot_1, col_1)))) => {
+        Ok((
+            rest,
+            (tok, (iri, sheetname_0, _dot_0, col_0, _colon, sheetname_1, _dot_1, col_1)),
+        )) => {
             //
             Ok(trace.ok(
                 rest,
-                Some(ColRange {
-                    iri: iri.map(|v| (*v).to_string()),
-                    from_sheet: match sheetname_0 {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
+                Some((
+                    tok,
+                    ColRange {
+                        iri: iri.map(|v| (*v).to_string()),
+                        from_sheet: match sheetname_0 {
+                            None => None,
+                            Some((_, v)) => Some((*v).to_string()),
+                        },
+                        abs_from_col: try_bool_from_abs_flag(col_0.0),
+                        from_col: trace.re_err(try_u32_from_colname(col_0.1))?,
+                        to_sheet: match sheetname_1 {
+                            None => None,
+                            Some((_, v)) => Some((*v).to_string()),
+                        },
+                        abs_to_col: try_bool_from_abs_flag(col_1.0),
+                        to_col: trace.re_err(try_u32_from_colname(col_1.1))?,
                     },
-                    abs_from_col: try_bool_from_abs_flag(col_0.0),
-                    from_col: trace.re_err(try_u32_from_colname(col_0.1))?,
-                    to_sheet: match sheetname_1 {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
-                    },
-                    abs_to_col: try_bool_from_abs_flag(col_1.0),
-                    to_col: trace.re_err(try_u32_from_colname(col_1.1))?,
-                }),
+                )),
             ))
         }
 
@@ -508,16 +566,19 @@ pub fn opt_colrange<'s, 't>(
 }
 
 /// Parses the full string as ColRange.
-pub fn parse_rowrange<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, RowRange> {
+pub fn parse_rowrange<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, (Span<'s>, RowRange)> {
     trace.enter("parse_rowrange", i);
 
     match opt_rowrange(trace, i) {
-        Ok((rest, Some(tok))) => {
+        Ok((rest, Some((span, tok)))) => {
             check_eof(rest, ParseExprError::rowrange)?;
-            Ok((rest, tok))
+            Ok(trace.ok(rest, (span, tok)))
         }
         Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::rowrange)),
-        Err(e) => Err(e),
+        Err(e) => Err(trace.parse_err(e)),
     }
 }
 
@@ -526,7 +587,7 @@ pub fn parse_rowrange<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult
 pub fn opt_rowrange<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Option<RowRange>> {
+) -> ParseResult<'s, 't, Option<(Span<'s>, RowRange)>> {
     trace.enter("opt_rowrange", i);
 
     match consumed(tuple((
@@ -540,25 +601,31 @@ pub fn opt_rowrange<'s, 't>(
         tokens::row,
     )))(i)
     {
-        Ok((rest, (_p, (iri, sheetname_0, _dot_0, row_0, _colon, sheetname_1, _dot_1, row_1)))) => {
+        Ok((
+            rest,
+            (tok, (iri, sheetname_0, _dot_0, row_0, _colon, sheetname_1, _dot_1, row_1)),
+        )) => {
             //
             Ok(trace.ok(
                 rest,
-                Some(RowRange {
-                    iri: iri.map(|v| (*v).to_string()),
-                    from_sheet: match sheetname_0 {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
+                Some((
+                    tok,
+                    RowRange {
+                        iri: iri.map(|v| (*v).to_string()),
+                        from_sheet: match sheetname_0 {
+                            None => None,
+                            Some((_, v)) => Some((*v).to_string()),
+                        },
+                        abs_from_row: try_bool_from_abs_flag(row_0.0),
+                        from_row: trace.re_err(try_u32_from_rowname(row_0.1))?,
+                        to_sheet: match sheetname_1 {
+                            None => None,
+                            Some((_, v)) => Some((*v).to_string()),
+                        },
+                        abs_to_row: try_bool_from_abs_flag(row_1.0),
+                        to_row: trace.re_err(try_u32_from_rowname(row_1.1))?,
                     },
-                    abs_from_row: try_bool_from_abs_flag(row_0.0),
-                    from_row: trace.re_err(try_u32_from_rowname(row_0.1))?,
-                    to_sheet: match sheetname_1 {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
-                    },
-                    abs_to_row: try_bool_from_abs_flag(row_1.0),
-                    to_row: trace.re_err(try_u32_from_rowname(row_1.1))?,
-                }),
+                )),
             ))
         }
 
@@ -571,6 +638,7 @@ pub fn opt_rowrange<'s, 't>(
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
+    use crate::ast_parser::opt_reference;
     use crate::error::OFError;
     use crate::parse::ast_parser::opt_cellref;
     use crate::parse::tracer::Tracer;
@@ -586,7 +654,10 @@ mod tests {
                 opt_cellref(&trace, Span::new(".A21"))?,
                 (
                     LocatedSpan::new_from_raw_offset(4, 1, "", ()),
-                    Some(CellRef::local(21, 0))
+                    Some((
+                        LocatedSpan::new_from_raw_offset(1, 1, ".A21", ()),
+                        CellRef::local(21, 0)
+                    ))
                 )
             );
         }
@@ -601,10 +672,39 @@ mod tests {
                 opt_cellref(&trace, Span::new(".A21"))?,
                 (
                     LocatedSpan::new_from_raw_offset(4, 1, "", ()),
-                    Some(CellRef::local(21, 0))
+                    Some((
+                        LocatedSpan::new_from_raw_offset(0, 1, ".A21", ()),
+                        CellRef::local(21, 0)
+                    ))
                 )
             );
             Ok(())
         }
+    }
+
+    #[test]
+    #[allow(unused_must_use)]
+    fn test_cellref3() -> Result<(), OFError> {
+        let trace = Tracer::new();
+        dbg!(opt_reference(&trace, Span::new(".A1")));
+        dbg!(&trace);
+
+        let trace = Tracer::new();
+        dbg!(opt_reference(&trace, Span::new(".A0")));
+        dbg!(&trace);
+
+        let trace = Tracer::new();
+        dbg!(opt_reference(&trace, Span::new(".A1:.C4")));
+        dbg!(&trace);
+
+        let trace = Tracer::new();
+        dbg!(opt_reference(&trace, Span::new(".A:.C")));
+        dbg!(&trace);
+
+        let trace = Tracer::new();
+        dbg!(opt_reference(&trace, Span::new(".34:.37")));
+        dbg!(&trace);
+
+        Ok(())
     }
 }
