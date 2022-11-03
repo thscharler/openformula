@@ -2,10 +2,11 @@
 //! Parses and creates the AST.
 //!
 
-use crate::parse2::ast::{AstTree, OFInfixOp, OFNumber, OFPostfixOp, OFPrefixOp};
-use crate::parse2::conv::{try_bool_from_abs_flag, try_u32_from_colname, try_u32_from_rowname};
-use crate::parse2::refs::{CRef, CellRange, CellRef, ColRange, RowRange};
-use crate::parse2::{tokens, ParseExprError, ParseResult, Span, Tracer};
+use crate::ast::{AstTree, OFInfixOp, OFNumber, OFPostfixOp, OFPrefixOp};
+use crate::error::ParseExprError;
+use crate::parse::conv::{try_bool_from_abs_flag, try_u32_from_colname, try_u32_from_rowname};
+use crate::parse::{tokens, ParseResult, Span, Tracer};
+use crate::refs::{CRef, CellRange, CellRef, ColRange, RowRange};
 use nom::combinator::{consumed, opt};
 use nom::sequence::tuple;
 
@@ -564,5 +565,46 @@ pub fn opt_rowrange<'s, 't>(
         Err(nom::Err::Error(_)) => Ok(trace.ok(i, None)),
         Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
         Err(nom::Err::Incomplete(_)) => unreachable!(),
+    }
+}
+
+#[allow(unsafe_code)]
+#[cfg(test)]
+mod tests {
+    use crate::error::OFError;
+    use crate::parse::ast_parser::opt_cellref;
+    use crate::parse::tracer::Tracer;
+    use crate::parse::Span;
+    use crate::refs::CellRef;
+    use nom_locate::LocatedSpan;
+
+    #[test]
+    fn test_cellref2() -> Result<(), OFError> {
+        let trace = Tracer::new();
+        unsafe {
+            assert_eq!(
+                opt_cellref(&trace, Span::new(".A21"))?,
+                (
+                    LocatedSpan::new_from_raw_offset(4, 1, "", ()),
+                    Some(CellRef::local(21, 0))
+                )
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_cellref() -> Result<(), OFError> {
+        let trace = Tracer::new();
+        unsafe {
+            assert_eq!(
+                opt_cellref(&trace, Span::new(".A21"))?,
+                (
+                    LocatedSpan::new_from_raw_offset(4, 1, "", ()),
+                    Some(CellRef::local(21, 0))
+                )
+            );
+            Ok(())
+        }
     }
 }

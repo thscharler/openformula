@@ -2,8 +2,8 @@
 //! AST for OpenFormula
 //!
 
-use crate::parse2::refs::CellRef;
-use crate::parse2::Span;
+use crate::parse::Span;
+use crate::refs::CellRef;
 use std::fmt::{Display, Formatter};
 use std::mem;
 

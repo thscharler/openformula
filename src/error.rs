@@ -1,4 +1,12 @@
+//!
+//! Defines the error type.
+//!
+
+use crate::parse::conv::ParseColnameError;
+use crate::parse::Span;
+use std::error::Error;
 use std::fmt::{Display, Formatter};
+use std::num::ParseIntError;
 
 ///
 /// Error type
@@ -12,7 +20,7 @@ pub enum OFError {
     ParseInt(std::num::ParseIntError),
     ParseBool(std::str::ParseBoolError),
     ParseFloat(std::num::ParseFloatError),
-    ParseExpr(crate::parse2::ParseExprError),
+    ParseExpr(ParseExprError),
     Chrono(chrono::format::ParseError),
     Duration(time::OutOfRangeError),
     SystemTime(std::time::SystemTimeError),
@@ -81,8 +89,8 @@ impl From<std::num::ParseIntError> for OFError {
     }
 }
 
-impl From<crate::parse2::ParseExprError> for OFError {
-    fn from(err: crate::parse2::ParseExprError) -> OFError {
+impl From<ParseExprError> for OFError {
+    fn from(err: ParseExprError) -> OFError {
         OFError::ParseExpr(err)
     }
 }
@@ -113,5 +121,155 @@ where
         OFError::Nom(
             err.map(|e| nom::error::ParseError::from_error_kind(e.input.to_string(), e.code)),
         )
+    }
+}
+
+/// Error type for the parser.
+#[allow(variant_size_differences)] // TODO: necessary??
+#[derive(Debug)]
+pub enum ParseExprError {
+    /// TODO:
+    NomError(ErrSpan),
+    /// TODO:
+    NomFailure(ErrSpan),
+
+    /// TODO:
+    Expr(ErrSpan),
+
+    /// TODO:
+    Number(ErrSpan),
+    /// TODO:
+    String(ErrSpan),
+    /// TODO:
+    Parenthesis(ErrSpan),
+
+    /// TODO:
+    Elementary(ErrSpan),
+
+    /// TODO:
+    CellRef(ErrSpan),
+    /// TODO:
+    CellRange(ErrSpan),
+    /// TODO:
+    ColRange(ErrSpan),
+    /// TODO:
+    RowRange(ErrSpan),
+
+    /// TODO:
+    ParseInt(ErrSpan, ParseIntError),
+    /// TODO:
+    ParseColname(ErrSpan, ParseColnameError),
+}
+
+impl ParseExprError {
+    /// NomError variant.
+    pub fn nom_error<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::NomError(span.into())
+    }
+
+    /// NomFailure variant.
+    pub fn nom_failure<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::NomFailure(span.into())
+    }
+
+    /// Expr variant.
+    pub fn expr<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Expr(span.into())
+    }
+
+    /// Number variant.
+    pub fn number<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Number(span.into())
+    }
+
+    /// String variant.
+    pub fn string<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::String(span.into())
+    }
+
+    /// Parenthesis variant.
+    pub fn parenthesis<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Parenthesis(span.into())
+    }
+
+    /// Expr variant.
+    pub fn elementary<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Elementary(span.into())
+    }
+
+    /// Ref variant.
+    pub fn cellref<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::CellRef(span.into())
+    }
+
+    /// Range variant.
+    pub fn cellrange<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::CellRange(span.into())
+    }
+
+    /// Range variant.
+    pub fn colrange<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::ColRange(span.into())
+    }
+
+    /// Range variant.
+    pub fn rowrange<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::RowRange(span.into())
+    }
+}
+
+impl Error for ParseExprError {}
+
+impl Display for ParseExprError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseExprError::NomError(s) => write!(f, "NomError {}", s),
+            ParseExprError::NomFailure(s) => write!(f, "NomFailure {}", s),
+            ParseExprError::Expr(s) => write!(f, "Number {}", s),
+            ParseExprError::Number(s) => write!(f, "Number {}", s),
+            ParseExprError::String(s) => write!(f, "String {}", s),
+            ParseExprError::Parenthesis(s) => write!(f, "Parenthesis {}", s),
+            ParseExprError::Elementary(s) => write!(f, "Elementary {}", s),
+            ParseExprError::CellRef(s) => write!(f, "CellRef {}", s),
+            ParseExprError::CellRange(s) => write!(f, "CellRange {}", s),
+            ParseExprError::ColRange(s) => write!(f, "ColRange {}", s),
+            ParseExprError::RowRange(s) => write!(f, "RowRange {}", s),
+            ParseExprError::ParseInt(s, e) => write!(f, "ParseInt {} {:?}", s, e),
+            ParseExprError::ParseColname(s, e) => write!(f, "ParseColname {} {:?}", s, e),
+        }
+    }
+}
+
+/// For the errors the lifetime is annoying. This is a owning copy of the offending span.
+#[derive(Debug)]
+pub struct ErrSpan {
+    /// Offset from the start of input.
+    pub offset: usize,
+    /// Line.
+    pub line: u32,
+    /// Column.
+    pub column: usize,
+    /// The offending fragment.
+    pub fragment: String,
+}
+
+impl Display for ErrSpan {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}:{} <{}> '{}'",
+            self.offset, self.line, self.column, self.fragment
+        )
+    }
+}
+
+impl<'a> From<Span<'a>> for ErrSpan {
+    fn from(s: Span<'a>) -> Self {
+        Self {
+            offset: s.location_offset(),
+            line: s.location_line(),
+            column: s.get_column(),
+            fragment: s.fragment().to_string(),
+        }
     }
 }

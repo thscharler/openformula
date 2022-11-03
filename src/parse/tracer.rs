@@ -4,7 +4,8 @@
 //! Doesn't copy any strings, just tracks all function calls in the parser.
 //!
 
-use crate::parse2::{ParseExprError, Span};
+use crate::error::ParseExprError;
+use crate::parse::Span;
 use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter};
 

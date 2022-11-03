@@ -1,87 +1,66 @@
-use crate::parse::CellToken;
-use crate::{CRef, OFError};
-use nom::{Compare, CompareResult, InputIter};
-use std::fmt::Debug;
+//!
+//! Low level conversions from a Span<'a> to ...
+//!
+
+use crate::error::ParseExprError;
+use crate::parse::Span;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 
 /// Parse a bool if a '$' exists.
-pub fn try_bool_from_abs_flag<'a, I>(i: Option<I>) -> Result<bool, OFError>
-where
-    I: Clone + Debug + Compare<&'a str>,
-{
+pub fn try_bool_from_abs_flag<'a>(i: Option<Span<'a>>) -> bool {
     if let Some(i) = i {
-        Ok(i.compare("$") == CompareResult::Ok)
+        *i == "$"
     } else {
-        Ok(false)
+        false
     }
-}
-
-/// Parse a cell reference to a cref.
-pub fn try_cref_from_token<'a, I>(i: CellToken<I>) -> Result<CRef, OFError>
-where
-    I: Clone + Debug + InputIter<Item = char> + Compare<&'a str>,
-{
-    Ok(CRef::new_abs(
-        try_bool_from_abs_flag(i.row.0)?,
-        try_u32_from_rowname(i.row.1)?,
-        try_bool_from_abs_flag(i.col.0)?,
-        try_u32_from_colname(i.col.1)?,
-    ))
-}
-
-/// Parse a column reference to a cref.
-pub fn try_column_from_token<'a, I>(i: (Option<I>, I)) -> Result<CRef, OFError>
-where
-    I: Clone + Debug + InputIter<Item = char> + Compare<&'a str>,
-{
-    Ok(CRef::new_abs(
-        false,
-        0,
-        try_bool_from_abs_flag(i.0)?,
-        try_u32_from_colname(i.1)?,
-    ))
-}
-
-/// Parse a row reference to a cref.
-pub fn try_row_from_token<'a, I>(i: (Option<I>, I)) -> Result<CRef, OFError>
-where
-    I: Clone + Debug + InputIter<Item = char> + Compare<&'a str>,
-{
-    Ok(CRef::new_abs(
-        try_bool_from_abs_flag(i.0)?,
-        try_u32_from_colname(i.1)?,
-        false,
-        0,
-    ))
 }
 
 /// Parse a row number to a row index.
-pub fn try_u32_from_rowname<I>(i: I) -> Result<u32, OFError>
-where
-    I: Clone + Debug + InputIter<Item = char>,
-{
-    let mut row = 0u32;
-
-    for c in i.iter_elements() {
-        if ('0'..='9').contains(&c) {
-            return Err(OFError::Parse(format!("{:?}", i)));
-        }
-        let d = c as u32 - b'0' as u32;
-        row = row * 10 + d;
+pub fn try_u32_from_rowname<'a>(i: Span<'a>) -> Result<u32, ParseExprError> {
+    match u32::from_str(*i) {
+        Ok(v) => Ok(v),
+        Err(e) => Err(ParseExprError::ParseInt(i.into(), e)),
     }
-
-    Ok(row - 1)
 }
 
+/// Error for try_u32_from_colname.
+#[allow(variant_size_differences)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParseColnameError {
+    /// TODO:
+    InvalidChar(char),
+    /// TODO:
+    InvalidColname(String),
+}
+
+impl Display for ParseColnameError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseColnameError::InvalidChar(e) => {
+                write!(f, "Invalid char '{}'", e)?;
+            }
+            ParseColnameError::InvalidColname(e) => {
+                write!(f, "Invalid colname {}", e)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Error for ParseColnameError {}
+
 /// Parse a col label to a column index.
-pub fn try_u32_from_colname<I>(i: I) -> Result<u32, OFError>
-where
-    I: Clone + Debug + InputIter<Item = char>,
-{
+pub fn try_u32_from_colname<'a>(i: Span<'a>) -> Result<u32, ParseExprError> {
     let mut col = 0u32;
 
-    for c in i.iter_elements() {
+    for c in (*i).chars() {
         if !('A'..='Z').contains(&c) {
-            return Err(OFError::Parse(format!("{:?}", i)));
+            return Err(ParseExprError::ParseColname(
+                i.into(),
+                ParseColnameError::InvalidChar(c),
+            ));
         }
 
         let mut v = c as u32 - b'A' as u32;
@@ -96,32 +75,11 @@ where
     }
 
     if col == 0 {
-        Err(OFError::Parse(format!("{:?}", i)))
+        Err(ParseExprError::ParseColname(
+            i.into(),
+            ParseColnameError::InvalidColname(format!("{:?}", i)),
+        ))
     } else {
         Ok(col - 1)
     }
-}
-
-/// Unquotes a quoted table name.
-pub fn unquote_str<I>(i: I) -> String
-where
-    I: Clone + Debug + ToString,
-{
-    i.to_string().replace("''", "'")
-}
-
-/// Unquotes a quoted table name.
-pub fn unquote_opt<I>(i: Option<I>) -> Option<String>
-where
-    I: Clone + Debug + ToString,
-{
-    i.map(|i| i.to_string().replace("''", "'"))
-}
-
-/// Unquotes a quoted table name.
-pub fn unquote_opt2<I>(i: Option<(Option<I>, I)>) -> Option<String>
-where
-    I: Clone + Debug + ToString,
-{
-    i.map(|i| i.1.to_string().replace("''", "'"))
 }

@@ -2,14 +2,14 @@
 //! Output formatting for the AST.
 //!
 
-use crate::parse2::refs::{CRef, CellRange, CellRef, ColRange, RowRange};
+use crate::refs::{CRef, CellRange, CellRef, ColRange, RowRange};
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 
 /// Helper struct to use any of these outside of Display or Debug.
 /// ```
-/// use openformula::parse2::ast_format::{Fmt, fmt_colname};
-/// format!(Fmt(|f| fmt_colname(f, 32)));
+/// use openformula::ast_format::{Fmt, fmt_colname};
+/// format!("{}", Fmt(|f| fmt_colname(f, 32)));
 /// ```
 pub struct Fmt<F>(pub F)
 where

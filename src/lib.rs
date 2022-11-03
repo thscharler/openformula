@@ -35,14 +35,18 @@
 #![allow(dead_code)]
 #![allow(clippy::needless_lifetimes)]
 
-extern crate core;
-
-mod base;
+mod ast;
 mod error;
-pub mod parse;
-pub mod parse2;
-pub mod refs;
-pub mod str;
+mod parse;
+mod refs;
 
-pub use base::{CCol, CRef, CRow, CSpan};
+pub use ast::*;
 pub use error::*;
+pub use parse::*;
+pub use refs::*;
+
+/// Converts into a format that can be used in a formula.
+pub trait ToFormula {
+    /// Converts into a format that can be used in a formula.
+    fn to_formula(&self) -> Result<String, std::fmt::Error>;
+}
