@@ -1,3 +1,7 @@
+//!
+//! Parser and AST for OpenFormula.
+//!
+
 pub mod ast;
 pub mod ast_format;
 pub mod ast_parser;
@@ -13,14 +17,28 @@ use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::num::ParseIntError;
 
+/// Input type.
 pub type Span<'a> = LocatedSpan<&'a str>;
+
+/// Result type.
 pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseExprError>;
 
+/// Converts into a format that can be used in a formula.
+pub trait ToFormula {
+    /// Converts into a format that can be used in a formula.
+    fn to_formula(&self) -> Result<String, std::fmt::Error>;
+}
+
+/// For the errors the lifetime is annoying. This is a owning copy of the offending span.
 #[derive(Debug)]
 pub struct ErrSpan {
+    /// Offset from the start of input.
     pub offset: usize,
+    /// Line.
     pub line: u32,
+    /// Column.
     pub column: usize,
+    /// The offending fragment.
     pub fragment: String,
 }
 
@@ -45,27 +63,53 @@ impl<'a> From<Span<'a>> for ErrSpan {
     }
 }
 
+/// Error type for the parser.
 #[allow(variant_size_differences)] // TODO: necessary??
 #[derive(Debug)]
 pub enum ParseExprError {
+    /// TODO:
     NomError,
+    /// TODO:
     NomFailure,
 
+    /// TODO:
     Expr(ErrSpan),
 
+    /// TODO:
     Number(ErrSpan),
+    /// TODO:
     String,
+    /// TODO:
     Parenthesis,
 
+    /// TODO:
     Elementary,
 
+    /// TODO:
+    CellRef(ErrSpan),
+    /// TODO:
+    CellRange(ErrSpan),
+
+    /// TODO:
     ParseInt(ParseIntError),
+    /// TODO:
     ParseColname(ParseColnameError),
 }
 
 impl ParseExprError {
+    /// Expr variant.
     pub fn expr<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::Expr(span.into())
+    }
+
+    /// Ref variant.
+    pub fn cellref<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::CellRef(span.into())
+    }
+
+    /// Range variant.
+    pub fn cellrange<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::CellRange(span.into())
     }
 }
 
@@ -83,6 +127,8 @@ impl Display for ParseExprError {
             ParseExprError::Elementary => write!(f, "Elementary"),
             ParseExprError::ParseInt(e) => write!(f, "ParseInt {:?}", e),
             ParseExprError::ParseColname(e) => write!(f, "ParseColname {:?}", e),
+            ParseExprError::CellRef(s) => write!(f, "Number {}", s),
+            ParseExprError::CellRange(s) => write!(f, "Number {}", s),
         }
     }
 }
@@ -99,9 +145,12 @@ impl From<ParseColnameError> for ParseExprError {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use crate::parse2::ast::AstTree;
-    use crate::parse2::{ParseResult, Span, Tracer};
+    use crate::parse2::ast_parser::{elementary, opt_number};
+    use crate::parse2::tokens::number;
+    use crate::parse2::{ast_parser, ParseResult, Span, Tracer};
 
     fn run_test<'x>(
         str: &'x str,

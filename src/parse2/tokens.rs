@@ -45,15 +45,16 @@ pub fn number<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     ))(i)
 }
 
+fn decimal<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    recognize(many1(one_of("0123456789")))(input)
+}
+
 /// Standard string
 pub fn string<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     quoted('"')(i)
 }
 
-fn decimal<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    recognize(many1(one_of("0123456789")))(input)
-}
-
+/// Parse comparison operators.
 pub fn comparison_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     alt((
         tag("="),
@@ -65,54 +66,72 @@ pub fn comparison_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     ))(i)
 }
 
+/// Parse string operators.
 pub fn string_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("&")(i)
 }
 
+/// Parse reference operators.
 pub fn reference_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("&")(i)
 }
 
+/// Parse referenc intersection.
 pub fn ref_intersection_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("!")(i)
 }
 
+/// Parse concat operator..
 pub fn ref_concatenation_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("~")(i)
 }
 
+/// Parse separator char for function args.
 pub fn separator<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(";")(i)
 }
 
+/// Parse dot
 pub fn dot<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(".")(i)
 }
 
+/// Parse colon
+pub fn colon<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    tag(":")(i)
+}
+
+/// Parse open parenthesis.
 pub fn parenthesis_open<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("(")(i)
 }
 
+/// Parse closing parenthesis.
 pub fn parenthesis_close<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(")")(i)
 }
 
+/// Parse open brackets.
 pub fn brackets_open<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("[")(i)
 }
 
+/// Parse closing brackets.
 pub fn brackets_close<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("]")(i)
 }
 
+/// Tries to parses any infix operator.
 pub fn infix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(alt((tag("+"), tag("-"), tag("*"), tag("/"), tag("^"))))(i)
 }
 
+/// Tries to parse any prefix operator.
 pub fn prefix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(alt((tag("+"), tag("-"))))(i)
 }
 
+/// Tries to parse any postfix operator.
 pub fn postfix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(tag("%"))(i)
 }

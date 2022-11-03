@@ -22,10 +22,13 @@ pub fn try_u32_from_rowname<'a>(i: Span<'a>) -> Result<u32, ParseIntError> {
     u32::from_str(*i)
 }
 
+/// Error for try_u32_from_colname.
 #[allow(variant_size_differences)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseColnameError {
+    /// TODO:
     InvalidChar(char),
+    /// TODO:
     InvalidColname(String),
 }
 
