@@ -26,11 +26,13 @@ pub enum AstTree<'a> {
     /// TODO:
     Parenthesis(Box<AstTree<'a>>),
     /// TODO:
-    PrefixOp(OFPrefixOp<'a>, Box<AstTree<'a>>),
+    CompareExpr(Box<AstTree<'a>>, OFCompOp<'a>, Box<AstTree<'a>>),
     /// TODO:
-    InfixOp(Box<AstTree<'a>>, OFInfixOp<'a>, Box<AstTree<'a>>),
+    InfixExpr(Box<AstTree<'a>>, OFInfixOp<'a>, Box<AstTree<'a>>),
     /// TODO:
-    PostfixOp(Box<AstTree<'a>>, OFPostfixOp<'a>),
+    PrefixExpr(OFPrefixOp<'a>, Box<AstTree<'a>>),
+    /// TODO:
+    PostfixExpr(Box<AstTree<'a>>, OFPostfixOp<'a>),
 }
 
 impl<'a> AstTree<'a> {
@@ -42,6 +44,34 @@ impl<'a> AstTree<'a> {
     /// String variant
     pub fn string(v: String, s: Span<'a>) -> Box<AstTree<'a>> {
         Box::new(AstTree::String(OFString(v, s)))
+    }
+
+    /// PrefixExpr variant
+    pub fn prefix_expr(op: OFPrefixOp<'a>, expr1: Box<AstTree<'a>>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::PrefixExpr(op, expr1))
+    }
+
+    /// PostfixExpr variant
+    pub fn postfix_expr(expr1: Box<AstTree<'a>>, op: OFPostfixOp<'a>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::PostfixExpr(expr1, op))
+    }
+
+    /// CompareExpr variant
+    pub fn compare_expr(
+        expr0: Box<AstTree<'a>>,
+        op: OFCompOp<'a>,
+        expr1: Box<AstTree<'a>>,
+    ) -> Box<AstTree<'a>> {
+        Box::new(AstTree::CompareExpr(expr0, op, expr1))
+    }
+
+    /// InfixExpr variant
+    pub fn infix_expr(
+        expr0: Box<AstTree<'a>>,
+        op: OFInfixOp<'a>,
+        expr1: Box<AstTree<'a>>,
+    ) -> Box<AstTree<'a>> {
+        Box::new(AstTree::InfixExpr(expr0, op, expr1))
     }
 
     /// CellRef variant
@@ -77,13 +107,13 @@ impl<'a> Display for AstTree<'a> {
             AstTree::Parenthesis(expr) => {
                 write!(f, "({})", expr)
             }
-            AstTree::PrefixOp(op, expr) => {
+            AstTree::PrefixExpr(op, expr) => {
                 write!(f, "{}{}", op, expr)
             }
-            AstTree::InfixOp(expr1, op, expr2) => {
+            AstTree::InfixExpr(expr1, op, expr2) => {
                 write!(f, "{} {} {}", expr1, op, expr2)
             }
-            AstTree::PostfixOp(expr, op) => {
+            AstTree::PostfixExpr(expr, op) => {
                 write!(f, "{}{}", expr, op)
             }
             AstTree::CellRef(v) => {
@@ -97,6 +127,9 @@ impl<'a> Display for AstTree<'a> {
             }
             AstTree::ColRange(v) => {
                 write!(f, "{}", v)
+            }
+            AstTree::CompareExpr(expr1, op, expr2) => {
+                write!(f, "{} {} {}", expr1, op, expr2)
             }
         }
     }
@@ -131,6 +164,56 @@ impl<'a> Display for OFPrefixOp<'a> {
 }
 
 impl<'a> PartialEq for OFPrefixOp<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        mem::discriminant(self) == mem::discriminant(other)
+    }
+}
+
+/// Comparison operands.
+#[derive(Debug)]
+pub enum OFCompOp<'a> {
+    /// TODO:
+    Equal(Span<'a>),
+    /// TODO:
+    Unequal(Span<'a>),
+    /// TODO:
+    Less(Span<'a>),
+    /// TODO:
+    LessEqual(Span<'a>),
+    /// TODO:
+    Greater(Span<'a>),
+    /// TODO:
+    GreaterEqual(Span<'a>),
+}
+
+impl<'a> OFCompOp<'a> {
+    /// Extracts the span from each variant.
+    pub fn span(&self) -> Span<'a> {
+        match self {
+            OFCompOp::Equal(s) => *s,
+            OFCompOp::Unequal(s) => *s,
+            OFCompOp::Less(s) => *s,
+            OFCompOp::LessEqual(s) => *s,
+            OFCompOp::Greater(s) => *s,
+            OFCompOp::GreaterEqual(s) => *s,
+        }
+    }
+}
+
+impl<'a> Display for OFCompOp<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OFCompOp::Equal(_) => write!(f, "="),
+            OFCompOp::Unequal(_) => write!(f, "<>"),
+            OFCompOp::Less(_) => write!(f, "<"),
+            OFCompOp::LessEqual(_) => write!(f, "<="),
+            OFCompOp::Greater(_) => write!(f, ">"),
+            OFCompOp::GreaterEqual(_) => write!(f, ">="),
+        }
+    }
+}
+
+impl<'a> PartialEq for OFCompOp<'a> {
     fn eq(&self, other: &Self) -> bool {
         mem::discriminant(self) == mem::discriminant(other)
     }

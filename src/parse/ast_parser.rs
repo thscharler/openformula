@@ -7,6 +7,7 @@ use crate::error::ParseExprError;
 use crate::parse::conv::{try_bool_from_abs_flag, try_u32_from_colname, try_u32_from_rowname};
 use crate::parse::{tokens, ParseResult, Span, Tracer};
 use crate::refs::{CRef, CellRange, CellRef, ColRange, RowRange};
+use crate::OFCompOp;
 use nom::combinator::{consumed, opt};
 use nom::sequence::tuple;
 
@@ -29,6 +30,37 @@ use nom::sequence::tuple;
 // ) Whitespace*
 // SingleQuoted ::= "'" ([^'] | "''")+ "'"
 //
+// PrefixOp ::= '+' | '-'
+// PostfixOp ::= '%'
+// InfixOp ::= ArithmeticOp | ComparisonOp | StringOp | ReferenceOp
+// ArithmeticOp ::= '+' | '-' | '*' | '/' | '^'
+// ComparisonOp ::= '=' | '<>' | '<' | '>' | '<=' | '>='
+// StringOp ::= '&
+//
+// ReferenceOp ::= IntersectionOp | ReferenceConcatenationOp | RangeOp
+// IntersectionOp ::= '!'
+// ReferenceConcatenationOp ::= '~'
+// RangeOp ::= ':'
+//
+// ops
+// :            left        Range.
+// !            left        Reference intersection ([.A1:.C4]![.B1:.B5] is [.B1:.B4]). Displayed as
+//                          the space character in some implementations.
+// ~            left        Reference union.
+//                          Note: Displayed as the function parameter separator in some implementations.
+// + -          right       Prefix unary operators, e.g., -5 or -[.A1]. Note that these have a
+//                          different precedence than add and subtract.
+// %            left        Postfix unary operator % (divide by 100). Note that this is legal
+//                          with expressions (e.g., [.B1]%).
+// ^            left        Power (2 ^ 3 is 8).
+// * /          left        Multiply, divide.
+// + -          left        Binary operations add, subtract. Note that unary (prefix) + and -
+//                          have a different precedence.
+// &            left        Binary operation string concatenation. Note that unary (prefix) +
+//                          and - have a different precedence.
+// =, <>, <, <=,
+// >, >=        left        Comparison operators equal to, not equal to, less than, less than
+//                          or equal to, greater than, greater than or equal to
 
 /// Number.
 pub fn number<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<AstTree<'s>>> {
@@ -84,29 +116,64 @@ pub fn expr<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, B
     }
 }
 
+/// Comparisions
+pub fn comp_expr<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Box<AstTree<'s>>> {
+    trace.enter("comp_expr", i);
+
+    match infix_expr(trace, i) {
+        Ok((mut rest1, mut expr1)) => {
+            //
+            loop {
+                match comp_op_mapped(trace, rest1) {
+                    Ok((rest2, Some(tok))) => {
+                        //
+                        match infix_expr(trace, rest2) {
+                            Ok((rest3, expr2)) => {
+                                rest1 = rest3;
+                                expr1 = AstTree::compare_expr(expr1, tok, expr2);
+                            }
+                            Err(e) => break Err(trace.parse_err(e)),
+                        }
+                    }
+                    Ok((rest, None)) => break Ok(trace.ok(rest, expr1)),
+                    Err(e) => break Err(trace.parse_err(e)),
+                }
+            }
+        }
+        Err(e) => Err(trace.parse_err(e)),
+    }
+}
+
 /// Infix expressions.
 pub fn infix_expr<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
 ) -> ParseResult<'s, 't, Box<AstTree<'s>>> {
-    trace.enter("parse_infix", i);
+    trace.enter("infix_expr", i);
 
     match postfix_expr(trace, i) {
-        Ok((mut rest1, mut expr1)) => loop {
-            match infix_op_mapped(trace, rest1) {
-                Ok((rest2, Some(tok))) => match postfix_expr(trace, rest2) {
-                    Ok((rest3, expr2)) => {
-                        rest1 = rest3;
-                        expr1 = Box::new(AstTree::InfixOp(expr1, tok, expr2));
+        Ok((mut rest1, mut expr1)) => {
+            //
+            loop {
+                match infix_op_mapped(trace, rest1) {
+                    Ok((rest2, Some(tok))) => {
+                        //
+                        match postfix_expr(trace, rest2) {
+                            Ok((rest3, expr2)) => {
+                                rest1 = rest3;
+                                expr1 = AstTree::infix_expr(expr1, tok, expr2);
+                            }
+                            Err(e) => break Err(trace.parse_err(e)),
+                        }
                     }
+                    Ok((rest2, None)) => break Ok(trace.ok(rest2, expr1)),
                     Err(e) => break Err(trace.parse_err(e)),
-                },
-                Ok((rest2, None)) => {
-                    break Ok(trace.ok(rest2, expr1));
                 }
-                Err(e) => break Err(trace.parse_err(e)),
             }
-        },
+        }
         Err(e) => Err(trace.parse_err(e)),
     }
 }
@@ -119,17 +186,20 @@ pub fn postfix_expr<'s, 't>(
     trace.enter("parse_postfix", i0);
 
     match prefix_expr(trace, i0) {
-        Ok((mut rest1, mut expr)) => loop {
-            match postfix_op_mapped(trace, rest1) {
-                Ok((rest2, Some(tok))) => {
-                    trace.step("op", tok.span());
-                    rest1 = rest2;
-                    expr = Box::new(AstTree::PostfixOp(expr, tok));
+        Ok((mut rest1, mut expr)) => {
+            //
+            loop {
+                match postfix_op_mapped(trace, rest1) {
+                    Ok((rest2, Some(tok))) => {
+                        trace.step("op", tok.span());
+                        rest1 = rest2;
+                        expr = AstTree::postfix_expr(expr, tok);
+                    }
+                    Ok((i2, None)) => break Ok(trace.ok(i2, expr)),
+                    Err(e) => break Err(trace.parse_err(e)),
                 }
-                Ok((i2, None)) => break Ok(trace.ok(i2, expr)),
-                Err(e) => break Err(trace.parse_err(e)),
             }
-        },
+        }
         Err(e) => Err(trace.parse_err(e)),
     }
 }
@@ -142,14 +212,20 @@ pub fn prefix_expr<'s, 't>(
     trace.enter("parse_prefix", i);
 
     match prefix_op_mapped(trace, i) {
-        Ok((rest1, Some(tok))) => match prefix_expr(trace, rest1) {
-            Ok((rest2, expr)) => Ok(trace.ok(rest2, Box::new(AstTree::PrefixOp(tok, expr)))),
-            Err(e) => Err(trace.parse_err(e)),
-        },
-        Ok((rest1, None)) => match elementary(trace, rest1) {
-            Ok((rest2, expr)) => Ok(trace.ok(rest2, expr)),
-            Err(e) => Err(trace.parse_err(e)),
-        },
+        Ok((rest1, Some(tok))) => {
+            //
+            match prefix_expr(trace, rest1) {
+                Ok((rest2, expr)) => Ok(trace.ok(rest2, AstTree::prefix_expr(tok, expr))),
+                Err(e) => Err(trace.parse_err(e)),
+            }
+        }
+        Ok((rest1, None)) => {
+            //
+            match elementary(trace, rest1) {
+                Ok((rest2, expr)) => Ok(trace.ok(rest2, expr)),
+                Err(e) => Err(trace.parse_err(e)),
+            }
+        }
         Err(e) => Err(trace.parse_err(e)),
     }
 }
@@ -175,11 +251,6 @@ pub fn opt_expr_parentheses<'s, 't>(
     }
 }
 
-// Number |
-// String |
-// '(' Expression ')' |
-// Reference
-
 /// Leafs of the expression tree.
 pub fn elementary<'s, 't>(
     trace: &'t Tracer<'s>,
@@ -199,13 +270,11 @@ pub fn elementary<'s, 't>(
         Err(e) => return Err(trace.parse_err(e)),
     }
 
-    // match opt_reference(&trace, i) {
-    //     Ok((rest, Some(expr))) => {
-    //         return Ok(trace.ok(rest, expr));
-    //     }
-    //     Ok((_, None)) => { /* skip */ }
-    //     Err(e) => return Err(e),
-    // }
+    match opt_reference(trace, i) {
+        Ok((rest, Some(expr))) => return Ok(trace.ok(rest, expr)),
+        Ok((_, None)) => { /* skip */ }
+        Err(e) => return Err(trace.parse_err(e)),
+    }
 
     match opt_expr_parentheses(trace, i) {
         Ok((rest, Some(tok))) => {
@@ -233,6 +302,29 @@ pub fn prefix_op_mapped<'s, 't>(
         Ok((rest, None)) => Ok(trace.ok(rest, None)),
 
         Err(nom::Err::Error(_)) => Ok(trace.ok(i, None)),
+        Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
+        Err(nom::Err::Incomplete(_)) => unreachable!(),
+    }
+}
+
+/// Parses and maps the Span to an OFCompOp
+pub fn comp_op_mapped<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Option<OFCompOp<'s>>> {
+    trace.enter("comp_op_mapped", i);
+    match tokens::comparison_op(i) {
+        Ok((rest, tok)) => match *tok {
+            "=" => Ok(trace.ok(rest, Some(OFCompOp::Equal(tok)))),
+            "<>" => Ok(trace.ok(rest, Some(OFCompOp::Unequal(tok)))),
+            "<" => Ok(trace.ok(rest, Some(OFCompOp::Less(tok)))),
+            ">" => Ok(trace.ok(rest, Some(OFCompOp::Greater(tok)))),
+            "<=" => Ok(trace.ok(rest, Some(OFCompOp::LessEqual(tok)))),
+            ">=" => Ok(trace.ok(rest, Some(OFCompOp::GreaterEqual(tok)))),
+            _ => unreachable!(),
+        },
+
+        Err(e @ nom::Err::Error(_)) => Err(trace.err(i, ParseExprError::nom_error, e)),
         Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
         Err(nom::Err::Incomplete(_)) => unreachable!(),
     }
