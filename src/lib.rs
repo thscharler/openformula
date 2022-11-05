@@ -22,7 +22,7 @@
 #![warn(trivial_casts)]
 #![warn(trivial_numeric_casts)]
 #![allow(unreachable_pub)]
-#![warn(unsafe_code)]
+#![allow(unsafe_code)]
 #![warn(unsafe_op_in_unsafe_fn)]
 #![warn(unstable_features)]
 // NO #![warn(unused_crate_dependencies)]

@@ -33,7 +33,7 @@ impl<'span> Debug for Tracer<'span> {
                 Track::Step(_, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
                 }
-                Track::Ok(_, _) => {
+                Track::Ok(_, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
                     indent.pop();
                     indent.pop();
@@ -81,9 +81,9 @@ impl<'span> Tracer<'span> {
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
-    pub fn ok<T>(&self, rest: Span<'span>, val: T) -> (Span<'span>, T) {
+    pub fn ok<T>(&self, span: Span<'span>, rest: Span<'span>, val: T) -> (Span<'span>, T) {
         let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks.borrow_mut().push(Track::Ok(func, rest));
+        self.tracks.borrow_mut().push(Track::Ok(func, span, rest));
         (rest, val)
     }
 
@@ -166,7 +166,7 @@ pub enum Track<'span> {
     /// Function with an extra step.
     Step(&'static str, &'static str, Span<'span>),
     /// Function where this occurred and the remaining span.
-    Ok(&'static str, Span<'span>),
+    Ok(&'static str, Span<'span>, Span<'span>),
     /// Function where this occurred and some error.
     Error(
         &'static str,
@@ -186,8 +186,12 @@ impl<'span> Debug for Track<'span> {
             Track::Step(func, step, input) => {
                 write!(f, "{}: {} '{}'", func, step, input)?;
             }
-            Track::Ok(func, rest) => {
-                write!(f, "{}: return '{}'", func, rest)?;
+            Track::Ok(func, val, rest) => {
+                if !val.is_empty() {
+                    write!(f, "{}: -> [ {}, '{}' ]", func, val, rest)?;
+                } else {
+                    write!(f, "{}: -> no match", func)?;
+                }
             }
             Track::Error(func, err_str, err) => {
                 write!(f, "{}: !!! {} : {}", func, err_str, err)?;

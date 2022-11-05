@@ -121,9 +121,19 @@ pub fn brackets_close<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("]")(i)
 }
 
-/// Tries to parses any infix operator.
-pub fn infix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
-    opt(alt((tag("+"), tag("-"), tag("*"), tag("/"), tag("^"))))(i)
+/// Tries to parses any additive operator.
+pub fn add_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
+    opt(alt((tag("+"), tag("-"))))(i)
+}
+
+/// Tries to parses any multiplicative operator.
+pub fn mul_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
+    opt(alt((tag("*"), tag("/"))))(i)
+}
+
+/// Tries to parses the power operator.
+pub fn pow_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
+    opt(tag("^"))(i)
 }
 
 /// Tries to parse any prefix operator.

@@ -5,11 +5,12 @@
 use crate::parse::Span;
 use crate::refs::CellRef;
 use crate::{CellRange, ColRange, RowRange};
-use std::fmt::{Display, Formatter};
-use std::mem;
+use nom::Offset;
+use std::fmt::{Debug, Display, Formatter};
+use std::str::from_utf8_unchecked;
+use std::{mem, slice};
 
 /// Defines the AST tree.
-#[derive(Debug)]
 pub enum AstTree<'a> {
     /// TODO:
     Number(OFNumber<'a>),
@@ -24,11 +25,15 @@ pub enum AstTree<'a> {
     /// TODO:
     RowRange(OFRowRange<'a>),
     /// TODO:
-    Parenthesis(Box<AstTree<'a>>),
+    Parenthesis(OFParOpen<'a>, Box<AstTree<'a>>, OFParClose<'a>),
     /// TODO:
     CompareExpr(Box<AstTree<'a>>, OFCompOp<'a>, Box<AstTree<'a>>),
     /// TODO:
-    InfixExpr(Box<AstTree<'a>>, OFInfixOp<'a>, Box<AstTree<'a>>),
+    AddExpr(Box<AstTree<'a>>, OFAddOp<'a>, Box<AstTree<'a>>),
+    /// TODO:
+    MulExpr(Box<AstTree<'a>>, OFMulOp<'a>, Box<AstTree<'a>>),
+    /// TODO:
+    PowExpr(Box<AstTree<'a>>, OFPowOp<'a>, Box<AstTree<'a>>),
     /// TODO:
     PrefixExpr(OFPrefixOp<'a>, Box<AstTree<'a>>),
     /// TODO:
@@ -36,6 +41,48 @@ pub enum AstTree<'a> {
 }
 
 impl<'a> AstTree<'a> {
+    pub fn span(&self) -> Span<'a> {
+        match self {
+            AstTree::Number(v) => v.1,
+            AstTree::String(v) => v.1,
+            AstTree::CellRef(v) => v.1,
+            AstTree::CellRange(v) => v.1,
+            AstTree::ColRange(v) => v.1,
+            AstTree::RowRange(v) => v.1,
+            AstTree::Parenthesis(o, _ex, c) => unsafe { Self::span_union(o.span(), c.span()) },
+            AstTree::CompareExpr(ex1, _op, ex2) => unsafe {
+                Self::span_union(ex1.span(), ex2.span())
+            },
+            AstTree::AddExpr(ex1, _op, ex2) => unsafe { Self::span_union(ex1.span(), ex2.span()) },
+            AstTree::MulExpr(ex1, _op, ex2) => unsafe { Self::span_union(ex1.span(), ex2.span()) },
+            AstTree::PowExpr(ex1, _op, ex2) => unsafe { Self::span_union(ex1.span(), ex2.span()) },
+            AstTree::PrefixExpr(op, ex) => unsafe { Self::span_union(op.span(), ex.span()) },
+            AstTree::PostfixExpr(ex, op) => unsafe { Self::span_union(ex.span(), op.span()) },
+        }
+    }
+
+    // Returns a new Span that reaches from the beginning of span0 to the end of span1.
+    //
+    // If any of the following conditions are violated, the result is Undefined Behavior:
+    // * Both the starting and other pointer must be either in bounds or one byte past the end of the same allocated object.
+    //      Should be guaranteed if both were obtained from on parse run.
+    // * Both pointers must be derived from a pointer to the same object. (See below for an example.)
+    //      Should be guaranteed if both were obtained from on parse run.
+    // * The distance between the pointers, in bytes, cannot overflow an isize.
+    // * The distance being in bounds cannot rely on “wrapping around” the address space.
+    unsafe fn span_union(span0: Span<'a>, span1: Span<'a>) -> Span<'a> {
+        let ptr = span0.as_ptr();
+        // offset to the start of span1 and add the length of span1.
+        let offset = span0.offset(&span1) + span1.len();
+
+        unsafe {
+            let slice = slice::from_raw_parts(ptr, offset);
+            let str = from_utf8_unchecked(slice);
+
+            Span::new_from_raw_offset(span0.location_offset(), span0.location_line(), str, ())
+        }
+    }
+
     /// Number variant
     pub fn number(v: f64, s: Span<'a>) -> Box<AstTree<'a>> {
         Box::new(AstTree::Number(OFNumber(v, s)))
@@ -65,13 +112,31 @@ impl<'a> AstTree<'a> {
         Box::new(AstTree::CompareExpr(expr0, op, expr1))
     }
 
-    /// InfixExpr variant
-    pub fn infix_expr(
+    /// AddExpr variant
+    pub fn add_expr(
         expr0: Box<AstTree<'a>>,
-        op: OFInfixOp<'a>,
+        op: OFAddOp<'a>,
         expr1: Box<AstTree<'a>>,
     ) -> Box<AstTree<'a>> {
-        Box::new(AstTree::InfixExpr(expr0, op, expr1))
+        Box::new(AstTree::AddExpr(expr0, op, expr1))
+    }
+
+    /// MulExpr variant
+    pub fn mul_expr(
+        expr0: Box<AstTree<'a>>,
+        op: OFMulOp<'a>,
+        expr1: Box<AstTree<'a>>,
+    ) -> Box<AstTree<'a>> {
+        Box::new(AstTree::MulExpr(expr0, op, expr1))
+    }
+
+    /// PowExpr variant
+    pub fn pow_expr(
+        expr0: Box<AstTree<'a>>,
+        op: OFPowOp<'a>,
+        expr1: Box<AstTree<'a>>,
+    ) -> Box<AstTree<'a>> {
+        Box::new(AstTree::PowExpr(expr0, op, expr1))
     }
 
     /// CellRef variant
@@ -95,6 +160,169 @@ impl<'a> AstTree<'a> {
     }
 }
 
+impl<'a> AstTree<'a> {
+    fn indent(&self, indent: u32, f: &mut Formatter<'_>) -> std::fmt::Result {
+        for _ in 0..indent * 4 {
+            write!(f, " ")?;
+        }
+        Ok(())
+    }
+
+    fn arrow(&self, indent: u32, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if indent > 0 {
+            for _ in 0..((indent - 1) * 4) {
+                write!(f, " ")?;
+            }
+            for _ in ((indent - 1) * 4)..(indent * 4) - 2 {
+                write!(f, "-")?;
+            }
+            write!(f, "> ")?;
+        }
+        Ok(())
+    }
+
+    fn debug_self(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let selfname = match self {
+            AstTree::Number(_) => "number",
+            AstTree::String(_) => "string",
+            AstTree::CellRef(_) => "cellref",
+            AstTree::CellRange(_) => "cellrange",
+            AstTree::ColRange(_) => "colrange",
+            AstTree::RowRange(_) => "rowrange",
+            AstTree::Parenthesis(_, _, _) => "parens",
+            AstTree::CompareExpr(_, _, _) => "compare",
+            AstTree::AddExpr(_, _, _) => "add",
+            AstTree::MulExpr(_, _, _) => "mul",
+            AstTree::PowExpr(_, _, _) => "pow",
+            AstTree::PrefixExpr(_, _) => "prefix",
+            AstTree::PostfixExpr(_, _) => "postfix",
+        };
+
+        write!(f, "{}    ", selfname)?;
+        self.debug_span(self.span(), f)?;
+        writeln!(f)?;
+
+        Ok(())
+    }
+
+    fn debug_op(&self, op: &str, span: Span<'a>, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}    ", op)?;
+        self.debug_span(span, f)?;
+        writeln!(f)?;
+
+        Ok(())
+    }
+
+    fn debug_elem<T: Display>(
+        &self,
+        v: &T,
+        span: Span<'a>,
+        f: &mut Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(f, "{}    ", v)?;
+        self.debug_span(span, f)?;
+        writeln!(f)?;
+
+        Ok(())
+    }
+
+    fn debug_span(&self, span: Span<'a>, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "offset:{}, '{}'", span.location_offset(), *span)
+    }
+
+    fn debug(&self, indent: u32, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AstTree::Number(v) => {
+                self.debug_elem(&v.0, v.1, f)?;
+            }
+            AstTree::String(v) => {
+                self.debug_elem(&v.0, v.1, f)?;
+            }
+            AstTree::CellRef(v) => {
+                self.debug_elem(&v.0, v.1, f)?;
+            }
+            AstTree::CellRange(v) => {
+                self.debug_elem(&v.0, v.1, f)?;
+            }
+            AstTree::ColRange(v) => {
+                self.debug_elem(&v.0, v.1, f)?;
+            }
+            AstTree::RowRange(v) => {
+                self.debug_elem(&v.0, v.1, f)?;
+            }
+            AstTree::Parenthesis(_o, ex, _c) => {
+                self.debug_self(f)?;
+
+                self.arrow(indent + 1, f)?;
+                ex.debug(indent + 1, f)?;
+            }
+            AstTree::CompareExpr(ex1, op, ex2) => {
+                self.debug_self(f)?;
+
+                self.arrow(indent + 1, f)?;
+                ex1.debug(indent + 1, f)?;
+                self.indent(indent + 1, f)?;
+                self.debug_op(op.to_string().as_str(), op.span(), f)?;
+                self.indent(indent + 1, f)?;
+                ex2.debug(indent + 1, f)?;
+            }
+            AstTree::AddExpr(ex1, op, ex2) => {
+                self.debug_self(f)?;
+
+                self.arrow(indent + 1, f)?;
+                ex1.debug(indent + 1, f)?;
+                self.indent(indent + 1, f)?;
+                self.debug_op(op.to_string().as_str(), op.span(), f)?;
+                self.indent(indent + 1, f)?;
+                ex2.debug(indent + 1, f)?;
+            }
+            AstTree::MulExpr(ex1, op, ex2) => {
+                self.debug_self(f)?;
+
+                self.arrow(indent + 1, f)?;
+                ex1.debug(indent + 1, f)?;
+                self.indent(indent + 1, f)?;
+                self.debug_op(op.to_string().as_str(), op.span(), f)?;
+                self.indent(indent + 1, f)?;
+                ex2.debug(indent + 1, f)?;
+            }
+            AstTree::PowExpr(ex1, op, ex2) => {
+                self.debug_self(f)?;
+
+                self.arrow(indent + 1, f)?;
+                ex1.debug(indent + 1, f)?;
+                self.indent(indent + 1, f)?;
+                self.debug_op(op.to_string().as_str(), op.span(), f)?;
+                self.indent(indent + 1, f)?;
+                ex2.debug(indent + 1, f)?;
+            }
+            AstTree::PrefixExpr(op, ex) => {
+                self.debug_self(f)?;
+
+                self.arrow(indent + 1, f)?;
+                self.debug_op(op.to_string().as_str(), op.span(), f)?;
+                self.indent(indent + 1, f)?;
+                ex.debug(indent + 1, f)?;
+            }
+            AstTree::PostfixExpr(ex, op) => {
+                self.debug_self(f)?;
+
+                self.arrow(indent + 1, f)?;
+                ex.debug(indent + 1, f)?;
+                self.indent(indent + 1, f)?;
+                self.debug_op(op.to_string().as_str(), op.span(), f)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<'a> Debug for AstTree<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.debug(0, f)
+    }
+}
+
 impl<'a> Display for AstTree<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -104,14 +332,11 @@ impl<'a> Display for AstTree<'a> {
             AstTree::String(v) => {
                 write!(f, "{}", v)
             }
-            AstTree::Parenthesis(expr) => {
+            AstTree::Parenthesis(_o, expr, _c) => {
                 write!(f, "({})", expr)
             }
             AstTree::PrefixExpr(op, expr) => {
                 write!(f, "{}{}", op, expr)
-            }
-            AstTree::InfixExpr(expr1, op, expr2) => {
-                write!(f, "{} {} {}", expr1, op, expr2)
             }
             AstTree::PostfixExpr(expr, op) => {
                 write!(f, "{}{}", expr, op)
@@ -131,8 +356,27 @@ impl<'a> Display for AstTree<'a> {
             AstTree::CompareExpr(expr1, op, expr2) => {
                 write!(f, "{} {} {}", expr1, op, expr2)
             }
+            AstTree::AddExpr(expr1, op, expr2) => {
+                write!(f, "{} {} {}", expr1, op, expr2)
+            }
+            AstTree::MulExpr(expr1, op, expr2) => {
+                write!(f, "{} {} {}", expr1, op, expr2)
+            }
+            AstTree::PowExpr(expr1, op, expr2) => {
+                write!(f, "{} {} {}", expr1, op, expr2)
+            }
         }
     }
+}
+
+macro_rules! op_decl {
+    ($name:ident) => {
+        impl<'a> PartialEq for $name<'a> {
+            fn eq(&self, other: &Self) -> bool {
+                mem::discriminant(self) == mem::discriminant(other)
+            }
+        }
+    };
 }
 
 /// Prefix operands.
@@ -143,6 +387,8 @@ pub enum OFPrefixOp<'a> {
     /// TODO:
     Minus(Span<'a>),
 }
+
+op_decl!(OFPrefixOp);
 
 impl<'a> OFPrefixOp<'a> {
     /// Returns the span for each variant.
@@ -163,9 +409,27 @@ impl<'a> Display for OFPrefixOp<'a> {
     }
 }
 
-impl<'a> PartialEq for OFPrefixOp<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        mem::discriminant(self) == mem::discriminant(other)
+/// Paren open
+#[derive(Debug)]
+pub struct OFParOpen<'a> {
+    pub span: Span<'a>,
+}
+
+impl<'a> OFParOpen<'a> {
+    pub fn span(&self) -> Span<'a> {
+        self.span
+    }
+}
+
+/// Paren open
+#[derive(Debug)]
+pub struct OFParClose<'a> {
+    pub span: Span<'a>,
+}
+
+impl<'a> OFParClose<'a> {
+    pub fn span(&self) -> Span<'a> {
+        self.span
     }
 }
 
@@ -185,6 +449,8 @@ pub enum OFCompOp<'a> {
     /// TODO:
     GreaterEqual(Span<'a>),
 }
+
+op_decl!(OFCompOp);
 
 impl<'a> OFCompOp<'a> {
     /// Extracts the span from each variant.
@@ -213,56 +479,88 @@ impl<'a> Display for OFCompOp<'a> {
     }
 }
 
-impl<'a> PartialEq for OFCompOp<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        mem::discriminant(self) == mem::discriminant(other)
-    }
-}
-
-/// Infix operands.
-/// TODO: split this one
+/// Additive operands.
 #[derive(Debug)]
-pub enum OFInfixOp<'a> {
+pub enum OFAddOp<'a> {
     /// TODO:
     Add(Span<'a>),
     /// TODO:
     Subtract(Span<'a>),
+}
+
+op_decl!(OFAddOp);
+
+impl<'a> OFAddOp<'a> {
+    /// Extracts the span from each variant.
+    pub fn span(&self) -> Span<'a> {
+        match self {
+            OFAddOp::Add(span) => *span,
+            OFAddOp::Subtract(span) => *span,
+        }
+    }
+}
+
+impl<'a> Display for OFAddOp<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OFAddOp::Add(_) => write!(f, "+"),
+            OFAddOp::Subtract(_) => write!(f, "-"),
+        }
+    }
+}
+
+/// Multiplicative operands.
+#[derive(Debug)]
+pub enum OFMulOp<'a> {
     /// TODO:
     Multiply(Span<'a>),
     /// TODO:
     Divide(Span<'a>),
-    /// TODO:
-    Power(Span<'a>),
 }
 
-impl<'a> OFInfixOp<'a> {
+op_decl!(OFMulOp);
+
+impl<'a> OFMulOp<'a> {
     /// Extracts the span from each variant.
     pub fn span(&self) -> Span<'a> {
         match self {
-            OFInfixOp::Add(span) => *span,
-            OFInfixOp::Subtract(span) => *span,
-            OFInfixOp::Multiply(span) => *span,
-            OFInfixOp::Divide(span) => *span,
-            OFInfixOp::Power(span) => *span,
+            OFMulOp::Multiply(span) => *span,
+            OFMulOp::Divide(span) => *span,
         }
     }
 }
 
-impl<'a> Display for OFInfixOp<'a> {
+impl<'a> Display for OFMulOp<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            OFInfixOp::Add(_) => write!(f, "+"),
-            OFInfixOp::Subtract(_) => write!(f, "-"),
-            OFInfixOp::Multiply(_) => write!(f, "*"),
-            OFInfixOp::Divide(_) => write!(f, "/"),
-            OFInfixOp::Power(_) => write!(f, "^"),
+            OFMulOp::Multiply(_) => write!(f, "*"),
+            OFMulOp::Divide(_) => write!(f, "/"),
         }
     }
 }
 
-impl<'a> PartialEq for OFInfixOp<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        mem::discriminant(self) == mem::discriminant(other)
+/// Power operand.
+#[derive(Debug)]
+pub enum OFPowOp<'a> {
+    Power(Span<'a>),
+}
+
+op_decl!(OFPowOp);
+
+impl<'a> OFPowOp<'a> {
+    /// Extracts the span from each variant.
+    pub fn span(&self) -> Span<'a> {
+        match self {
+            OFPowOp::Power(span) => *span,
+        }
+    }
+}
+
+impl<'a> Display for OFPowOp<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OFPowOp::Power(_) => write!(f, "^"),
+        }
     }
 }
 
@@ -272,6 +570,8 @@ pub enum OFPostfixOp<'a> {
     /// TODO:
     Percent(Span<'a>),
 }
+
+op_decl!(OFPostfixOp);
 
 impl<'a> OFPostfixOp<'a> {
     /// Extracts the span from each variant.
@@ -287,12 +587,6 @@ impl<'a> Display for OFPostfixOp<'a> {
         match self {
             OFPostfixOp::Percent(_) => write!(f, "%"),
         }
-    }
-}
-
-impl<'a> PartialEq for OFPostfixOp<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        mem::discriminant(self) == mem::discriminant(other)
     }
 }
 
