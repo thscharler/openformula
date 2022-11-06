@@ -52,6 +52,16 @@ pub fn string<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     quoted('"')(i)
 }
 
+// LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
+// TODO: CombiningCharXML not used.
+/// Function name.
+pub fn fn_name<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    recognize(tuple((
+        take_while1(|c: char| c.is_alphabetic()),
+        take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '.'),
+    )))(i)
+}
+
 /// Parse comparison operators.
 pub fn comparison_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     alt((

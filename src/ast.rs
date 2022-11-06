@@ -12,6 +12,8 @@ use std::{mem, slice};
 
 /// Defines the AST tree.
 pub enum AstTree<'a> {
+    /// Empty expression
+    Empty(OFEmpty<'a>),
     /// Number
     Number(OFNumber<'a>),
     /// String
@@ -38,12 +40,20 @@ pub enum AstTree<'a> {
     PrefixExpr(OFPrefixOp<'a>, Box<AstTree<'a>>),
     /// Postfix expression.
     PostfixExpr(Box<AstTree<'a>>, OFPostfixOp<'a>),
+    /// Function call expression.
+    FnCallExpr(
+        OFFnName<'a>,
+        OFParOpen<'a>,
+        Vec<AstTree<'a>>,
+        OFParClose<'a>,
+    ),
 }
 
 impl<'a> AstTree<'a> {
     /// Calculates the span of the complete AST tree.
     pub fn span(&self) -> Span<'a> {
         match self {
+            AstTree::Empty(v) => v.1,
             AstTree::Number(v) => v.1,
             AstTree::String(v) => v.1,
             AstTree::CellRef(v) => v.1,
@@ -59,6 +69,9 @@ impl<'a> AstTree<'a> {
             AstTree::PowExpr(ex1, _op, ex2) => unsafe { Self::span_union(ex1.span(), ex2.span()) },
             AstTree::PrefixExpr(op, ex) => unsafe { Self::span_union(op.span(), ex.span()) },
             AstTree::PostfixExpr(ex, op) => unsafe { Self::span_union(ex.span(), op.span()) },
+            AstTree::FnCallExpr(name, _o, _v, c) => unsafe {
+                Self::span_union(name.span(), c.span())
+            },
         }
     }
 
@@ -87,6 +100,11 @@ impl<'a> AstTree<'a> {
             // As span0 was ok the offset used here is ok too.
             Span::new_from_raw_offset(span0.location_offset(), span0.location_line(), str, ())
         }
+    }
+
+    /// Empty variant
+    pub fn empty(s: Span<'a>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::Empty(OFEmpty((), s)))
     }
 
     /// Number variant
@@ -164,6 +182,24 @@ impl<'a> AstTree<'a> {
     pub fn rowrange(v: RowRange, s: Span<'a>) -> Box<AstTree<'a>> {
         Box::new(AstTree::RowRange(OFRowRange(v, s)))
     }
+
+    /// FnCall variant
+    pub fn fn_call(
+        name: Span<'a>,
+        o: Span<'a>,
+        v: Vec<AstTree<'a>>,
+        c: Span<'a>,
+    ) -> Box<AstTree<'a>> {
+        Box::new(AstTree::FnCallExpr(
+            OFFnName {
+                name: name.to_string(),
+                span: name,
+            },
+            OFParOpen { span: o },
+            v,
+            OFParClose { span: c },
+        ))
+    }
 }
 
 impl<'a> AstTree<'a> {
@@ -202,6 +238,8 @@ impl<'a> AstTree<'a> {
             AstTree::PowExpr(_, _, _) => "pow",
             AstTree::PrefixExpr(_, _) => "prefix",
             AstTree::PostfixExpr(_, _) => "postfix",
+            AstTree::FnCallExpr(_, _, _, _) => "function",
+            AstTree::Empty(_) => "empty",
         };
 
         write!(f, "{}    ", self_name)?;
@@ -238,6 +276,11 @@ impl<'a> AstTree<'a> {
 
     fn debug(&self, indent: u32, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            AstTree::Empty(v) => {
+                write!(f, "()    ")?;
+                self.debug_span(v.1, f)?;
+                writeln!(f)?;
+            }
             AstTree::Number(v) => {
                 self.debug_elem(&v.0, v.1, f)?;
             }
@@ -318,6 +361,22 @@ impl<'a> AstTree<'a> {
                 self.indent(indent + 1, f)?;
                 self.debug_op(op.to_string().as_str(), op.span(), f)?;
             }
+            AstTree::FnCallExpr(name, _par1, v, _par2) => {
+                self.debug_self(f)?;
+
+                self.arrow(indent + 1, f)?;
+                write!(f, "{} (   ", name)?;
+                self.debug_span(name.span(), f)?;
+                writeln!(f)?;
+
+                for e in v {
+                    self.indent(indent + 2, f)?;
+                    e.debug(indent + 2, f)?;
+                }
+
+                self.indent(indent + 1, f)?;
+                writeln!(f, ")")?;
+            }
         }
         Ok(())
     }
@@ -332,6 +391,9 @@ impl<'a> Debug for AstTree<'a> {
 impl<'a> Display for AstTree<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            AstTree::Empty(v) => {
+                write!(f, "{}", v)
+            }
             AstTree::Number(v) => {
                 write!(f, "{}", v)
             }
@@ -370,6 +432,16 @@ impl<'a> Display for AstTree<'a> {
             }
             AstTree::PowExpr(expr1, op, expr2) => {
                 write!(f, "{} {} {}", expr1, op, expr2)
+            }
+            AstTree::FnCallExpr(name, _par1, v, _par2) => {
+                write!(f, "{}(", name)?;
+                for (i, e) in v.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ";")?;
+                    }
+                    write!(f, "{}", e)?;
+                }
+                Ok(())
             }
         }
     }
@@ -626,6 +698,28 @@ impl<'a> Display for OFPostfixOp<'a> {
         match self {
             OFPostfixOp::Percent(_) => write!(f, "%"),
         }
+    }
+}
+
+/// Empty
+#[derive(Debug)]
+pub struct OFEmpty<'a>((), pub Span<'a>);
+
+impl<'a> HaveSpan<'a> for OFEmpty<'a> {
+    fn span(&self) -> Span<'a> {
+        self.1
+    }
+}
+
+impl<'a> Display for OFEmpty<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
+}
+
+impl<'a> PartialEq for OFEmpty<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
     }
 }
 

@@ -2,14 +2,16 @@
 //! Parses and creates the AST.
 //!
 
-use crate::ast::{AstTree, OFNumber};
+use crate::ast::AstTree;
 use crate::error::ParseExprError;
 use crate::parse::{ParseResult, Span, Tracer};
-use crate::{OFParClose, OFParOpen};
-use nom::combinator::opt;
+use crate::{HaveSpan, OFParClose, OFParOpen};
+use nom::combinator::{opt, recognize};
+use nom::Slice;
 
 pub use crate::ast_parser::ops::*;
 pub use crate::ast_parser::refs::*;
+use crate::tokens::{fn_name, parenthesis_close, parenthesis_open, separator};
 
 // Expression ::=
 // Whitespace* (
@@ -70,25 +72,12 @@ pub use crate::ast_parser::refs::*;
 // >, >=        left        Comparison operators equal to, not equal to, less than, less than
 //                          or equal to, greater than, greater than or equal to
 
-/// Number.
-pub fn number<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<AstTree<'s>>> {
-    trace.enter("number", i);
-
-    match super::tokens::number(i) {
-        Ok((rest, tok)) => match (*tok).parse::<f64>() {
-            Ok(val) => Ok(trace.ok(tok, rest, Box::new(AstTree::Number(OFNumber(val, tok))))),
-            Err(_) => unreachable!(),
-        },
-        Err(e) => Err(trace.err(i, ParseExprError::number, e)),
-    }
-}
-
 /// Optional number.
 pub fn opt_number<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
 ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
-    trace.enter("opt_number", i);
+    trace.enter("number", i);
 
     match opt(super::tokens::number)(i) {
         Ok((rest, Some(tok))) => match (*tok).parse::<f64>() {
@@ -108,7 +97,7 @@ pub fn opt_string<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
 ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
-    trace.enter("opt_string", i);
+    trace.enter("string", i);
 
     match opt(super::tokens::string)(i) {
         Ok((rest, Some(tok))) => {
@@ -121,13 +110,13 @@ pub fn opt_string<'s, 't>(
 }
 
 /// Any expression.
-pub fn expr<'s, 't>(
+pub fn opt_expr<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
 ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
     trace.enter("expr", i);
 
-    match compare_expr(trace, i) {
+    match opt_compare_expr(trace, i) {
         Ok((rest, Some(expr))) => Ok(trace.ok(expr.span(), rest, Some(expr))),
         Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
         Err(e) => Err(trace.parse_err(e)),
@@ -135,22 +124,22 @@ pub fn expr<'s, 't>(
 }
 
 /// Compare expressions.
-pub fn compare_expr<'s, 't>(
+pub fn opt_compare_expr<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
 ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
-    trace.enter("comp_expr", i);
+    trace.enter("compare", i);
 
     match opt_add_expr(trace, i) {
-        Ok((mut rest1, Some(mut expr1))) => {
+        Ok((mut loop_rest, Some(mut expr1))) => {
             //
             loop {
-                match ops::comp_op_mapped(trace, rest1) {
+                match ops::comp_op_mapped(trace, loop_rest) {
                     Ok((rest2, Some(op))) => {
                         //
                         match opt_add_expr(trace, rest2) {
                             Ok((rest3, Some(expr2))) => {
-                                rest1 = rest3;
+                                loop_rest = rest3;
                                 expr1 = AstTree::compare_expr(expr1, op, expr2);
                             }
                             Ok((rest3, None)) => {
@@ -174,18 +163,18 @@ pub fn opt_add_expr<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
 ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
-    trace.enter("add_expr", i);
+    trace.enter("add", i);
 
     match opt_mul_expr(trace, i) {
-        Ok((mut rest1, Some(mut expr1))) => {
+        Ok((mut loop_rest, Some(mut expr1))) => {
             //
             loop {
-                match ops::add_op_mapped(trace, rest1) {
+                match ops::add_op_mapped(trace, loop_rest) {
                     Ok((rest2, Some(op))) => {
                         //
                         match opt_mul_expr(trace, rest2) {
                             Ok((rest3, Some(expr2))) => {
-                                rest1 = rest3;
+                                loop_rest = rest3;
                                 expr1 = AstTree::add_expr(expr1, op, expr2);
                             }
                             Ok((rest3, None)) => {
@@ -209,18 +198,18 @@ pub fn opt_mul_expr<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
 ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
-    trace.enter("mul_expr", i);
+    trace.enter("mul", i);
 
-    match pow_expr(trace, i) {
-        Ok((mut rest1, Some(mut expr1))) => {
+    match opt_pow_expr(trace, i) {
+        Ok((mut loop_rest, Some(mut expr1))) => {
             //
             loop {
-                match ops::mul_op_mapped(trace, rest1) {
+                match ops::mul_op_mapped(trace, loop_rest) {
                     Ok((rest2, Some(op))) => {
                         //
-                        match pow_expr(trace, rest2) {
+                        match opt_pow_expr(trace, rest2) {
                             Ok((rest3, Some(expr2))) => {
-                                rest1 = rest3;
+                                loop_rest = rest3;
                                 expr1 = AstTree::mul_expr(expr1, op, expr2);
                             }
                             Ok((rest3, None)) => {
@@ -240,22 +229,22 @@ pub fn opt_mul_expr<'s, 't>(
 }
 
 /// Power expressions.
-pub fn pow_expr<'s, 't>(
+pub fn opt_pow_expr<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
 ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
-    trace.enter("pow_expr", i);
+    trace.enter("pow", i);
 
     match opt_postfix_expr(trace, i) {
-        Ok((mut rest1, Some(mut expr1))) => {
+        Ok((mut loop_rest, Some(mut expr1))) => {
             //
             loop {
-                match ops::pow_op_mapped(trace, rest1) {
+                match ops::pow_op_mapped(trace, loop_rest) {
                     Ok((rest2, Some(op))) => {
                         //
                         match opt_postfix_expr(trace, rest2) {
                             Ok((rest3, Some(expr2))) => {
-                                rest1 = rest3;
+                                loop_rest = rest3;
                                 expr1 = AstTree::pow_expr(expr1, op, expr2);
                             }
                             Ok((rest3, None)) => {
@@ -277,18 +266,18 @@ pub fn pow_expr<'s, 't>(
 /// Postfix expressions.
 pub fn opt_postfix_expr<'s, 't>(
     trace: &'t Tracer<'s>,
-    i0: Span<'s>,
+    i: Span<'s>,
 ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
-    trace.enter("postfix_expr", i0);
+    trace.enter("postfix", i);
 
-    match opt_prefix_expr(trace, i0) {
-        Ok((mut rest1, Some(mut expr))) => {
+    match opt_prefix_expr(trace, i) {
+        Ok((mut loop_rest, Some(mut expr))) => {
             //
             loop {
-                match ops::postfix_op_mapped(trace, rest1) {
-                    Ok((rest2, Some(tok))) => {
+                match ops::postfix_op_mapped(trace, loop_rest) {
+                    Ok((rest1, Some(tok))) => {
                         trace.step("op", tok.span());
-                        rest1 = rest2;
+                        loop_rest = rest1;
                         expr = AstTree::postfix_expr(expr, tok);
                     }
                     Ok((i2, None)) => break Ok(trace.ok(expr.span(), i2, Some(expr))),
@@ -306,7 +295,7 @@ pub fn opt_prefix_expr<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
 ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
-    trace.enter("prefix_expr", i);
+    trace.enter("prefix", i);
 
     match ops::prefix_op_mapped(trace, i) {
         Ok((rest1, Some(tok))) => {
@@ -337,11 +326,11 @@ pub fn opt_expr_parentheses<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
 ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
-    trace.enter("opt_expr_parentheses", i);
+    trace.enter("parentheses", i);
 
     match super::tokens::parenthesis_open(i) {
         Ok((rest1, par1)) => {
-            match expr(trace, rest1) {
+            match opt_expr(trace, rest1) {
                 Ok((rest2, Some(expr))) => {
                     //
                     match super::tokens::parenthesis_close(rest2) {
@@ -395,6 +384,12 @@ pub fn opt_elementary<'s, 't>(
         Err(e) => return Err(trace.parse_err(e)),
     }
 
+    match opt_fn_call(trace, i) {
+        Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
+        Ok((_, None)) => { /* skip */ }
+        Err(e) => return Err(trace.parse_err(e)),
+    }
+
     Ok(trace.ok(Span::new(""), i, None))
 }
 
@@ -406,6 +401,148 @@ pub fn opt_elementary<'s, 't>(
 // EmptyOrParameter ::= /* empty */ Whitespace* | Parameter
 // Parameter ::= Expression
 // Separator ::= ';'
+pub fn opt_fn_call<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    trace.enter("fn_call", i);
+
+    let (rest1, fn_name) = match recognize(fn_name)(i) {
+        Ok((rest, tok)) => (rest, tok),
+        Err(nom::Err::Error(_)) => return Ok(trace.ok(Span::new(""), i, None)),
+        Err(e @ nom::Err::Failure(_)) => return Err(trace.err(i, ParseExprError::fn_call, e)),
+        Err(nom::Err::Incomplete(_)) => unreachable!(),
+    };
+
+    trace.step("name", fn_name);
+
+    let mut args = Vec::new();
+
+    match parenthesis_open(rest1) {
+        Ok((mut loop_rest, par1)) => {
+            // First separator is checked before the arguments as arguments can be empty.
+            let sep1 = match separator(loop_rest) {
+                Ok((rest2, sep1)) => {
+                    loop_rest = rest2;
+                    trace.step("initial arg", Span::new(""));
+                    trace.step("initial separator", sep1);
+                    Some(sep1)
+                }
+                Err(nom::Err::Error(_)) => {
+                    // Not necessary
+                    None
+                }
+                Err(e @ nom::Err::Failure(_)) => {
+                    return Err(trace.err(i, ParseExprError::fn_call, e));
+                }
+                Err(nom::Err::Incomplete(_)) => unreachable!(),
+            };
+
+            // Collecting args.
+            if let Some(sep1) = sep1 {
+                trace.step2("expr+sep");
+                unsafe {
+                    let ast = AstTree::empty(Span::new_from_raw_offset(
+                        sep1.location_offset(),
+                        sep1.location_line(),
+                        (*sep1).slice(0..0),
+                        (),
+                    ));
+                    args.push(*ast);
+                }
+            }
+
+            // Loops and eats from loop_rest.
+            loop {
+                // Parse argument.
+                let expr = match opt_expr(trace, loop_rest) {
+                    Ok((rest2, Some(expr))) => {
+                        loop_rest = rest2;
+                        trace.step("arg", expr.span());
+                        Some(expr)
+                    }
+                    Ok((rest2, None)) => {
+                        loop_rest = rest2;
+                        trace.step("arg", Span::new(""));
+                        None
+                    }
+                    Err(e) => return Err(trace.parse_err(e)),
+                };
+
+                // Followed by a separator.
+                let sep1 = match separator(loop_rest) {
+                    Ok((rest2, sep1)) => {
+                        loop_rest = rest2;
+                        trace.step("separator", sep1);
+                        Some(sep1)
+                    }
+                    Err(nom::Err::Error(_)) => None,
+                    Err(e @ nom::Err::Failure(_)) => {
+                        return Err(trace.err(i, ParseExprError::fn_call, e));
+                    }
+                    Err(nom::Err::Incomplete(_)) => unreachable!(),
+                };
+
+                #[derive(PartialEq)]
+                enum Parens {
+                    Needed,
+                    Optional,
+                }
+
+                // Collecting args.
+                let parens = if let Some(expr) = expr {
+                    if sep1.is_some() {
+                        trace.step2("expr+sep");
+                        args.push(*expr);
+                        Parens::Optional
+                    } else {
+                        trace.step2("expr+none");
+                        args.push(*expr);
+                        Parens::Needed
+                    }
+                } else {
+                    if let Some(sep1) = sep1 {
+                        trace.step2("none+sep");
+                        unsafe {
+                            let ast = AstTree::empty(Span::new_from_raw_offset(
+                                sep1.location_offset(),
+                                sep1.location_line(),
+                                (*sep1).slice(0..0),
+                                (),
+                            ));
+                            args.push(*ast);
+                        }
+                        Parens::Optional
+                    } else {
+                        // no arguments and no separator. empty argument lists are ok.
+                        trace.step2("None+None");
+                        Parens::Needed
+                    }
+                };
+
+                // find a closing paren next
+                match parenthesis_close(loop_rest) {
+                    Ok((rest2, par2)) => {
+                        let ast = AstTree::fn_call(fn_name, par1, args, par2);
+                        return Ok(trace.ok(ast.span(), rest2, Some(ast)));
+                    }
+                    Err(e @ nom::Err::Error(_)) => {
+                        if parens == Parens::Needed {
+                            return Err(trace.err(i, ParseExprError::fn_call, e));
+                        }
+                    }
+                    Err(e @ nom::Err::Failure(_)) => {
+                        return Err(trace.err(i, ParseExprError::fn_call, e))
+                    }
+                    Err(nom::Err::Incomplete(_)) => unreachable!(),
+                }
+            }
+        }
+        Err(e @ nom::Err::Error(_)) => return Err(trace.err(i, ParseExprError::fn_call, e)),
+        Err(e @ nom::Err::Failure(_)) => return Err(trace.err(i, ParseExprError::fn_call, e)),
+        Err(nom::Err::Incomplete(_)) => unreachable!(),
+    };
+}
 
 mod ops {
     use crate::tracer::Tracer;
@@ -921,7 +1058,7 @@ fn check_eof<'a>(
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
-    use crate::ast_parser::{expr, opt_reference};
+    use crate::ast_parser::{opt_expr, opt_reference};
     use crate::error::OFError;
     use crate::parse::ast_parser::opt_cellref;
     use crate::parse::tracer::Tracer;
@@ -931,10 +1068,16 @@ mod tests {
 
     #[test]
     fn test_expr() -> Result<(), OFError> {
-        let test = vec!["1+2*3^4", "27+(19*.A5)"];
+        let test = vec![
+            "22*FUN(77)",
+            "17+FUN()",
+            "11^FUN(;;66)",
+            "1+2*3^4",
+            "27+(19*.A5)",
+        ];
         for test in test {
             let trace = Tracer::new();
-            match expr(&trace, Span::new(test)) {
+            match opt_expr(&trace, Span::new(test)) {
                 Ok((_s, v)) => println!("{:?}", v),
                 Err(e) => println!("{:?}", e),
             }

@@ -21,7 +21,7 @@ pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseExprError>;
 #[cfg(test)]
 mod tests {
     use crate::ast::AstTree;
-    use crate::parse::ast_parser::{number, opt_elementary, opt_number};
+    use crate::parse::ast_parser::{opt_elementary, opt_number};
     use crate::parse::{ast_parser, ParseResult, Span, Tracer};
 
     fn run_test<'x>(
@@ -74,7 +74,7 @@ mod tests {
     fn test_expr() {
         let tests = ["471", r#""strdata""#, "1+1", "(1+1)", "X", "4*5+1", "4+5*2"];
         for test in tests {
-            run_test2(test, ast_parser::expr);
+            run_test2(test, ast_parser::opt_expr);
         }
     }
 
@@ -90,20 +90,11 @@ mod tests {
     fn test_number() {
         let test_ok = ["25", "25e+5", "25.", "25.001", "25.003e-7"];
         for test in test_ok {
-            run_test(test, number);
+            run_test2(test, opt_number);
         }
 
         let test_err = ["invalid", "2x5", "25ex+5", "25.x", "25.x001", "25x.003e-7"];
         for test in test_err {
-            run_test(test, number);
-        }
-    }
-
-    #[test]
-    fn test_number2() {
-        let test = ["25", "2x5", "inv"];
-        for test in test {
-            run_test(test, number);
             run_test2(test, opt_number);
         }
     }

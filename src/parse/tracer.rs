@@ -76,6 +76,18 @@ impl<'span> Tracer<'span> {
         self.tracks.borrow_mut().push(Track::Step(func, step, span));
     }
 
+    /// Extra step.
+    ///
+    /// Panic
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn step2(&self, step: &'static str) {
+        let func = *self.func.borrow().last().unwrap();
+        self.tracks
+            .borrow_mut()
+            .push(Track::Step(func, step, Span::new("")));
+    }
+
     /// Ok in a parser.
     ///
     /// Panic

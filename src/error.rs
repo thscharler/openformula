@@ -138,6 +138,8 @@ pub enum ParseExprError {
     String(ErrSpan),
     /// Parenthesis parsing error.
     Parenthesis(ErrSpan),
+    /// Function call parsing error.
+    FnCall(ErrSpan),
 
     /// Elementary expr parsing error.
     Elementary(ErrSpan),
@@ -186,6 +188,11 @@ impl ParseExprError {
     /// String variant.
     pub fn string<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::String(span.into())
+    }
+
+    /// FnCall variant.
+    pub fn fn_call<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::FnCall(span.into())
     }
 
     /// Parenthesis variant.
@@ -254,6 +261,7 @@ impl Display for ParseExprError {
             ParseExprError::Number(s) => write!(f, "Number {}", s),
             ParseExprError::String(s) => write!(f, "String {}", s),
             ParseExprError::Parenthesis(s) => write!(f, "Parenthesis {}", s),
+            ParseExprError::FnCall(s) => write!(f, "FnCall {}", s),
             ParseExprError::Elementary(s) => write!(f, "Elementary {}", s),
             ParseExprError::Prefix(s) => write!(f, "Prefix {}", s),
             ParseExprError::Pow(s) => write!(f, "Pow {}", s),
