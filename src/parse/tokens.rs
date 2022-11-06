@@ -5,13 +5,27 @@
 use crate::parse::Span;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while, take_while1};
-use nom::character::complete::{alpha1, char as nchar, none_of, one_of};
+use nom::character::complete::{alpha1, char as nchar, multispace0, none_of, one_of};
 use nom::combinator::{opt, recognize};
 use nom::multi::{count, many0, many1};
 use nom::sequence::{delimited, terminated, tuple};
 use nom::IResult;
 
-#[allow(unused_imports)]
+/// Eats the leading whitespace.
+pub fn eat_space<'a>(i: Span<'a>) -> Span<'a> {
+    match multispace0::<Span<'a>, nom::error::Error<_>>(i) {
+        Ok((rest, _white)) => rest,
+        Err(nom::Err::Error(_)) => i,
+        Err(nom::Err::Failure(_)) => i,
+        Err(nom::Err::Incomplete(_)) => unreachable!(),
+    }
+}
+
+/// Lookahead for a number
+pub fn lah_number<'a>(i: Span<'a>) -> bool {
+    alt::<Span<'a>, char, nom::error::Error<_>, _>((nchar('.'), one_of("0123456789")))(i).is_ok()
+}
+
 // Number ::= StandardNumber | '.' [0-9]+ ([eE] [-+]? [0-9]+)?
 // StandardNumber ::= [0-9]+ ('.' [0-9]+)? ([eE] [-+]? [0-9]+)?
 /// Any number.
@@ -47,9 +61,22 @@ fn decimal<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     recognize(many1(one_of("0123456789")))(input)
 }
 
+/// Lookahead for a string.
+pub fn lah_string<'a>(i: Span<'a>) -> bool {
+    nchar::<Span<'a>, nom::error::Error<_>>('"')(i).is_ok()
+}
+
 /// Standard string
 pub fn string<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     quoted('"')(i)
+}
+
+/// Lookahead for a function name.
+pub fn lah_fn_name<'a>(i: Span<'a>) -> bool {
+    match (*i).chars().next() {
+        None => false,
+        Some(c) => c.is_alphabetic(),
+    }
 }
 
 // LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
@@ -99,6 +126,11 @@ pub fn separator<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(";")(i)
 }
 
+/// Lookahead for a dot.
+pub fn lah_dot<'a>(i: Span<'a>) -> bool {
+    nchar::<Span<'a>, nom::error::Error<_>>('.')(i).is_ok()
+}
+
 /// Parse dot
 pub fn dot<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(".")(i)
@@ -107,6 +139,11 @@ pub fn dot<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 /// Parse colon
 pub fn colon<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(":")(i)
+}
+
+/// Lookahead for opening parenthesis.
+pub fn lah_parenthesis_open<'a>(i: Span<'a>) -> bool {
+    nchar::<Span<'a>, nom::error::Error<_>>('(')(i).is_ok()
 }
 
 /// Parse open parenthesis.
@@ -144,6 +181,11 @@ pub fn pow_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(tag("^"))(i)
 }
 
+/// Lookahead for any prefix operator.
+pub fn lah_prefix_op<'a>(i: Span<'a>) -> bool {
+    one_of::<Span<'a>, _, nom::error::Error<_>>("+-")(i).is_ok()
+}
+
 /// Tries to parse any prefix operator.
 pub fn prefix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(alt((tag("+"), tag("-"))))(i)
@@ -154,11 +196,22 @@ pub fn postfix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(tag("%"))(i)
 }
 
+/// Lookahead for an IRI.
+pub fn lah_iri<'a>(i: Span<'a>) -> bool {
+    nchar::<Span<'a>, nom::error::Error<_>>('\'')(i).is_ok()
+}
+
 // Source ::= "'" IRI "'" "#"
 /// IRI
 pub fn iri<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     let (i, iri) = terminated(quoted('\''), tag("#"))(i)?;
     Ok((i, iri))
+}
+
+/// Lookahead for a sheet-name
+pub fn lah_sheet_name<'a>(i: Span<'a>) -> bool {
+    // TODO: none_of("]. #$") is a very wide definition.
+    alt::<_, char, nom::error::Error<_>, _>((nchar('$'), nchar('\''), none_of("]. #$")))(i).is_ok()
 }
 
 // SheetName ::= QuotedSheetName | '$'? [^\]\. #$']+
@@ -211,6 +264,7 @@ pub fn quoted<'a>(quote: char) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, Span
 mod tests {
     use crate::parse::tokens::{col, iri, quoted, row, sheet_name};
     use crate::parse::Span;
+    use crate::tokens::{eat_space, lah_number, lah_parenthesis_open};
     use nom::error::ErrorKind;
     use nom::error::ParseError;
 
@@ -436,5 +490,14 @@ mod tests {
                 ))
             );
         }
+    }
+
+    #[test]
+    fn test_lah() {
+        dbg!(lah_number(Span::new("222")));
+        dbg!(lah_number(Span::new("ABC")));
+        dbg!(lah_parenthesis_open(Span::new("()")));
+        let rest = eat_space(Span::new("  ()"));
+        dbg!(lah_parenthesis_open(rest));
     }
 }

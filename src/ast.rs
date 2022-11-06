@@ -441,6 +441,7 @@ impl<'a> Display for AstTree<'a> {
                     }
                     write!(f, "{}", e)?;
                 }
+                write!(f, ")")?;
                 Ok(())
             }
         }
@@ -464,7 +465,7 @@ pub trait HaveSpan<'a> {
 }
 
 /// Function name.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct OFFnName<'a> {
     /// Function name.
     pub name: String,
@@ -701,6 +702,7 @@ impl<'a> Display for OFPostfixOp<'a> {
     }
 }
 
+#[allow(clippy::manual_non_exhaustive)]
 /// Empty
 #[derive(Debug)]
 pub struct OFEmpty<'a>((), pub Span<'a>);
@@ -713,13 +715,13 @@ impl<'a> HaveSpan<'a> for OFEmpty<'a> {
 
 impl<'a> Display for OFEmpty<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0)
+        write!(f, "")
     }
 }
 
 impl<'a> PartialEq for OFEmpty<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+    fn eq(&self, _other: &Self) -> bool {
+        true
     }
 }
 
