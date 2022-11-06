@@ -12,35 +12,36 @@ use std::{mem, slice};
 
 /// Defines the AST tree.
 pub enum AstTree<'a> {
-    /// TODO:
+    /// Number
     Number(OFNumber<'a>),
-    /// TODO:
+    /// String
     String(OFString<'a>),
-    /// TODO:
+    /// CellRef
     CellRef(OFCellRef<'a>),
-    /// TODO:
+    /// CellRange
     CellRange(OFCellRange<'a>),
-    /// TODO:
+    /// ColRange
     ColRange(OFColRange<'a>),
-    /// TODO:
+    /// RowRange
     RowRange(OFRowRange<'a>),
-    /// TODO:
+    /// Expression in parenthesis.
     Parenthesis(OFParOpen<'a>, Box<AstTree<'a>>, OFParClose<'a>),
-    /// TODO:
+    /// Comparison expression.
     CompareExpr(Box<AstTree<'a>>, OFCompOp<'a>, Box<AstTree<'a>>),
-    /// TODO:
+    /// Additive expression.
     AddExpr(Box<AstTree<'a>>, OFAddOp<'a>, Box<AstTree<'a>>),
-    /// TODO:
+    /// Multiplicative expression.
     MulExpr(Box<AstTree<'a>>, OFMulOp<'a>, Box<AstTree<'a>>),
-    /// TODO:
+    /// Exponential expression.
     PowExpr(Box<AstTree<'a>>, OFPowOp<'a>, Box<AstTree<'a>>),
-    /// TODO:
+    /// Prefix operators.
     PrefixExpr(OFPrefixOp<'a>, Box<AstTree<'a>>),
-    /// TODO:
+    /// Postfix operators.
     PostfixExpr(Box<AstTree<'a>>, OFPostfixOp<'a>),
 }
 
 impl<'a> AstTree<'a> {
+    /// Calculates the span of the complete AST tree.
     pub fn span(&self) -> Span<'a> {
         match self {
             AstTree::Number(v) => v.1,
@@ -66,19 +67,24 @@ impl<'a> AstTree<'a> {
     // If any of the following conditions are violated, the result is Undefined Behavior:
     // * Both the starting and other pointer must be either in bounds or one byte past the end of the same allocated object.
     //      Should be guaranteed if both were obtained from on parse run.
-    // * Both pointers must be derived from a pointer to the same object. (See below for an example.)
+    // * Both pointers must be derived from a pointer to the same object.
     //      Should be guaranteed if both were obtained from on parse run.
     // * The distance between the pointers, in bytes, cannot overflow an isize.
     // * The distance being in bounds cannot rely on “wrapping around” the address space.
     unsafe fn span_union(span0: Span<'a>, span1: Span<'a>) -> Span<'a> {
         let ptr = span0.as_ptr();
         // offset to the start of span1 and add the length of span1.
-        let offset = span0.offset(&span1) + span1.len();
+        let size = span0.offset(&span1) + span1.len();
 
         unsafe {
-            let slice = slice::from_raw_parts(ptr, offset);
+            // The size should be within the original allocation, if both spans are from
+            // the same parse run. We must ensure that the parse run doesn't generate
+            // Spans out of nothing that end in the ast.
+            let slice = slice::from_raw_parts(ptr, size);
+            // This is all from a str originally and we never got down to bytes.
             let str = from_utf8_unchecked(slice);
 
+            // As span0 was ok the offset used here is ok too.
             Span::new_from_raw_offset(span0.location_offset(), span0.location_line(), str, ())
         }
     }
@@ -182,7 +188,7 @@ impl<'a> AstTree<'a> {
     }
 
     fn debug_self(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let selfname = match self {
+        let self_name = match self {
             AstTree::Number(_) => "number",
             AstTree::String(_) => "string",
             AstTree::CellRef(_) => "cellref",
@@ -198,7 +204,7 @@ impl<'a> AstTree<'a> {
             AstTree::PostfixExpr(_, _) => "postfix",
         };
 
-        write!(f, "{}    ", selfname)?;
+        write!(f, "{}    ", self_name)?;
         self.debug_span(self.span(), f)?;
         writeln!(f)?;
 
@@ -382,9 +388,9 @@ macro_rules! op_decl {
 /// Prefix operands.
 #[derive(Debug)]
 pub enum OFPrefixOp<'a> {
-    /// TODO:
+    /// Operator +
     Plus(Span<'a>),
-    /// TODO:
+    /// Operator -
     Minus(Span<'a>),
 }
 
@@ -412,10 +418,12 @@ impl<'a> Display for OFPrefixOp<'a> {
 /// Paren open
 #[derive(Debug)]
 pub struct OFParOpen<'a> {
+    /// Span
     pub span: Span<'a>,
 }
 
 impl<'a> OFParOpen<'a> {
+    /// Span
     pub fn span(&self) -> Span<'a> {
         self.span
     }
@@ -424,10 +432,12 @@ impl<'a> OFParOpen<'a> {
 /// Paren open
 #[derive(Debug)]
 pub struct OFParClose<'a> {
+    /// Span
     pub span: Span<'a>,
 }
 
 impl<'a> OFParClose<'a> {
+    /// Span
     pub fn span(&self) -> Span<'a> {
         self.span
     }
@@ -436,17 +446,17 @@ impl<'a> OFParClose<'a> {
 /// Comparison operands.
 #[derive(Debug)]
 pub enum OFCompOp<'a> {
-    /// TODO:
+    /// Operator =
     Equal(Span<'a>),
-    /// TODO:
+    /// Operator <>
     Unequal(Span<'a>),
-    /// TODO:
+    /// Operator <
     Less(Span<'a>),
-    /// TODO:
+    /// Operator <=
     LessEqual(Span<'a>),
-    /// TODO:
+    /// Operator >
     Greater(Span<'a>),
-    /// TODO:
+    /// Operator >=
     GreaterEqual(Span<'a>),
 }
 
@@ -482,9 +492,9 @@ impl<'a> Display for OFCompOp<'a> {
 /// Additive operands.
 #[derive(Debug)]
 pub enum OFAddOp<'a> {
-    /// TODO:
+    /// Operator +
     Add(Span<'a>),
-    /// TODO:
+    /// Operator -
     Subtract(Span<'a>),
 }
 
@@ -512,9 +522,9 @@ impl<'a> Display for OFAddOp<'a> {
 /// Multiplicative operands.
 #[derive(Debug)]
 pub enum OFMulOp<'a> {
-    /// TODO:
+    /// Operator *
     Multiply(Span<'a>),
-    /// TODO:
+    /// Operator /
     Divide(Span<'a>),
 }
 
@@ -542,6 +552,7 @@ impl<'a> Display for OFMulOp<'a> {
 /// Power operand.
 #[derive(Debug)]
 pub enum OFPowOp<'a> {
+    /// Operator ^
     Power(Span<'a>),
 }
 
@@ -567,7 +578,7 @@ impl<'a> Display for OFPowOp<'a> {
 /// Postfix operands.
 #[derive(Debug)]
 pub enum OFPostfixOp<'a> {
-    /// TODO:
+    /// Operator %
     Percent(Span<'a>),
 }
 

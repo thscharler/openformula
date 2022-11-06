@@ -88,9 +88,9 @@ impl Display for CRef {
 /// A cell span.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CSpan {
-    /// TODO:
+    /// Row span.
     pub row_span: u32,
-    /// TODO:
+    /// Col span.
     pub col_span: u32,
 }
 
@@ -329,6 +329,10 @@ impl CellRange {
     }
 
     /// Creates a CellRange with a span.
+    ///
+    /// Panic
+    ///
+    /// Row-span and col-span must both be > 0.
     pub fn span(row: u32, col: u32, span: CSpan) -> Self {
         let mut span = span;
 
@@ -361,6 +365,10 @@ impl CellRange {
     }
 
     /// Refers a different sheet.
+    ///
+    /// Panic
+    ///
+    /// Row-span and col-span must both be > 0.
     pub fn sheet<S: Into<String>>(sheet: S, row: u32, col: u32, to_row: u32, to_col: u32) -> Self {
         let mut row = row;
         let mut col = col;
@@ -401,6 +409,7 @@ impl CellRange {
         self
     }
 
+    //noinspection RsSelfConvention
     /// Sheet.
     #[allow(clippy::wrong_self_convention)]
     pub fn from_sheet<S: Into<String>>(mut self, sheet: S) -> Self {
@@ -408,6 +417,7 @@ impl CellRange {
         self
     }
 
+    //noinspection RsSelfConvention
     /// Row.
     #[allow(clippy::wrong_self_convention)]
     pub fn from_row(mut self, row: u32) -> Self {
@@ -415,6 +425,7 @@ impl CellRange {
         self
     }
 
+    //noinspection RsSelfConvention
     /// Column.
     #[allow(clippy::wrong_self_convention)]
     pub fn from_col(mut self, col: u32) -> Self {
@@ -422,6 +433,7 @@ impl CellRange {
         self
     }
 
+    //noinspection RsSelfConvention
     /// Cell
     #[allow(clippy::wrong_self_convention)]
     pub fn from_cell(mut self, row: u32, col: u32) -> Self {
@@ -587,6 +599,7 @@ impl ColRange {
         self
     }
 
+    //noinspection RsSelfConvention
     /// Sheet.
     #[allow(clippy::wrong_self_convention)]
     pub fn from_sheet<S: Into<String>>(mut self, sheet: S) -> Self {
@@ -594,6 +607,7 @@ impl ColRange {
         self
     }
 
+    //noinspection RsSelfConvention
     /// Column.
     #[allow(clippy::wrong_self_convention)]
     pub fn from_col(mut self, col: u32) -> Self {
@@ -714,6 +728,7 @@ impl RowRange {
         self
     }
 
+    //noinspection RsSelfConvention
     /// Sheet.
     #[allow(clippy::wrong_self_convention)]
     pub fn from_sheet<S: Into<String>>(mut self, sheet: S) -> Self {
@@ -721,6 +736,7 @@ impl RowRange {
         self
     }
 
+    //noinspection RsSelfConvention
     /// Row.
     #[allow(clippy::wrong_self_convention)]
     pub fn from_row(mut self, row: u32) -> Self {

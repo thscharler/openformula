@@ -125,39 +125,35 @@ where
 }
 
 /// Error type for the parser.
-#[allow(variant_size_differences)] // TODO: necessary??
 #[derive(Debug)]
 pub enum ParseExprError {
-    /// TODO:
+    /// Some nom error occurred.
     NomError(ErrSpan),
-    /// TODO:
+    /// Nom failed.
     NomFailure(ErrSpan),
 
-    /// TODO:
-    Expr(ErrSpan),
-
-    /// TODO:
+    /// Number parsing error.
     Number(ErrSpan),
-    /// TODO:
+    /// String parsing error.
     String(ErrSpan),
-    /// TODO:
+    /// Parenthesis parsing error.
     Parenthesis(ErrSpan),
 
-    /// TODO:
+    /// Elementary expr parsing error.
     Elementary(ErrSpan),
 
-    /// TODO:
+    /// CellRef parsing error.
     CellRef(ErrSpan),
-    /// TODO:
+    /// CellRange parsing error.
     CellRange(ErrSpan),
-    /// TODO:
+    /// ColRange parsing error.
     ColRange(ErrSpan),
-    /// TODO:
+    /// Rowrange parsing error.
     RowRange(ErrSpan),
 
-    /// TODO:
+    /// Error converting a row-name part of any Ref to an u32.
     ParseRowname(ErrSpan, ParseRownameError),
-    /// TODO:
+    /// Error converting a col-name part of any Ref to an u32.
     ParseColname(ErrSpan, ParseColnameError),
 }
 
@@ -170,11 +166,6 @@ impl ParseExprError {
     /// NomFailure variant.
     pub fn nom_failure<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::NomFailure(span.into())
-    }
-
-    /// Expr variant.
-    pub fn expr<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::Expr(span.into())
     }
 
     /// Number variant.
@@ -192,27 +183,27 @@ impl ParseExprError {
         ParseExprError::Parenthesis(span.into())
     }
 
-    /// Expr variant.
+    /// Elementary variant.
     pub fn elementary<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::Elementary(span.into())
     }
 
-    /// Ref variant.
+    /// CellRef variant.
     pub fn cellref<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::CellRef(span.into())
     }
 
-    /// Range variant.
+    /// CellRange variant.
     pub fn cellrange<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::CellRange(span.into())
     }
 
-    /// Range variant.
+    /// ColRange variant.
     pub fn colrange<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::ColRange(span.into())
     }
 
-    /// Range variant.
+    /// RowRange variant.
     pub fn rowrange<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::RowRange(span.into())
     }
@@ -225,7 +216,6 @@ impl Display for ParseExprError {
         match self {
             ParseExprError::NomError(s) => write!(f, "NomError {}", s),
             ParseExprError::NomFailure(s) => write!(f, "NomFailure {}", s),
-            ParseExprError::Expr(s) => write!(f, "Number {}", s),
             ParseExprError::Number(s) => write!(f, "Number {}", s),
             ParseExprError::String(s) => write!(f, "String {}", s),
             ParseExprError::Parenthesis(s) => write!(f, "Parenthesis {}", s),

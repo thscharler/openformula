@@ -4,7 +4,7 @@
 
 use crate::parse::Span;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_while1};
+use nom::bytes::complete::{tag, take_while, take_while1};
 use nom::character::complete::{alpha1, char as nchar, none_of, one_of};
 use nom::combinator::{opt, recognize};
 use nom::multi::{count, many0, many1};
@@ -12,12 +12,9 @@ use nom::sequence::{delimited, terminated, tuple};
 use nom::IResult;
 
 #[allow(unused_imports)]
-
-/// Standard number.
-///
-/// Number ::= StandardNumber |
-/// '.' [0-9]+ ([eE] [-+]? [0-9]+)?
-/// StandardNumber ::= [0-9]+ ('.' [0-9]+)? ([eE] [-+]? [0-9]+)?
+// Number ::= StandardNumber | '.' [0-9]+ ([eE] [-+]? [0-9]+)?
+// StandardNumber ::= [0-9]+ ('.' [0-9]+)? ([eE] [-+]? [0-9]+)?
+/// Any number.
 pub fn number<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     alt((
         // Case one: .42
@@ -45,6 +42,7 @@ pub fn number<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     ))(i)
 }
 
+/// Sequence of digits.
 fn decimal<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     recognize(many1(one_of("0123456789")))(input)
 }
@@ -76,7 +74,7 @@ pub fn reference_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("&")(i)
 }
 
-/// Parse referenc intersection.
+/// Parse reference intersection.
 pub fn ref_intersection_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("!")(i)
 }
@@ -146,39 +144,23 @@ pub fn postfix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(tag("%"))(i)
 }
 
-// Reference ::= '[' (Source? RangeAddress) | ReferenceError ']'
-// RangeAddress ::=
-// SheetLocatorOrEmpty '.' Column Row (':' '.' Column Row )? |
-// SheetLocatorOrEmpty '.' Column ':' '.' Column |
-// SheetLocatorOrEmpty '.' Row ':' '.' Row |
-// SheetLocator '.' Column Row ':' SheetLocator '.' Column Row |
-// SheetLocator '.' Column ':' SheetLocator '.' Column |
-// SheetLocator '.' Row ':' SheetLocator '.' Row
-// SheetLocatorOrEmpty ::= SheetLocator | /* empty */
-// SheetLocator ::= SheetName ('.' SubtableCell)*
-// SheetName ::= QuotedSheetName | '$'? [^\]\. #$']+
-// QuotedSheetName ::= '$'? SingleQuoted
-// SubtableCell ::= ( Column Row ) | QuotedSheetName
-// ReferenceError ::= "#REF!"
-// Column ::= '$'? [A-Z]+
-// Row ::= '$'? [1-9] [0-9]*
 // Source ::= "'" IRI "'" "#"
-// CellAddress ::= SheetLocatorOrEmpty '.' Column Row /* Not used
-// directly */
 /// IRI
 pub fn iri<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     let (i, iri) = terminated(quoted('\''), tag("#"))(i)?;
     Ok((i, iri))
 }
 
+// SheetName ::= QuotedSheetName | '$'? [^\]\. #$']+
 /// Sheet name
-pub fn sheetname<'a>(i: Span<'a>) -> IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
+pub fn sheet_name<'a>(i: Span<'a>) -> IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
     let (i, abs) = opt(tag("$"))(i)?;
     let (i, name) = alt((quoted('\''), recognize(many1(none_of("]. #$'")))))(i)?;
 
     Ok((i, (abs, name)))
 }
 
+// Row ::= '$'? [1-9] [0-9]*
 /// Row label
 pub fn row<'a>(i: Span<'a>) -> IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
     let (i, abs) = opt(tag("$"))(i)?;
@@ -187,6 +169,7 @@ pub fn row<'a>(i: Span<'a>) -> IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
     Ok((i, (abs, row)))
 }
 
+// Column ::= '$'? [A-Z]+
 /// Column label
 pub fn col<'a>(i: Span<'a>) -> IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
     let (i, abs) = opt(tag("$"))(i)?;
@@ -194,6 +177,7 @@ pub fn col<'a>(i: Span<'a>) -> IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
     Ok((i, (abs, col)))
 }
 
+// SingleQuoted ::= "'" ([^'] | "''")+ "'"
 /// Parse a quoted string. A double quote within is an escaped quote.
 /// Returns the string within the outer quotes. The double quotes are not
 /// reduced.
@@ -215,7 +199,7 @@ pub fn quoted<'a>(quote: char) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, Span
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
-    use crate::parse::tokens::{col, iri, quoted, row, sheetname};
+    use crate::parse::tokens::{col, iri, quoted, row, sheet_name};
     use crate::parse::Span;
     use nom::error::ErrorKind;
     use nom::error::ParseError;
@@ -252,31 +236,31 @@ mod tests {
                 ))
             );
             assert_eq!(
-                quoted('\'')(Span::new("'abcd'")),
+                quoted('\'')(Span::new("'text'")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, "", ()),
-                    Span::new_from_raw_offset(1, 1, "abcd", ())
+                    Span::new_from_raw_offset(1, 1, "text", ())
                 ))
             );
             assert_eq!(
-                quoted('\'')(Span::new("'a'bcd'")),
+                quoted('\'')(Span::new("'t'ext'")),
                 Ok((
-                    Span::new_from_raw_offset(3, 1, "bcd'", ()),
-                    Span::new_from_raw_offset(1, 1, "a", ())
+                    Span::new_from_raw_offset(3, 1, "ext'", ()),
+                    Span::new_from_raw_offset(1, 1, "t", ())
                 ))
             );
             assert_eq!(
-                quoted('\'')(Span::new("'a''bcd'")),
+                quoted('\'')(Span::new("'t''ext'")),
                 Ok((
                     Span::new_from_raw_offset(8, 1, "", ()),
-                    Span::new_from_raw_offset(1, 1, "a''bcd", ())
+                    Span::new_from_raw_offset(1, 1, "t''ext", ())
                 ))
             );
             assert_eq!(
-                quoted('\'')(Span::new("'a'''bcd'")),
+                quoted('\'')(Span::new("'t'''ext'")),
                 Ok((
-                    Span::new_from_raw_offset(5, 1, "bcd'", ()),
-                    Span::new_from_raw_offset(1, 1, "a''", ())
+                    Span::new_from_raw_offset(5, 1, "ext'", ()),
+                    Span::new_from_raw_offset(1, 1, "t''", ())
                 ))
             );
         }
@@ -378,52 +362,52 @@ mod tests {
     }
 
     #[test]
-    fn test_sheetname() {
+    fn test_sheet_name() {
         unsafe {
             assert_eq!(
-                sheetname(Span::new("sheet1")),
+                sheet_name(Span::new("sheet1")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, "", ()),
                     (None, Span::new_from_raw_offset(0, 1, "sheet1", ()))
                 ))
             );
             assert_eq!(
-                sheetname(Span::new("sheet1]")),
+                sheet_name(Span::new("sheet1]")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, "]", ()),
                     (None, Span::new_from_raw_offset(0, 1, "sheet1", ()))
                 ))
             );
             assert_eq!(
-                sheetname(Span::new("sheet1.")),
+                sheet_name(Span::new("sheet1.")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, ".", ()),
                     (None, Span::new_from_raw_offset(0, 1, "sheet1", ()))
                 ))
             );
             assert_eq!(
-                sheetname(Span::new("sheet1$")),
+                sheet_name(Span::new("sheet1$")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, "$", ()),
                     (None, Span::new_from_raw_offset(0, 1, "sheet1", ()))
                 ))
             );
             assert_eq!(
-                sheetname(Span::new("sheet1 ")),
+                sheet_name(Span::new("sheet1 ")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, " ", ()),
                     (None, Span::new_from_raw_offset(0, 1, "sheet1", ()))
                 ))
             );
             assert_eq!(
-                sheetname(Span::new("sheet1#")),
+                sheet_name(Span::new("sheet1#")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, "#", ()),
                     (None, Span::new_from_raw_offset(0, 1, "sheet1", ()))
                 ))
             );
             assert_eq!(
-                sheetname(Span::new("'sheet1'")),
+                sheet_name(Span::new("'sheet1'")),
                 Ok((
                     Span::new_from_raw_offset(8, 1, "", ()),
                     (None, Span::new_from_raw_offset(1, 1, "sheet1", ()))

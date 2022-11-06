@@ -95,9 +95,9 @@ impl<'span> Tracer<'span> {
     pub fn ast_err(
         &self,
         rest: Span<'span>,
-        ferr: fn(span: Span<'span>) -> ParseExprError,
+        err_fn: fn(span: Span<'span>) -> ParseExprError,
     ) -> ParseExprError {
-        let err = ferr(rest);
+        let err = err_fn(rest);
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks
             .borrow_mut()
@@ -127,10 +127,10 @@ impl<'span> Tracer<'span> {
     pub fn err(
         &self,
         rest: Span<'span>,
-        ferr: fn(span: Span<'span>) -> ParseExprError,
+        err_fn: fn(span: Span<'span>) -> ParseExprError,
         nom: nom::Err<nom::error::Error<Span<'span>>>,
     ) -> ParseExprError {
-        let err = ferr(rest);
+        let err = err_fn(rest);
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks
             .borrow_mut()
