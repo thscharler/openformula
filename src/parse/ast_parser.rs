@@ -94,7 +94,7 @@ pub fn opt_number<'s, 't>(
         Ok((rest, Some(tok))) => match (*tok).parse::<f64>() {
             Ok(val) => {
                 let ast = AstTree::number(val, tok);
-                Ok(trace.ok(tok, rest, Some(ast)))
+                Ok(trace.ok(ast.span(), rest, Some(ast)))
             }
             Err(_) => unreachable!(),
         },
@@ -112,7 +112,8 @@ pub fn opt_string<'s, 't>(
 
     match opt(super::tokens::string)(i) {
         Ok((rest, Some(tok))) => {
-            Ok(trace.ok(tok, rest, Some(AstTree::string(tok.to_string(), tok))))
+            let ast = AstTree::string(tok.to_string(), tok);
+            Ok(trace.ok(ast.span(), rest, Some(ast)))
         }
         Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
         Err(e) => Err(trace.err(i, ParseExprError::string, e)),
@@ -120,11 +121,15 @@ pub fn opt_string<'s, 't>(
 }
 
 /// Any expression.
-pub fn expr<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<AstTree<'s>>> {
+pub fn expr<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
     trace.enter("expr", i);
 
     match compare_expr(trace, i) {
-        Ok((rest, expr)) => Ok(trace.ok(expr.span(), rest, expr)),
+        Ok((rest, Some(expr))) => Ok(trace.ok(expr.span(), rest, Some(expr))),
+        Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
         Err(e) => Err(trace.parse_err(e)),
     }
 }
@@ -133,91 +138,103 @@ pub fn expr<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, B
 pub fn compare_expr<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Box<AstTree<'s>>> {
+) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
     trace.enter("comp_expr", i);
 
-    match add_expr(trace, i) {
-        Ok((mut rest1, mut expr1)) => {
+    match opt_add_expr(trace, i) {
+        Ok((mut rest1, Some(mut expr1))) => {
             //
             loop {
                 match ops::comp_op_mapped(trace, rest1) {
                     Ok((rest2, Some(op))) => {
                         //
-                        match add_expr(trace, rest2) {
-                            Ok((rest3, expr2)) => {
+                        match opt_add_expr(trace, rest2) {
+                            Ok((rest3, Some(expr2))) => {
                                 rest1 = rest3;
                                 expr1 = AstTree::compare_expr(expr1, op, expr2);
+                            }
+                            Ok((rest3, None)) => {
+                                break Err(trace.ast_err(rest3, ParseExprError::comp))
                             }
                             Err(e) => break Err(trace.parse_err(e)),
                         }
                     }
-                    Ok((rest2, None)) => break Ok(trace.ok(expr1.span(), rest2, expr1)),
+                    Ok((rest2, None)) => break Ok(trace.ok(expr1.span(), rest2, Some(expr1))),
                     Err(e) => break Err(trace.parse_err(e)),
                 }
             }
         }
+        Ok((rest1, None)) => Ok(trace.ok(Span::new(""), rest1, None)),
         Err(e) => Err(trace.parse_err(e)),
     }
 }
 
 /// Additive expressions.
-pub fn add_expr<'s, 't>(
+pub fn opt_add_expr<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Box<AstTree<'s>>> {
+) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
     trace.enter("add_expr", i);
 
-    match mul_expr(trace, i) {
-        Ok((mut rest1, mut expr1)) => {
+    match opt_mul_expr(trace, i) {
+        Ok((mut rest1, Some(mut expr1))) => {
             //
             loop {
                 match ops::add_op_mapped(trace, rest1) {
                     Ok((rest2, Some(op))) => {
                         //
-                        match mul_expr(trace, rest2) {
-                            Ok((rest3, expr2)) => {
+                        match opt_mul_expr(trace, rest2) {
+                            Ok((rest3, Some(expr2))) => {
                                 rest1 = rest3;
                                 expr1 = AstTree::add_expr(expr1, op, expr2);
+                            }
+                            Ok((rest3, None)) => {
+                                break Err(trace.ast_err(rest3, ParseExprError::add))
                             }
                             Err(e) => break Err(trace.parse_err(e)),
                         }
                     }
-                    Ok((rest2, None)) => break Ok(trace.ok(expr1.span(), rest2, expr1)),
+                    Ok((rest2, None)) => break Ok(trace.ok(expr1.span(), rest2, Some(expr1))),
                     Err(e) => break Err(trace.parse_err(e)),
                 }
             }
         }
+        Ok((rest1, None)) => Ok(trace.ok(Span::new(""), rest1, None)),
         Err(e) => Err(trace.parse_err(e)),
     }
 }
 
 /// Multiplicative expressions.
-pub fn mul_expr<'s, 't>(
+pub fn opt_mul_expr<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Box<AstTree<'s>>> {
+) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
     trace.enter("mul_expr", i);
 
     match pow_expr(trace, i) {
-        Ok((mut rest1, mut expr1)) => {
+        Ok((mut rest1, Some(mut expr1))) => {
             //
             loop {
                 match ops::mul_op_mapped(trace, rest1) {
                     Ok((rest2, Some(op))) => {
                         //
                         match pow_expr(trace, rest2) {
-                            Ok((rest3, expr2)) => {
+                            Ok((rest3, Some(expr2))) => {
                                 rest1 = rest3;
                                 expr1 = AstTree::mul_expr(expr1, op, expr2);
+                            }
+                            Ok((rest3, None)) => {
+                                break Err(trace.ast_err(rest3, ParseExprError::mul))
                             }
                             Err(e) => break Err(trace.parse_err(e)),
                         }
                     }
-                    Ok((rest2, None)) => break Ok(trace.ok(expr1.span(), rest2, expr1)),
+                    Ok((rest2, None)) => break Ok(trace.ok(expr1.span(), rest2, Some(expr1))),
                     Err(e) => break Err(trace.parse_err(e)),
                 }
             }
         }
+        Ok((rest1, None)) => Ok(trace.ok(Span::new(""), rest1, None)),
         Err(e) => Err(trace.parse_err(e)),
     }
 }
@@ -226,42 +243,46 @@ pub fn mul_expr<'s, 't>(
 pub fn pow_expr<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Box<AstTree<'s>>> {
+) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
     trace.enter("pow_expr", i);
 
-    match postfix_expr(trace, i) {
-        Ok((mut rest1, mut expr1)) => {
+    match opt_postfix_expr(trace, i) {
+        Ok((mut rest1, Some(mut expr1))) => {
             //
             loop {
                 match ops::pow_op_mapped(trace, rest1) {
                     Ok((rest2, Some(op))) => {
                         //
-                        match postfix_expr(trace, rest2) {
-                            Ok((rest3, expr2)) => {
+                        match opt_postfix_expr(trace, rest2) {
+                            Ok((rest3, Some(expr2))) => {
                                 rest1 = rest3;
                                 expr1 = AstTree::pow_expr(expr1, op, expr2);
+                            }
+                            Ok((rest3, None)) => {
+                                break Err(trace.ast_err(rest3, ParseExprError::pow))
                             }
                             Err(e) => break Err(trace.parse_err(e)),
                         }
                     }
-                    Ok((rest2, None)) => break Ok(trace.ok(expr1.span(), rest2, expr1)),
+                    Ok((rest2, None)) => break Ok(trace.ok(expr1.span(), rest2, Some(expr1))),
                     Err(e) => break Err(trace.parse_err(e)),
                 }
             }
         }
+        Ok((rest1, None)) => Ok(trace.ok(Span::new(""), rest1, None)),
         Err(e) => Err(trace.parse_err(e)),
     }
 }
 
 /// Postfix expressions.
-pub fn postfix_expr<'s, 't>(
+pub fn opt_postfix_expr<'s, 't>(
     trace: &'t Tracer<'s>,
     i0: Span<'s>,
-) -> ParseResult<'s, 't, Box<AstTree<'s>>> {
+) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
     trace.enter("postfix_expr", i0);
 
-    match prefix_expr(trace, i0) {
-        Ok((mut rest1, mut expr)) => {
+    match opt_prefix_expr(trace, i0) {
+        Ok((mut rest1, Some(mut expr))) => {
             //
             loop {
                 match ops::postfix_op_mapped(trace, rest1) {
@@ -270,37 +291,40 @@ pub fn postfix_expr<'s, 't>(
                         rest1 = rest2;
                         expr = AstTree::postfix_expr(expr, tok);
                     }
-                    Ok((i2, None)) => break Ok(trace.ok(expr.span(), i2, expr)),
+                    Ok((i2, None)) => break Ok(trace.ok(expr.span(), i2, Some(expr))),
                     Err(e) => break Err(trace.parse_err(e)),
                 }
             }
         }
+        Ok((rest1, None)) => Ok(trace.ok(Span::new(""), rest1, None)),
         Err(e) => Err(trace.parse_err(e)),
     }
 }
 
 /// Prefix expressions.
-pub fn prefix_expr<'s, 't>(
+pub fn opt_prefix_expr<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Box<AstTree<'s>>> {
+) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
     trace.enter("prefix_expr", i);
 
     match ops::prefix_op_mapped(trace, i) {
         Ok((rest1, Some(tok))) => {
             //
-            match prefix_expr(trace, rest1) {
-                Ok((rest2, expr)) => {
+            match opt_prefix_expr(trace, rest1) {
+                Ok((rest2, Some(expr))) => {
                     let ast = AstTree::prefix_expr(tok, expr);
-                    Ok(trace.ok(ast.span(), rest2, ast))
+                    Ok(trace.ok(ast.span(), rest2, Some(ast)))
                 }
+                Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseExprError::prefix)),
                 Err(e) => Err(trace.parse_err(e)),
             }
         }
         Ok((rest1, None)) => {
             //
-            match elementary(trace, rest1) {
-                Ok((rest2, expr)) => Ok(trace.ok(expr.span(), rest2, expr)),
+            match opt_elementary(trace, rest1) {
+                Ok((rest2, Some(expr))) => Ok(trace.ok(expr.span(), rest2, Some(expr))),
+                Ok((rest2, None)) => Ok(trace.ok(Span::new(""), rest2, None)),
                 Err(e) => Err(trace.parse_err(e)),
             }
         }
@@ -317,15 +341,21 @@ pub fn opt_expr_parentheses<'s, 't>(
 
     match super::tokens::parenthesis_open(i) {
         Ok((rest1, par1)) => {
-            let (rest2, expr) = expr(trace, rest1)?;
-            match super::tokens::parenthesis_close(rest2) {
-                Ok((i, par2)) => {
-                    let o = OFParOpen { span: par1 };
-                    let c = OFParClose { span: par2 };
-                    let ast = Box::new(AstTree::Parenthesis(o, expr, c));
-                    Ok(trace.ok(ast.span(), i, Some(ast)))
+            match expr(trace, rest1) {
+                Ok((rest2, Some(expr))) => {
+                    //
+                    match super::tokens::parenthesis_close(rest2) {
+                        Ok((rest3, par2)) => {
+                            let o = OFParOpen { span: par1 };
+                            let c = OFParClose { span: par2 };
+                            let ast = Box::new(AstTree::Parenthesis(o, expr, c));
+                            Ok(trace.ok(ast.span(), rest3, Some(ast)))
+                        }
+                        Err(e) => Err(trace.err(rest1, ParseExprError::parenthesis, e)),
+                    }
                 }
-                Err(e) => Err(trace.err(rest1, ParseExprError::parenthesis, e)),
+                Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseExprError::parenthesis)),
+                Err(e) => Err(trace.parse_err(e)),
             }
         }
         Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
@@ -335,50 +365,40 @@ pub fn opt_expr_parentheses<'s, 't>(
 }
 
 /// Leafs of the expression tree.
-pub fn elementary<'s, 't>(
+pub fn opt_elementary<'s, 't>(
     trace: &'t Tracer<'s>,
     i: Span<'s>,
-) -> ParseResult<'s, 't, Box<AstTree<'s>>> {
+) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
     trace.enter("elementary", i);
 
     match opt_number(trace, i) {
-        Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, expr)),
+        Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
         Ok((_rest, None)) => { /* skip */ }
         Err(e) => return Err(trace.parse_err(e)),
     }
 
     match opt_string(trace, i) {
-        Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, expr)),
+        Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
         Ok((_rest, None)) => { /* skip */ }
         Err(e) => return Err(trace.parse_err(e)),
     }
 
     match opt_expr_parentheses(trace, i) {
-        Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, expr)),
+        Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
         Ok((_, None)) => { /* skip */ }
         Err(e) => return Err(trace.parse_err(e)),
     }
 
     match refs::opt_reference(trace, i) {
-        Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, expr)),
+        Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
         Ok((_, None)) => { /* skip */ }
         Err(e) => return Err(trace.parse_err(e)),
     }
 
-    Err(trace.ast_err(i, ParseExprError::elementary))
+    Ok(trace.ok(Span::new(""), i, None))
 }
 
-//      FunctionName '(' ParameterList ')' |
-// ) Whitespace*
-// SingleQuoted ::= "'" ([^'] | "''")+ "'"
-//
-// PrefixOp ::= '+' | '-'
-// PostfixOp ::= '%'
-// InfixOp ::= ArithmeticOp | ComparisonOp | StringOp | ReferenceOp
-// ArithmeticOp ::= '+' | '-' | '*' | '/' | '^'
-// ComparisonOp ::= '=' | '<>' | '<' | '>' | '<=' | '>='
-// StringOp ::= '&
-//
+// FunctionName '(' ParameterList ')' |
 // FunctionName ::= LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
 // ParameterList ::= /* empty */ |
 //                      Parameter (Separator EmptyOrParameter )* |

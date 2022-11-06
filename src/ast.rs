@@ -34,9 +34,9 @@ pub enum AstTree<'a> {
     MulExpr(Box<AstTree<'a>>, OFMulOp<'a>, Box<AstTree<'a>>),
     /// Exponential expression.
     PowExpr(Box<AstTree<'a>>, OFPowOp<'a>, Box<AstTree<'a>>),
-    /// Prefix operators.
+    /// Prefix expression.
     PrefixExpr(OFPrefixOp<'a>, Box<AstTree<'a>>),
-    /// Postfix operators.
+    /// Postfix expression.
     PostfixExpr(Box<AstTree<'a>>, OFPostfixOp<'a>),
 }
 
@@ -385,6 +385,34 @@ macro_rules! op_decl {
     };
 }
 
+/// Trait to extract the span.
+pub trait HaveSpan<'a> {
+    /// Returns the span of.
+    fn span(&self) -> Span<'a>;
+}
+
+/// Function name.
+#[derive(Debug, PartialEq)]
+pub struct OFFnName<'a> {
+    /// Function name.
+    pub name: String,
+    /// Span
+    pub span: Span<'a>,
+}
+
+impl<'a> HaveSpan<'a> for OFFnName<'a> {
+    /// Returns the span for each variant.
+    fn span(&self) -> Span<'a> {
+        self.span
+    }
+}
+
+impl<'a> Display for OFFnName<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
 /// Prefix operands.
 #[derive(Debug)]
 pub enum OFPrefixOp<'a> {
@@ -396,9 +424,9 @@ pub enum OFPrefixOp<'a> {
 
 op_decl!(OFPrefixOp);
 
-impl<'a> OFPrefixOp<'a> {
+impl<'a> HaveSpan<'a> for OFPrefixOp<'a> {
     /// Returns the span for each variant.
-    pub fn span(&self) -> Span<'a> {
+    fn span(&self) -> Span<'a> {
         match self {
             OFPrefixOp::Plus(span) => *span,
             OFPrefixOp::Minus(span) => *span,
@@ -422,9 +450,9 @@ pub struct OFParOpen<'a> {
     pub span: Span<'a>,
 }
 
-impl<'a> OFParOpen<'a> {
+impl<'a> HaveSpan<'a> for OFParOpen<'a> {
     /// Span
-    pub fn span(&self) -> Span<'a> {
+    fn span(&self) -> Span<'a> {
         self.span
     }
 }
@@ -436,9 +464,9 @@ pub struct OFParClose<'a> {
     pub span: Span<'a>,
 }
 
-impl<'a> OFParClose<'a> {
+impl<'a> HaveSpan<'a> for OFParClose<'a> {
     /// Span
-    pub fn span(&self) -> Span<'a> {
+    fn span(&self) -> Span<'a> {
         self.span
     }
 }
@@ -462,9 +490,9 @@ pub enum OFCompOp<'a> {
 
 op_decl!(OFCompOp);
 
-impl<'a> OFCompOp<'a> {
+impl<'a> HaveSpan<'a> for OFCompOp<'a> {
     /// Extracts the span from each variant.
-    pub fn span(&self) -> Span<'a> {
+    fn span(&self) -> Span<'a> {
         match self {
             OFCompOp::Equal(s) => *s,
             OFCompOp::Unequal(s) => *s,
@@ -500,9 +528,9 @@ pub enum OFAddOp<'a> {
 
 op_decl!(OFAddOp);
 
-impl<'a> OFAddOp<'a> {
+impl<'a> HaveSpan<'a> for OFAddOp<'a> {
     /// Extracts the span from each variant.
-    pub fn span(&self) -> Span<'a> {
+    fn span(&self) -> Span<'a> {
         match self {
             OFAddOp::Add(span) => *span,
             OFAddOp::Subtract(span) => *span,
@@ -530,9 +558,9 @@ pub enum OFMulOp<'a> {
 
 op_decl!(OFMulOp);
 
-impl<'a> OFMulOp<'a> {
+impl<'a> HaveSpan<'a> for OFMulOp<'a> {
     /// Extracts the span from each variant.
-    pub fn span(&self) -> Span<'a> {
+    fn span(&self) -> Span<'a> {
         match self {
             OFMulOp::Multiply(span) => *span,
             OFMulOp::Divide(span) => *span,
@@ -558,9 +586,9 @@ pub enum OFPowOp<'a> {
 
 op_decl!(OFPowOp);
 
-impl<'a> OFPowOp<'a> {
+impl<'a> HaveSpan<'a> for OFPowOp<'a> {
     /// Extracts the span from each variant.
-    pub fn span(&self) -> Span<'a> {
+    fn span(&self) -> Span<'a> {
         match self {
             OFPowOp::Power(span) => *span,
         }
@@ -584,9 +612,9 @@ pub enum OFPostfixOp<'a> {
 
 op_decl!(OFPostfixOp);
 
-impl<'a> OFPostfixOp<'a> {
+impl<'a> HaveSpan<'a> for OFPostfixOp<'a> {
     /// Extracts the span from each variant.
-    pub fn span(&self) -> Span<'a> {
+    fn span(&self) -> Span<'a> {
         match self {
             OFPostfixOp::Percent(span) => *span,
         }
@@ -605,6 +633,12 @@ impl<'a> Display for OFPostfixOp<'a> {
 #[derive(Debug)]
 pub struct OFNumber<'a>(pub f64, pub Span<'a>);
 
+impl<'a> HaveSpan<'a> for OFNumber<'a> {
+    fn span(&self) -> Span<'a> {
+        self.1
+    }
+}
+
 impl<'a> Display for OFNumber<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
@@ -620,6 +654,12 @@ impl<'a> PartialEq for OFNumber<'a> {
 /// String
 #[derive(Debug)]
 pub struct OFString<'a>(pub String, pub Span<'a>);
+
+impl<'a> HaveSpan<'a> for OFString<'a> {
+    fn span(&self) -> Span<'a> {
+        self.1
+    }
+}
 
 impl<'a> Display for OFString<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

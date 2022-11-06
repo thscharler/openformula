@@ -141,6 +141,16 @@ pub enum ParseExprError {
 
     /// Elementary expr parsing error.
     Elementary(ErrSpan),
+    /// Prefix expr parsing error.
+    Prefix(ErrSpan),
+    /// Power expr parsing error.
+    Pow(ErrSpan),
+    /// Multiplicative expr parsing error.
+    Mul(ErrSpan),
+    /// Additive expr parsing error.
+    Add(ErrSpan),
+    /// Compare expr parsing error.
+    Comp(ErrSpan),
 
     /// CellRef parsing error.
     CellRef(ErrSpan),
@@ -183,6 +193,31 @@ impl ParseExprError {
         ParseExprError::Parenthesis(span.into())
     }
 
+    /// Pow variant.
+    pub fn pow<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Pow(span.into())
+    }
+
+    /// Mul variant.
+    pub fn mul<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Mul(span.into())
+    }
+
+    /// Add variant.
+    pub fn add<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Add(span.into())
+    }
+
+    /// Comp variant.
+    pub fn comp<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Comp(span.into())
+    }
+
+    /// PrefixExpr variant.
+    pub fn prefix<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Prefix(span.into())
+    }
+
     /// Elementary variant.
     pub fn elementary<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::Elementary(span.into())
@@ -220,6 +255,11 @@ impl Display for ParseExprError {
             ParseExprError::String(s) => write!(f, "String {}", s),
             ParseExprError::Parenthesis(s) => write!(f, "Parenthesis {}", s),
             ParseExprError::Elementary(s) => write!(f, "Elementary {}", s),
+            ParseExprError::Prefix(s) => write!(f, "Prefix {}", s),
+            ParseExprError::Pow(s) => write!(f, "Pow {}", s),
+            ParseExprError::Mul(s) => write!(f, "Mul {}", s),
+            ParseExprError::Add(s) => write!(f, "Add {}", s),
+            ParseExprError::Comp(s) => write!(f, "Comp {}", s),
             ParseExprError::CellRef(s) => write!(f, "CellRef {}", s),
             ParseExprError::CellRange(s) => write!(f, "CellRange {}", s),
             ParseExprError::ColRange(s) => write!(f, "ColRange {}", s),
