@@ -1275,7 +1275,7 @@ mod tests {
             println!("{}", str);
             match testfn(&tracer, Span::new(str)) {
                 Ok((rest, Some(tok))) => {
-                    println!("{} | {}", tok, rest);
+                    println!("{:?} | {}", tok, rest);
                 }
                 Ok((rest, None)) => {
                     println!(" | {}", rest);
