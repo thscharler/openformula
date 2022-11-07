@@ -21,32 +21,14 @@ pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseExprError>;
 #[cfg(test)]
 mod tests {
     use crate::ast::AstTree;
-    use crate::parse::ast_parser::{opt_elementary, opt_number};
+    use crate::ast_parser::ElementaryExpr;
+    use crate::parse::ast_parser::opt_number;
+    use crate::parse::ast_parser::GeneralExpr;
     use crate::parse::{ast_parser, ParseResult, Span, Tracer};
 
-    fn run_test<'x>(
-        str: &'x str,
-        testfn: for<'s, 't> fn(&'t Tracer<'s>, Span<'s>) -> ParseResult<'s, 't, Box<AstTree<'s>>>,
-    ) {
-        let tracer = Tracer::new();
-        {
-            println!();
-            println!("{}", str);
-            match testfn(&tracer, Span::new(str)) {
-                Ok((rest, tok)) => {
-                    println!("{} | {}", tok, rest);
-                }
-                Err(e) => {
-                    println!("{:?}", e);
-                }
-            }
-            println!("{:?}", &tracer);
-        }
-    }
-
-    fn run_test2<'x>(
-        str: &'x str,
-        testfn: for<'s, 't> fn(
+    fn run_test2<'s>(
+        str: &'s str,
+        testfn: for<'t> fn(
             &'t Tracer<'s>,
             Span<'s>,
         ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>>,
@@ -82,7 +64,7 @@ mod tests {
     fn test_elementary() {
         let tests = ["471", r#""strdata""#, "1+1", "(1+1)"];
         for test in tests {
-            run_test2(test, opt_elementary);
+            run_test2(test, ElementaryExpr::parse);
         }
     }
 
