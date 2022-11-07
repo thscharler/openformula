@@ -232,7 +232,7 @@ impl ParseExprError {
     }
 
     /// Parenthesis variant.
-    pub fn parenthesis<'a>(span: Span<'a>) -> ParseExprError {
+    pub fn parentheses<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::ErrParenthesis(span.into())
     }
 

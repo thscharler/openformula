@@ -1032,11 +1032,11 @@ struct ParenthesisExpr;
 
 impl<'s> GeneralExpr<'s> for ParenthesisExpr {
     fn name() -> &'static str {
-        "parenthesis"
+        "parentheses"
     }
 
     fn lah(i: Span<'s>) -> bool {
-        tokens::lah_parenthesis_open(i)
+        tokens::lah_parentheses_open(i)
     }
 
     fn parse<'t>(
@@ -1045,27 +1045,27 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
     ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
         trace.enter(Self::name(), i);
 
-        match super::tokens::parenthesis_open(i) {
+        match super::tokens::parentheses_open(i) {
             Ok((rest1, par1)) => {
                 match Expr::parse(trace, eat_space(rest1)) {
                     Ok((rest2, Some(expr))) => {
                         //
-                        match super::tokens::parenthesis_close(eat_space(rest2)) {
+                        match super::tokens::parentheses_close(eat_space(rest2)) {
                             Ok((rest3, par2)) => {
                                 let o = OFParOpen { span: par1 };
                                 let c = OFParClose { span: par2 };
-                                let ast = Box::new(AstTree::NodeParenthesis(o, expr, c));
+                                let ast = AstTree::parens(o, expr, c);
                                 Ok(trace.ok(ast.span(), rest3, Some(ast)))
                             }
-                            Err(e) => Err(trace.err(rest1, ParseExprError::parenthesis, e)),
+                            Err(e) => Err(trace.err(rest1, ParseExprError::parentheses, e)),
                         }
                     }
-                    Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseExprError::parenthesis)),
+                    Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseExprError::parentheses)),
                     Err(e) => Err(trace.parse_err(e)),
                 }
             }
             Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::parenthesis, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::parentheses, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -1112,7 +1112,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
 
         let mut args = Vec::new();
 
-        match tokens::parenthesis_open(eat_space(rest1)) {
+        match tokens::parentheses_open(eat_space(rest1)) {
             Ok((mut loop_rest, par1)) => {
                 // First separator is checked before the arguments as arguments can be empty.
                 let sep1 = match tokens::separator(eat_space(loop_rest)) {
@@ -1206,7 +1206,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                     };
 
                     // find a closing paren next
-                    match tokens::parenthesis_close(eat_space(loop_rest)) {
+                    match tokens::parentheses_close(eat_space(loop_rest)) {
                         Ok((rest2, par2)) => {
                             let ast = AstTree::fn_call(fn_name, par1, args, par2);
                             return Ok(trace.ok(ast.span(), rest2, Some(ast)));

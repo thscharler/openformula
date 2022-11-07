@@ -17,17 +17,17 @@ pub enum AstTree<'a> {
     NodeEmpty(OFEmpty<'a>),
 
     /// Comparison expression.
-    NodeCompare(Box<AstTree<'a>>, OFCompOp<'a>, Box<AstTree<'a>>),
+    NodeCompare(OFCompare<'a>),
     /// Additive expression.
-    NodeAdd(Box<AstTree<'a>>, OFAddOp<'a>, Box<AstTree<'a>>),
+    NodeAdd(OFAdd<'a>),
     /// Multiplicative expression.
-    NodeMul(Box<AstTree<'a>>, OFMulOp<'a>, Box<AstTree<'a>>),
+    NodeMul(OFMul<'a>),
     /// Exponential expression.
-    NodePow(Box<AstTree<'a>>, OFPowOp<'a>, Box<AstTree<'a>>),
+    NodePow(OFPow<'a>),
     /// Postfix expression.
-    NodePostfix(Box<AstTree<'a>>, OFPostfixOp<'a>),
+    NodePostfix(OFPostfix<'a>),
     /// Prefix expression.
-    NodePrefix(OFPrefixOp<'a>, Box<AstTree<'a>>),
+    NodePrefix(OFPrefix<'a>),
 
     /// Number
     NodeNumber(OFNumber<'a>),
@@ -43,15 +43,10 @@ pub enum AstTree<'a> {
     /// RowRange
     NodeRowRange(OFRowRange<'a>),
 
-    /// Expression in parenthesis.
-    NodeParenthesis(OFParOpen<'a>, Box<AstTree<'a>>, OFParClose<'a>),
+    /// Expression in parentheses.
+    NodeParens(OFParens<'a>),
     /// Function call expression.
-    NodeFnCall(
-        OFFnName<'a>,
-        OFParOpen<'a>,
-        Vec<AstTree<'a>>,
-        OFParClose<'a>,
-    ),
+    NodeFnCall(OFFnCall<'a>),
 }
 
 impl<'a> AstTree<'a> {
@@ -59,55 +54,20 @@ impl<'a> AstTree<'a> {
     pub fn span(&self) -> Span<'a> {
         match self {
             AstTree::NodeEmpty(v) => v.1,
-
-            AstTree::NodeCompare(ex1, _op, ex2) => unsafe {
-                Self::span_union(ex1.span(), ex2.span())
-            },
-            AstTree::NodeAdd(ex1, _op, ex2) => unsafe { Self::span_union(ex1.span(), ex2.span()) },
-            AstTree::NodeMul(ex1, _op, ex2) => unsafe { Self::span_union(ex1.span(), ex2.span()) },
-            AstTree::NodePow(ex1, _op, ex2) => unsafe { Self::span_union(ex1.span(), ex2.span()) },
-            AstTree::NodePrefix(op, ex) => unsafe { Self::span_union(op.span(), ex.span()) },
-            AstTree::NodePostfix(ex, op) => unsafe { Self::span_union(ex.span(), op.span()) },
-
+            AstTree::NodeCompare(ex) => ex.span(),
+            AstTree::NodeAdd(ex) => ex.span(),
+            AstTree::NodeMul(ex) => ex.span(),
+            AstTree::NodePow(ex) => ex.span(),
+            AstTree::NodePrefix(ex) => ex.span(),
+            AstTree::NodePostfix(ex) => ex.span(),
             AstTree::NodeNumber(v) => v.1,
             AstTree::NodeString(v) => v.1,
-
             AstTree::NodeCellRef(v) => v.1,
             AstTree::NodeCellRange(v) => v.1,
             AstTree::NodeColRange(v) => v.1,
             AstTree::NodeRowRange(v) => v.1,
-
-            AstTree::NodeParenthesis(o, _ex, c) => unsafe { Self::span_union(o.span(), c.span()) },
-            AstTree::NodeFnCall(name, _o, _v, c) => unsafe {
-                Self::span_union(name.span(), c.span())
-            },
-        }
-    }
-
-    // Returns a new Span that reaches from the beginning of span0 to the end of span1.
-    //
-    // If any of the following conditions are violated, the result is Undefined Behavior:
-    // * Both the starting and other pointer must be either in bounds or one byte past the end of the same allocated object.
-    //      Should be guaranteed if both were obtained from on parse run.
-    // * Both pointers must be derived from a pointer to the same object.
-    //      Should be guaranteed if both were obtained from on parse run.
-    // * The distance between the pointers, in bytes, cannot overflow an isize.
-    // * The distance being in bounds cannot rely on “wrapping around” the address space.
-    unsafe fn span_union(span0: Span<'a>, span1: Span<'a>) -> Span<'a> {
-        let ptr = span0.as_ptr();
-        // offset to the start of span1 and add the length of span1.
-        let size = span0.offset(&span1) + span1.len();
-
-        unsafe {
-            // The size should be within the original allocation, if both spans are from
-            // the same parse run. We must ensure that the parse run doesn't generate
-            // Spans out of nothing that end in the ast.
-            let slice = slice::from_raw_parts(ptr, size);
-            // This is all from a str originally and we never got down to bytes.
-            let str = from_utf8_unchecked(slice);
-
-            // As span0 was ok the offset used here is ok too.
-            Span::new_from_raw_offset(span0.location_offset(), span0.location_line(), str, ())
+            AstTree::NodeParens(ex) => ex.span(),
+            AstTree::NodeFnCall(ex) => ex.span(),
         }
     }
 
@@ -122,7 +82,11 @@ impl<'a> AstTree<'a> {
         op: OFCompOp<'a>,
         expr1: Box<AstTree<'a>>,
     ) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeCompare(expr0, op, expr1))
+        Box::new(AstTree::NodeCompare(OFCompare {
+            left: expr0,
+            op,
+            right: expr1,
+        }))
     }
 
     /// AddExpr variant
@@ -131,7 +95,11 @@ impl<'a> AstTree<'a> {
         op: OFAddOp<'a>,
         expr1: Box<AstTree<'a>>,
     ) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeAdd(expr0, op, expr1))
+        Box::new(AstTree::NodeAdd(OFAdd {
+            left: expr0,
+            op,
+            right: expr1,
+        }))
     }
 
     /// MulExpr variant
@@ -140,7 +108,11 @@ impl<'a> AstTree<'a> {
         op: OFMulOp<'a>,
         expr1: Box<AstTree<'a>>,
     ) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeMul(expr0, op, expr1))
+        Box::new(AstTree::NodeMul(OFMul {
+            left: expr0,
+            op,
+            right: expr1,
+        }))
     }
 
     /// PowExpr variant
@@ -149,17 +121,21 @@ impl<'a> AstTree<'a> {
         op: OFPowOp<'a>,
         expr1: Box<AstTree<'a>>,
     ) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodePow(expr0, op, expr1))
+        Box::new(AstTree::NodePow(OFPow {
+            left: expr0,
+            op,
+            right: expr1,
+        }))
     }
 
     /// PostfixExpr variant
     pub fn postfix(expr1: Box<AstTree<'a>>, op: OFPostfixOp<'a>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodePostfix(expr1, op))
+        Box::new(AstTree::NodePostfix(OFPostfix { expr: expr1, op }))
     }
 
     /// PrefixExpr variant
     pub fn prefix(op: OFPrefixOp<'a>, expr1: Box<AstTree<'a>>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodePrefix(op, expr1))
+        Box::new(AstTree::NodePrefix(OFPrefix { op, expr: expr1 }))
     }
 
     /// Number variant
@@ -192,31 +168,27 @@ impl<'a> AstTree<'a> {
         Box::new(AstTree::NodeRowRange(OFRowRange(v, s)))
     }
 
-    /// Parenthesis variant
-    pub fn parenthesis(
-        o: OFParOpen<'a>,
-        expr: Box<AstTree<'a>>,
-        c: OFParClose<'a>,
-    ) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeParenthesis(o, expr, c))
+    /// Parens variant
+    pub fn parens(o: OFParOpen<'a>, expr: Box<AstTree<'a>>, c: OFParClose<'a>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::NodeParens(OFParens { o, expr, c }))
     }
 
     /// FnCall variant
     pub fn fn_call(
         name: Span<'a>,
         o: Span<'a>,
-        v: Vec<AstTree<'a>>,
+        arg: Vec<AstTree<'a>>,
         c: Span<'a>,
     ) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeFnCall(
-            OFFnName {
-                name: name.to_string(),
+        Box::new(AstTree::NodeFnCall(OFFnCall {
+            name: OFFnName {
+                name: "".to_string(),
                 span: name,
             },
-            OFParOpen { span: o },
-            v,
-            OFParClose { span: c },
-        ))
+            o: OFParOpen { span: o },
+            arg,
+            c: OFParClose { span: c },
+        }))
     }
 }
 
@@ -244,24 +216,20 @@ impl<'a> AstTree<'a> {
     fn debug_self(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let self_name = match self {
             AstTree::NodeEmpty(_) => "empty",
-
-            AstTree::NodeCompare(_, _, _) => "compare",
-            AstTree::NodeAdd(_, _, _) => "add",
-            AstTree::NodeMul(_, _, _) => "mul",
-            AstTree::NodePow(_, _, _) => "pow",
-            AstTree::NodePrefix(_, _) => "prefix",
-            AstTree::NodePostfix(_, _) => "postfix",
-
+            AstTree::NodeCompare(_) => "compare",
+            AstTree::NodeAdd(_) => "add",
+            AstTree::NodeMul(_) => "mul",
+            AstTree::NodePow(_) => "pow",
+            AstTree::NodePrefix(_) => "prefix",
+            AstTree::NodePostfix(_) => "postfix",
             AstTree::NodeNumber(_) => "number",
             AstTree::NodeString(_) => "string",
-
             AstTree::NodeCellRef(_) => "cell_ref",
             AstTree::NodeCellRange(_) => "cell_range",
             AstTree::NodeColRange(_) => "col_range",
             AstTree::NodeRowRange(_) => "row_range",
-
-            AstTree::NodeParenthesis(_, _, _) => "parens",
-            AstTree::NodeFnCall(_, _, _, _) => "function",
+            AstTree::NodeParens(_) => "parens",
+            AstTree::NodeFnCall(_) => "function",
         };
 
         write!(f, "{}    ", self_name)?;
@@ -303,71 +271,68 @@ impl<'a> AstTree<'a> {
                 self.debug_span(v.1, f)?;
                 writeln!(f)?;
             }
-
-            AstTree::NodeCompare(ex1, op, ex2) => {
+            AstTree::NodeCompare(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
-                ex1.debug(indent + 1, f)?;
+                ex.left.debug(indent + 1, f)?;
                 self.indent(indent + 1, f)?;
-                self.debug_op(op.to_string().as_str(), op.span(), f)?;
+                self.debug_op(ex.op.to_string().as_str(), ex.op.span(), f)?;
                 self.indent(indent + 1, f)?;
-                ex2.debug(indent + 1, f)?;
+                ex.right.debug(indent + 1, f)?;
             }
-            AstTree::NodeAdd(ex1, op, ex2) => {
+            AstTree::NodeAdd(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
-                ex1.debug(indent + 1, f)?;
+                ex.left.debug(indent + 1, f)?;
                 self.indent(indent + 1, f)?;
-                self.debug_op(op.to_string().as_str(), op.span(), f)?;
+                self.debug_op(ex.op.to_string().as_str(), ex.op.span(), f)?;
                 self.indent(indent + 1, f)?;
-                ex2.debug(indent + 1, f)?;
+                ex.right.debug(indent + 1, f)?;
             }
-            AstTree::NodeMul(ex1, op, ex2) => {
+            AstTree::NodeMul(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
-                ex1.debug(indent + 1, f)?;
+                ex.left.debug(indent + 1, f)?;
                 self.indent(indent + 1, f)?;
-                self.debug_op(op.to_string().as_str(), op.span(), f)?;
+                self.debug_op(ex.op.to_string().as_str(), ex.op.span(), f)?;
                 self.indent(indent + 1, f)?;
-                ex2.debug(indent + 1, f)?;
+                ex.right.debug(indent + 1, f)?;
             }
-            AstTree::NodePow(ex1, op, ex2) => {
+            AstTree::NodePow(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
-                ex1.debug(indent + 1, f)?;
+                ex.left.debug(indent + 1, f)?;
                 self.indent(indent + 1, f)?;
-                self.debug_op(op.to_string().as_str(), op.span(), f)?;
+                self.debug_op(ex.op.to_string().as_str(), ex.op.span(), f)?;
                 self.indent(indent + 1, f)?;
-                ex2.debug(indent + 1, f)?;
+                ex.right.debug(indent + 1, f)?;
             }
-            AstTree::NodePrefix(op, ex) => {
+            AstTree::NodePrefix(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
-                self.debug_op(op.to_string().as_str(), op.span(), f)?;
+                self.debug_op(ex.op.to_string().as_str(), ex.op.span(), f)?;
                 self.indent(indent + 1, f)?;
-                ex.debug(indent + 1, f)?;
+                ex.expr.debug(indent + 1, f)?;
             }
-            AstTree::NodePostfix(ex, op) => {
+            AstTree::NodePostfix(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
-                ex.debug(indent + 1, f)?;
+                ex.expr.debug(indent + 1, f)?;
                 self.indent(indent + 1, f)?;
-                self.debug_op(op.to_string().as_str(), op.span(), f)?;
+                self.debug_op(ex.op.to_string().as_str(), ex.op.span(), f)?;
             }
-
             AstTree::NodeNumber(v) => {
                 self.debug_elem(&v.0, v.1, f)?;
             }
             AstTree::NodeString(v) => {
                 self.debug_elem(&v.0, v.1, f)?;
             }
-
             AstTree::NodeCellRef(v) => {
                 self.debug_elem(&v.0, v.1, f)?;
             }
@@ -380,24 +345,23 @@ impl<'a> AstTree<'a> {
             AstTree::NodeRowRange(v) => {
                 self.debug_elem(&v.0, v.1, f)?;
             }
-
-            AstTree::NodeParenthesis(_o, ex, _c) => {
+            AstTree::NodeParens(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
-                ex.debug(indent + 1, f)?;
+                ex.expr.debug(indent + 1, f)?;
             }
-            AstTree::NodeFnCall(name, _par1, v, _par2) => {
+            AstTree::NodeFnCall(ff) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
-                write!(f, "{} (   ", name)?;
-                self.debug_span(name.span(), f)?;
+                write!(f, "{} (   ", ff.name)?;
+                self.debug_span(ff.name.span(), f)?;
                 writeln!(f)?;
 
-                for e in v {
+                for ex in &ff.arg {
                     self.indent(indent + 2, f)?;
-                    e.debug(indent + 2, f)?;
+                    ex.debug(indent + 2, f)?;
                 }
 
                 self.indent(indent + 1, f)?;
@@ -420,33 +384,30 @@ impl<'a> Display for AstTree<'a> {
             AstTree::NodeEmpty(v) => {
                 write!(f, "{}", v)
             }
-
-            AstTree::NodeCompare(expr1, op, expr2) => {
-                write!(f, "{} {} {}", expr1, op, expr2)
+            AstTree::NodeCompare(ex) => {
+                write!(f, "{}", ex)
             }
-            AstTree::NodeAdd(expr1, op, expr2) => {
-                write!(f, "{} {} {}", expr1, op, expr2)
+            AstTree::NodeAdd(ex) => {
+                write!(f, "{}", ex)
             }
-            AstTree::NodeMul(expr1, op, expr2) => {
-                write!(f, "{} {} {}", expr1, op, expr2)
+            AstTree::NodeMul(ex) => {
+                write!(f, "{}", ex)
             }
-            AstTree::NodePow(expr1, op, expr2) => {
-                write!(f, "{} {} {}", expr1, op, expr2)
+            AstTree::NodePow(ex) => {
+                write!(f, "{}", ex)
             }
-            AstTree::NodePostfix(expr, op) => {
-                write!(f, "{}{}", expr, op)
+            AstTree::NodePostfix(ex) => {
+                write!(f, "{}", ex)
             }
-            AstTree::NodePrefix(op, expr) => {
-                write!(f, "{}{}", op, expr)
+            AstTree::NodePrefix(ex) => {
+                write!(f, "{}", ex)
             }
-
             AstTree::NodeNumber(v) => {
                 write!(f, "{}", v)
             }
             AstTree::NodeString(v) => {
                 write!(f, "{}", v)
             }
-
             AstTree::NodeCellRef(v) => {
                 write!(f, "{}", v)
             }
@@ -459,20 +420,11 @@ impl<'a> Display for AstTree<'a> {
             AstTree::NodeColRange(v) => {
                 write!(f, "{}", v)
             }
-
-            AstTree::NodeParenthesis(_o, expr, _c) => {
-                write!(f, "({})", expr)
+            AstTree::NodeParens(ex) => {
+                write!(f, "{}", ex)
             }
-            AstTree::NodeFnCall(name, _par1, v, _par2) => {
-                write!(f, "{}(", name)?;
-                for (i, e) in v.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ";")?;
-                    }
-                    write!(f, "{}", e)?;
-                }
-                write!(f, ")")?;
-                Ok(())
+            AstTree::NodeFnCall(ex) => {
+                write!(f, "{}", ex)
             }
         }
     }
@@ -517,7 +469,30 @@ impl<'a> PartialEq for OFEmpty<'a> {
     }
 }
 
-/// Comparison operands.
+/// Comparison expression.
+#[derive(Debug, PartialEq)]
+pub struct OFCompare<'a> {
+    /// Left operand
+    pub left: Box<AstTree<'a>>,
+    /// Operator
+    pub op: OFCompOp<'a>,
+    /// Right operand
+    pub right: Box<AstTree<'a>>,
+}
+
+impl<'a> HaveSpan<'a> for OFCompare<'a> {
+    fn span(&self) -> Span<'a> {
+        unsafe { span_union(self.left.span(), self.right.span()) }
+    }
+}
+
+impl<'a> Display for OFCompare<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {} {}", self.left, self.op, self.right)
+    }
+}
+
+/// Comparison operators.
 #[derive(Debug)]
 pub enum OFCompOp<'a> {
     /// Operator =
@@ -563,7 +538,30 @@ impl<'a> Display for OFCompOp<'a> {
     }
 }
 
-/// Additive operands.
+/// Additive expression
+#[derive(Debug, PartialEq)]
+pub struct OFAdd<'a> {
+    /// Left operand
+    pub left: Box<AstTree<'a>>,
+    /// Operator
+    pub op: OFAddOp<'a>,
+    /// Right operand
+    pub right: Box<AstTree<'a>>,
+}
+
+impl<'a> HaveSpan<'a> for OFAdd<'a> {
+    fn span(&self) -> Span<'a> {
+        unsafe { span_union(self.left.span(), self.right.span()) }
+    }
+}
+
+impl<'a> Display for OFAdd<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {} {}", self.left, self.op, self.right)
+    }
+}
+
+/// Additive operators.
 #[derive(Debug)]
 pub enum OFAddOp<'a> {
     /// Operator +
@@ -593,7 +591,30 @@ impl<'a> Display for OFAddOp<'a> {
     }
 }
 
-/// Multiplicative operands.
+/// Multiplication expression.
+#[derive(Debug, PartialEq)]
+pub struct OFMul<'a> {
+    /// Left operand
+    pub left: Box<AstTree<'a>>,
+    /// Operator
+    pub op: OFMulOp<'a>,
+    /// Right operand
+    pub right: Box<AstTree<'a>>,
+}
+
+impl<'a> HaveSpan<'a> for OFMul<'a> {
+    fn span(&self) -> Span<'a> {
+        unsafe { span_union(self.left.span(), self.right.span()) }
+    }
+}
+
+impl<'a> Display for OFMul<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {} {}", self.left, self.op, self.right)
+    }
+}
+
+/// Multiplicative operators.
 #[derive(Debug)]
 pub enum OFMulOp<'a> {
     /// Operator *
@@ -623,7 +644,30 @@ impl<'a> Display for OFMulOp<'a> {
     }
 }
 
-/// Power operand.
+/// Power expression
+#[derive(Debug, PartialEq)]
+pub struct OFPow<'a> {
+    /// Left operand
+    pub left: Box<AstTree<'a>>,
+    /// Operator
+    pub op: OFPowOp<'a>,
+    /// Right operand
+    pub right: Box<AstTree<'a>>,
+}
+
+impl<'a> HaveSpan<'a> for OFPow<'a> {
+    fn span(&self) -> Span<'a> {
+        unsafe { span_union(self.left.span(), self.right.span()) }
+    }
+}
+
+impl<'a> Display for OFPow<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {} {}", self.left, self.op, self.right)
+    }
+}
+
+/// Power operator.
 #[derive(Debug)]
 pub enum OFPowOp<'a> {
     /// Operator ^
@@ -633,7 +677,6 @@ pub enum OFPowOp<'a> {
 op_decl!(OFPowOp);
 
 impl<'a> HaveSpan<'a> for OFPowOp<'a> {
-    /// Extracts the span from each variant.
     fn span(&self) -> Span<'a> {
         match self {
             OFPowOp::Power(span) => *span,
@@ -649,7 +692,28 @@ impl<'a> Display for OFPowOp<'a> {
     }
 }
 
-/// Postfix operands.
+/// Postfix expression
+#[derive(Debug, PartialEq)]
+pub struct OFPostfix<'a> {
+    /// Expression
+    pub expr: Box<AstTree<'a>>,
+    /// Operator
+    pub op: OFPostfixOp<'a>,
+}
+
+impl<'a> HaveSpan<'a> for OFPostfix<'a> {
+    fn span(&self) -> Span<'a> {
+        unsafe { span_union(self.expr.span(), self.op.span()) }
+    }
+}
+
+impl<'a> Display for OFPostfix<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.expr, self.op)
+    }
+}
+
+/// Postfix operators.
 #[derive(Debug)]
 pub enum OFPostfixOp<'a> {
     /// Operator %
@@ -659,7 +723,6 @@ pub enum OFPostfixOp<'a> {
 op_decl!(OFPostfixOp);
 
 impl<'a> HaveSpan<'a> for OFPostfixOp<'a> {
-    /// Extracts the span from each variant.
     fn span(&self) -> Span<'a> {
         match self {
             OFPostfixOp::Percent(span) => *span,
@@ -675,7 +738,28 @@ impl<'a> Display for OFPostfixOp<'a> {
     }
 }
 
-/// Prefix operands.
+/// Prefix expression.
+#[derive(Debug, PartialEq)]
+pub struct OFPrefix<'a> {
+    /// Operator
+    pub op: OFPrefixOp<'a>,
+    /// Expression
+    pub expr: Box<AstTree<'a>>,
+}
+
+impl<'a> HaveSpan<'a> for OFPrefix<'a> {
+    fn span(&self) -> Span<'a> {
+        unsafe { span_union(self.op.span(), self.expr.span()) }
+    }
+}
+
+impl<'a> Display for OFPrefix<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.op, self.expr)
+    }
+}
+
+/// Prefix operators.
 #[derive(Debug)]
 pub enum OFPrefixOp<'a> {
     /// Operator +
@@ -687,7 +771,6 @@ pub enum OFPrefixOp<'a> {
 op_decl!(OFPrefixOp);
 
 impl<'a> HaveSpan<'a> for OFPrefixOp<'a> {
-    /// Returns the span for each variant.
     fn span(&self) -> Span<'a> {
         match self {
             OFPrefixOp::Plus(span) => *span,
@@ -813,6 +896,29 @@ impl<'a> PartialEq for OFColRange<'a> {
     }
 }
 
+/// Expression in parentheses.
+#[derive(Debug, PartialEq)]
+pub struct OFParens<'a> {
+    /// Open parentheses
+    pub o: OFParOpen<'a>,
+    /// Expression
+    pub expr: Box<AstTree<'a>>,
+    /// Closing parentheses
+    pub c: OFParClose<'a>,
+}
+
+impl<'a> HaveSpan<'a> for OFParens<'a> {
+    fn span(&self) -> Span<'a> {
+        unsafe { span_union(self.o.span(), self.c.span()) }
+    }
+}
+
+impl<'a> Display for OFParens<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({})", self.expr)
+    }
+}
+
 /// Paren open
 #[derive(Debug, Eq, PartialEq)]
 pub struct OFParOpen<'a> {
@@ -841,6 +947,39 @@ impl<'a> HaveSpan<'a> for OFParClose<'a> {
     }
 }
 
+/// Function call
+#[derive(Debug, PartialEq)]
+pub struct OFFnCall<'a> {
+    /// Name
+    pub name: OFFnName<'a>,
+    /// Open parentheses
+    pub o: OFParOpen<'a>,
+    /// Args
+    pub arg: Vec<AstTree<'a>>,
+    /// Closing parentheses
+    pub c: OFParClose<'a>,
+}
+
+impl<'a> HaveSpan<'a> for OFFnCall<'a> {
+    fn span(&self) -> Span<'a> {
+        unsafe { span_union(self.name.span(), self.c.span()) }
+    }
+}
+
+impl<'a> Display for OFFnCall<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}(", self.name)?;
+        for (i, expr) in self.arg.iter().enumerate() {
+            if i > 0 {
+                write!(f, ";")?;
+            }
+            write!(f, "{}", expr)?;
+        }
+        write!(f, ")")?;
+        Ok(())
+    }
+}
+
 /// Function name.
 #[derive(Debug, Eq, PartialEq)]
 pub struct OFFnName<'a> {
@@ -860,5 +999,32 @@ impl<'a> HaveSpan<'a> for OFFnName<'a> {
 impl<'a> Display for OFFnName<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name)
+    }
+}
+
+// Returns a new Span that reaches from the beginning of span0 to the end of span1.
+//
+// If any of the following conditions are violated, the result is Undefined Behavior:
+// * Both the starting and other pointer must be either in bounds or one byte past the end of the same allocated object.
+//      Should be guaranteed if both were obtained from on parse run.
+// * Both pointers must be derived from a pointer to the same object.
+//      Should be guaranteed if both were obtained from on parse run.
+// * The distance between the pointers, in bytes, cannot overflow an isize.
+// * The distance being in bounds cannot rely on “wrapping around” the address space.
+unsafe fn span_union<'a>(span0: Span<'a>, span1: Span<'a>) -> Span<'a> {
+    let ptr = span0.as_ptr();
+    // offset to the start of span1 and add the length of span1.
+    let size = span0.offset(&span1) + span1.len();
+
+    unsafe {
+        // The size should be within the original allocation, if both spans are from
+        // the same parse run. We must ensure that the parse run doesn't generate
+        // Spans out of nothing that end in the ast.
+        let slice = slice::from_raw_parts(ptr, size);
+        // This is all from a str originally and we never got down to bytes.
+        let str = from_utf8_unchecked(slice);
+
+        // As span0 was ok the offset used here is ok too.
+        Span::new_from_raw_offset(span0.location_offset(), span0.location_line(), str, ())
     }
 }

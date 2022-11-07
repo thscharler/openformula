@@ -131,18 +131,18 @@ pub fn colon<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(":")(i)
 }
 
-/// Lookahead for opening parenthesis.
-pub fn lah_parenthesis_open<'a>(i: Span<'a>) -> bool {
+/// Lookahead for opening parentheses.
+pub fn lah_parentheses_open<'a>(i: Span<'a>) -> bool {
     nchar::<Span<'a>, nom::error::Error<_>>('(')(i).is_ok()
 }
 
-/// Parse open parenthesis.
-pub fn parenthesis_open<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+/// Parse open parentheses.
+pub fn parentheses_open<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("(")(i)
 }
 
-/// Parse closing parenthesis.
-pub fn parenthesis_close<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+/// Parse closing parentheses.
+pub fn parentheses_close<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(")")(i)
 }
 
@@ -255,7 +255,7 @@ mod tests {
     use crate::ast_parser::eat_space;
     use crate::parse::tokens::{col, iri, quoted, row, sheet_name};
     use crate::parse::Span;
-    use crate::tokens::{lah_number, lah_parenthesis_open};
+    use crate::tokens::{lah_number, lah_parentheses_open};
     use nom::error::ErrorKind;
     use nom::error::ParseError;
 
@@ -487,8 +487,8 @@ mod tests {
     fn test_lah() {
         dbg!(lah_number(Span::new("222")));
         dbg!(lah_number(Span::new("ABC")));
-        dbg!(lah_parenthesis_open(Span::new("()")));
+        dbg!(lah_parentheses_open(Span::new("()")));
         let rest = eat_space(Span::new("  ()"));
-        dbg!(lah_parenthesis_open(rest));
+        dbg!(lah_parentheses_open(rest));
     }
 }
