@@ -53,21 +53,21 @@ impl<'a> OFAst<'a> {
     /// Calculates the span of the complete AST tree.
     pub fn span(&self) -> Span<'a> {
         match self {
-            OFAst::NodeEmpty(v) => v.1,
-            OFAst::NodeCompare(ex) => ex.span(),
-            OFAst::NodeAdd(ex) => ex.span(),
-            OFAst::NodeMul(ex) => ex.span(),
-            OFAst::NodePow(ex) => ex.span(),
-            OFAst::NodePrefix(ex) => ex.span(),
-            OFAst::NodePostfix(ex) => ex.span(),
-            OFAst::NodeNumber(v) => v.1,
-            OFAst::NodeString(v) => v.1,
-            OFAst::NodeCellRef(v) => v.1,
-            OFAst::NodeCellRange(v) => v.1,
-            OFAst::NodeColRange(v) => v.1,
-            OFAst::NodeRowRange(v) => v.1,
-            OFAst::NodeParens(ex) => ex.span(),
-            OFAst::NodeFnCall(ex) => ex.span(),
+            OFAst::NodeEmpty(v) => v.span(),
+            OFAst::NodeCompare(v) => v.span(),
+            OFAst::NodeAdd(v) => v.span(),
+            OFAst::NodeMul(v) => v.span(),
+            OFAst::NodePow(v) => v.span(),
+            OFAst::NodePrefix(v) => v.span(),
+            OFAst::NodePostfix(v) => v.span(),
+            OFAst::NodeNumber(v) => v.span(),
+            OFAst::NodeString(v) => v.span(),
+            OFAst::NodeCellRef(v) => v.span(),
+            OFAst::NodeCellRange(v) => v.span(),
+            OFAst::NodeColRange(v) => v.span(),
+            OFAst::NodeRowRange(v) => v.span(),
+            OFAst::NodeParens(v) => v.span(),
+            OFAst::NodeFnCall(v) => v.span(),
         }
     }
 
@@ -256,7 +256,7 @@ impl<'a> OFAst<'a> {
         match self {
             OFAst::NodeEmpty(v) => {
                 write!(f, "()    ")?;
-                self.debug_span(v.1, f)?;
+                self.debug_span(v.span(), f)?;
                 writeln!(f)?;
             }
             OFAst::NodeCompare(ex) => {
@@ -316,22 +316,22 @@ impl<'a> OFAst<'a> {
                 self.debug_op(ex.op.to_string().as_str(), ex.op.span(), f)?;
             }
             OFAst::NodeNumber(v) => {
-                self.debug_elem(&v.0, v.1, f)?;
+                self.debug_elem(&v.0, v.span(), f)?;
             }
             OFAst::NodeString(v) => {
-                self.debug_elem(&v.0, v.1, f)?;
+                self.debug_elem(&v.0, v.span(), f)?;
             }
             OFAst::NodeCellRef(v) => {
-                self.debug_elem(&v.0, v.1, f)?;
+                self.debug_elem(&v.0, v.span(), f)?;
             }
             OFAst::NodeCellRange(v) => {
-                self.debug_elem(&v.0, v.1, f)?;
+                self.debug_elem(&v.0, v.span(), f)?;
             }
             OFAst::NodeColRange(v) => {
-                self.debug_elem(&v.0, v.1, f)?;
+                self.debug_elem(&v.0, v.span(), f)?;
             }
             OFAst::NodeRowRange(v) => {
-                self.debug_elem(&v.0, v.1, f)?;
+                self.debug_elem(&v.0, v.span(), f)?;
             }
             OFAst::NodeParens(ex) => {
                 self.debug_self(f)?;
@@ -369,67 +369,27 @@ impl<'a> Debug for OFAst<'a> {
 impl<'a> Display for OFAst<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            OFAst::NodeEmpty(v) => {
-                write!(f, "{}", v)
-            }
-            OFAst::NodeCompare(ex) => {
-                write!(f, "{}", ex)
-            }
-            OFAst::NodeAdd(ex) => {
-                write!(f, "{}", ex)
-            }
-            OFAst::NodeMul(ex) => {
-                write!(f, "{}", ex)
-            }
-            OFAst::NodePow(ex) => {
-                write!(f, "{}", ex)
-            }
-            OFAst::NodePostfix(ex) => {
-                write!(f, "{}", ex)
-            }
-            OFAst::NodePrefix(ex) => {
-                write!(f, "{}", ex)
-            }
-            OFAst::NodeNumber(v) => {
-                write!(f, "{}", v)
-            }
-            OFAst::NodeString(v) => {
-                write!(f, "{}", v)
-            }
-            OFAst::NodeCellRef(v) => {
-                write!(f, "{}", v)
-            }
-            OFAst::NodeCellRange(v) => {
-                write!(f, "{}", v)
-            }
-            OFAst::NodeRowRange(v) => {
-                write!(f, "{}", v)
-            }
-            OFAst::NodeColRange(v) => {
-                write!(f, "{}", v)
-            }
-            OFAst::NodeParens(ex) => {
-                write!(f, "{}", ex)
-            }
-            OFAst::NodeFnCall(ex) => {
-                write!(f, "{}", ex)
-            }
+            OFAst::NodeEmpty(v) => Display::fmt(v, f),
+            OFAst::NodeCompare(v) => Display::fmt(v, f),
+            OFAst::NodeAdd(v) => Display::fmt(v, f),
+            OFAst::NodeMul(v) => Display::fmt(v, f),
+            OFAst::NodePow(v) => Display::fmt(v, f),
+            OFAst::NodePostfix(v) => Display::fmt(v, f),
+            OFAst::NodePrefix(v) => Display::fmt(v, f),
+            OFAst::NodeNumber(v) => Display::fmt(v, f),
+            OFAst::NodeString(v) => Display::fmt(v, f),
+            OFAst::NodeCellRef(v) => Display::fmt(v, f),
+            OFAst::NodeCellRange(v) => Display::fmt(v, f),
+            OFAst::NodeRowRange(v) => Display::fmt(v, f),
+            OFAst::NodeColRange(v) => Display::fmt(v, f),
+            OFAst::NodeParens(v) => Display::fmt(v, f),
+            OFAst::NodeFnCall(v) => Display::fmt(v, f),
         }
     }
 }
 
-macro_rules! op_decl {
-    ($name:ident) => {
-        impl<'a> PartialEq for $name<'a> {
-            fn eq(&self, other: &Self) -> bool {
-                mem::discriminant(self) == mem::discriminant(other)
-            }
-        }
-    };
-}
-
 /// Trait to extract the span.
-pub trait HaveSpan<'a> {
+pub trait Node<'a> {
     /// Returns the span of.
     fn span(&self) -> Span<'a>;
 }
@@ -439,7 +399,7 @@ pub trait HaveSpan<'a> {
 #[derive(Debug)]
 pub struct OFEmpty<'a>((), pub Span<'a>);
 
-impl<'a> HaveSpan<'a> for OFEmpty<'a> {
+impl<'a> Node<'a> for OFEmpty<'a> {
     fn span(&self) -> Span<'a> {
         self.1
     }
@@ -468,7 +428,7 @@ pub struct OFCompare<'a> {
     pub right: Box<OFAst<'a>>,
 }
 
-impl<'a> HaveSpan<'a> for OFCompare<'a> {
+impl<'a> Node<'a> for OFCompare<'a> {
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.left.span(), self.right.span()) }
     }
@@ -497,9 +457,13 @@ pub enum OFCompOp<'a> {
     GreaterEqual(Span<'a>),
 }
 
-op_decl!(OFCompOp);
+impl<'a> PartialEq for OFCompOp<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        mem::discriminant(self) == mem::discriminant(other)
+    }
+}
 
-impl<'a> HaveSpan<'a> for OFCompOp<'a> {
+impl<'a> Node<'a> for OFCompOp<'a> {
     /// Extracts the span from each variant.
     fn span(&self) -> Span<'a> {
         match self {
@@ -537,7 +501,7 @@ pub struct OFAdd<'a> {
     pub right: Box<OFAst<'a>>,
 }
 
-impl<'a> HaveSpan<'a> for OFAdd<'a> {
+impl<'a> Node<'a> for OFAdd<'a> {
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.left.span(), self.right.span()) }
     }
@@ -558,9 +522,13 @@ pub enum OFAddOp<'a> {
     Subtract(Span<'a>),
 }
 
-op_decl!(OFAddOp);
+impl<'a> PartialEq for OFAddOp<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        mem::discriminant(self) == mem::discriminant(other)
+    }
+}
 
-impl<'a> HaveSpan<'a> for OFAddOp<'a> {
+impl<'a> Node<'a> for OFAddOp<'a> {
     /// Extracts the span from each variant.
     fn span(&self) -> Span<'a> {
         match self {
@@ -590,7 +558,7 @@ pub struct OFMul<'a> {
     pub right: Box<OFAst<'a>>,
 }
 
-impl<'a> HaveSpan<'a> for OFMul<'a> {
+impl<'a> Node<'a> for OFMul<'a> {
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.left.span(), self.right.span()) }
     }
@@ -611,9 +579,13 @@ pub enum OFMulOp<'a> {
     Divide(Span<'a>),
 }
 
-op_decl!(OFMulOp);
+impl<'a> PartialEq for OFMulOp<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        mem::discriminant(self) == mem::discriminant(other)
+    }
+}
 
-impl<'a> HaveSpan<'a> for OFMulOp<'a> {
+impl<'a> Node<'a> for OFMulOp<'a> {
     /// Extracts the span from each variant.
     fn span(&self) -> Span<'a> {
         match self {
@@ -643,7 +615,7 @@ pub struct OFPow<'a> {
     pub right: Box<OFAst<'a>>,
 }
 
-impl<'a> HaveSpan<'a> for OFPow<'a> {
+impl<'a> Node<'a> for OFPow<'a> {
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.left.span(), self.right.span()) }
     }
@@ -662,9 +634,13 @@ pub enum OFPowOp<'a> {
     Power(Span<'a>),
 }
 
-op_decl!(OFPowOp);
+impl<'a> PartialEq for OFPowOp<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        mem::discriminant(self) == mem::discriminant(other)
+    }
+}
 
-impl<'a> HaveSpan<'a> for OFPowOp<'a> {
+impl<'a> Node<'a> for OFPowOp<'a> {
     fn span(&self) -> Span<'a> {
         match self {
             OFPowOp::Power(span) => *span,
@@ -689,7 +665,7 @@ pub struct OFPostfix<'a> {
     pub op: OFPostfixOp<'a>,
 }
 
-impl<'a> HaveSpan<'a> for OFPostfix<'a> {
+impl<'a> Node<'a> for OFPostfix<'a> {
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.expr.span(), self.op.span()) }
     }
@@ -708,9 +684,13 @@ pub enum OFPostfixOp<'a> {
     Percent(Span<'a>),
 }
 
-op_decl!(OFPostfixOp);
+impl<'a> PartialEq for OFPostfixOp<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        mem::discriminant(self) == mem::discriminant(other)
+    }
+}
 
-impl<'a> HaveSpan<'a> for OFPostfixOp<'a> {
+impl<'a> Node<'a> for OFPostfixOp<'a> {
     fn span(&self) -> Span<'a> {
         match self {
             OFPostfixOp::Percent(span) => *span,
@@ -735,7 +715,7 @@ pub struct OFPrefix<'a> {
     pub expr: Box<OFAst<'a>>,
 }
 
-impl<'a> HaveSpan<'a> for OFPrefix<'a> {
+impl<'a> Node<'a> for OFPrefix<'a> {
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.op.span(), self.expr.span()) }
     }
@@ -756,9 +736,13 @@ pub enum OFPrefixOp<'a> {
     Minus(Span<'a>),
 }
 
-op_decl!(OFPrefixOp);
+impl<'a> PartialEq for OFPrefixOp<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        mem::discriminant(self) == mem::discriminant(other)
+    }
+}
 
-impl<'a> HaveSpan<'a> for OFPrefixOp<'a> {
+impl<'a> Node<'a> for OFPrefixOp<'a> {
     fn span(&self) -> Span<'a> {
         match self {
             OFPrefixOp::Plus(span) => *span,
@@ -780,7 +764,7 @@ impl<'a> Display for OFPrefixOp<'a> {
 #[derive(Debug)]
 pub struct OFNumber<'a>(pub f64, pub Span<'a>);
 
-impl<'a> HaveSpan<'a> for OFNumber<'a> {
+impl<'a> Node<'a> for OFNumber<'a> {
     fn span(&self) -> Span<'a> {
         self.1
     }
@@ -802,7 +786,7 @@ impl<'a> PartialEq for OFNumber<'a> {
 #[derive(Debug)]
 pub struct OFString<'a>(pub String, pub Span<'a>);
 
-impl<'a> HaveSpan<'a> for OFString<'a> {
+impl<'a> Node<'a> for OFString<'a> {
     fn span(&self) -> Span<'a> {
         self.1
     }
@@ -824,6 +808,12 @@ impl<'a> PartialEq for OFString<'a> {
 #[derive(Debug)]
 pub struct OFCellRef<'a>(pub CellRef, pub Span<'a>);
 
+impl<'a> Node<'a> for OFCellRef<'a> {
+    fn span(&self) -> Span<'a> {
+        self.1
+    }
+}
+
 impl<'a> Display for OFCellRef<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
@@ -839,6 +829,12 @@ impl<'a> PartialEq for OFCellRef<'a> {
 /// CellRange
 #[derive(Debug)]
 pub struct OFCellRange<'a>(pub CellRange, pub Span<'a>);
+
+impl<'a> Node<'a> for OFCellRange<'a> {
+    fn span(&self) -> Span<'a> {
+        self.1
+    }
+}
 
 impl<'a> Display for OFCellRange<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -856,6 +852,12 @@ impl<'a> PartialEq for OFCellRange<'a> {
 #[derive(Debug)]
 pub struct OFRowRange<'a>(pub RowRange, pub Span<'a>);
 
+impl<'a> Node<'a> for OFRowRange<'a> {
+    fn span(&self) -> Span<'a> {
+        self.1
+    }
+}
+
 impl<'a> Display for OFRowRange<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
@@ -871,6 +873,12 @@ impl<'a> PartialEq for OFRowRange<'a> {
 /// ColRange
 #[derive(Debug)]
 pub struct OFColRange<'a>(pub ColRange, pub Span<'a>);
+
+impl<'a> Node<'a> for OFColRange<'a> {
+    fn span(&self) -> Span<'a> {
+        self.1
+    }
+}
 
 impl<'a> Display for OFColRange<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -895,7 +903,7 @@ pub struct OFParens<'a> {
     pub c: OFParClose<'a>,
 }
 
-impl<'a> HaveSpan<'a> for OFParens<'a> {
+impl<'a> Node<'a> for OFParens<'a> {
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.o.span(), self.c.span()) }
     }
@@ -914,7 +922,7 @@ pub struct OFParOpen<'a> {
     pub span: Span<'a>,
 }
 
-impl<'a> HaveSpan<'a> for OFParOpen<'a> {
+impl<'a> Node<'a> for OFParOpen<'a> {
     /// Span
     fn span(&self) -> Span<'a> {
         self.span
@@ -928,7 +936,7 @@ pub struct OFParClose<'a> {
     pub span: Span<'a>,
 }
 
-impl<'a> HaveSpan<'a> for OFParClose<'a> {
+impl<'a> Node<'a> for OFParClose<'a> {
     /// Span
     fn span(&self) -> Span<'a> {
         self.span
@@ -948,7 +956,7 @@ pub struct OFFnCall<'a> {
     pub c: OFParClose<'a>,
 }
 
-impl<'a> HaveSpan<'a> for OFFnCall<'a> {
+impl<'a> Node<'a> for OFFnCall<'a> {
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.name.span(), self.c.span()) }
     }
@@ -977,7 +985,7 @@ pub struct OFFnName<'a> {
     pub span: Span<'a>,
 }
 
-impl<'a> HaveSpan<'a> for OFFnName<'a> {
+impl<'a> Node<'a> for OFFnName<'a> {
     /// Returns the span for each variant.
     fn span(&self) -> Span<'a> {
         self.span

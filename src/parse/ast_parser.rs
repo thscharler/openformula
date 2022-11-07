@@ -12,9 +12,9 @@ use crate::conv::{try_bool_from_abs_flag, try_u32_from_colname, try_u32_from_row
 use crate::error::ParseOFError;
 use crate::parse::{ParseResult, Span, Tracer};
 use crate::{
-    tokens, CRef, CellRange, CellRef, ColRange, HaveSpan, OFAddOp, OFCellRange, OFCellRef,
-    OFColRange, OFCompOp, OFMulOp, OFParClose, OFParOpen, OFPostfixOp, OFPowOp, OFPrefixOp,
-    OFRowRange, RowRange,
+    tokens, CRef, CellRange, CellRef, ColRange, Node, OFAddOp, OFCellRange, OFCellRef, OFColRange,
+    OFCompOp, OFMulOp, OFParClose, OFParOpen, OFPostfixOp, OFPowOp, OFPrefixOp, OFRowRange,
+    RowRange,
 };
 use nom::character::complete::multispace0;
 use nom::combinator::{consumed, opt, recognize};
