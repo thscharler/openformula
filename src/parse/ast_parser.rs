@@ -384,49 +384,6 @@ impl<'s> GeneralExpr<'s> for PrefixExpr {
     }
 }
 
-struct ParenthesisExpr;
-
-impl<'s> GeneralExpr<'s> for ParenthesisExpr {
-    fn name() -> &'static str {
-        "parenthesis"
-    }
-
-    fn lah(i: Span<'s>) -> bool {
-        lah_parenthesis_open(i)
-    }
-
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
-        trace.enter(Self::name(), i);
-
-        match super::tokens::parenthesis_open(i) {
-            Ok((rest1, par1)) => {
-                match opt_expr(trace, eat_space(rest1)) {
-                    Ok((rest2, Some(expr))) => {
-                        //
-                        match super::tokens::parenthesis_close(eat_space(rest2)) {
-                            Ok((rest3, par2)) => {
-                                let o = OFParOpen { span: par1 };
-                                let c = OFParClose { span: par2 };
-                                let ast = Box::new(AstTree::Parenthesis(o, expr, c));
-                                Ok(trace.ok(ast.span(), rest3, Some(ast)))
-                            }
-                            Err(e) => Err(trace.err(rest1, ParseExprError::parenthesis, e)),
-                        }
-                    }
-                    Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseExprError::parenthesis)),
-                    Err(e) => Err(trace.parse_err(e)),
-                }
-            }
-            Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::parenthesis, e)),
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct ElementaryExpr;
 
@@ -490,193 +447,6 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
         }
 
         Ok(trace.ok(Span::new(""), i, None))
-    }
-}
-
-/// Lookahead fn_call
-pub fn lah_fn_call<'s>(i: Span<'s>) -> bool {
-    lah_fn_name(i)
-}
-
-// FunctionName '(' ParameterList ')' |
-// FunctionName ::= LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
-// ParameterList ::= /* empty */ |
-//                      Parameter (Separator EmptyOrParameter )* |
-//                      Separator EmptyOrParameter /* First param empty */ (Separator EmptyOrParameter )*
-// EmptyOrParameter ::= /* empty */ Whitespace* | Parameter
-// Parameter ::= Expression
-// Separator ::= ';'
-#[allow(clippy::collapsible_else_if)]
-#[allow(clippy::needless_return)]
-/// Parses a function call.
-pub fn opt_fn_call<'s, 't>(
-    trace: &'t Tracer<'s>,
-    i: Span<'s>,
-) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
-    trace.enter("fn_call", i);
-
-    let (rest1, fn_name) = match recognize(fn_name)(i) {
-        Ok((rest, tok)) => (eat_space(rest), tok),
-        Err(nom::Err::Error(_)) => return Ok(trace.ok(Span::new(""), i, None)),
-        Err(e @ nom::Err::Failure(_)) => return Err(trace.err(i, ParseExprError::fn_call, e)),
-        Err(nom::Err::Incomplete(_)) => unreachable!(),
-    };
-
-    trace.step("name", fn_name);
-
-    let mut args = Vec::new();
-
-    match parenthesis_open(eat_space(rest1)) {
-        Ok((mut loop_rest, par1)) => {
-            // First separator is checked before the arguments as arguments can be empty.
-            let sep1 = match separator(eat_space(loop_rest)) {
-                Ok((rest2, sep1)) => {
-                    loop_rest = rest2;
-                    trace.step("initial arg", Span::new(""));
-                    trace.step("initial separator", sep1);
-                    Some(sep1)
-                }
-                Err(nom::Err::Error(_)) => {
-                    // Not necessary
-                    None
-                }
-                Err(e @ nom::Err::Failure(_)) => {
-                    return Err(trace.err(i, ParseExprError::fn_call, e));
-                }
-                Err(nom::Err::Incomplete(_)) => unreachable!(),
-            };
-
-            // Collecting args.
-            if let Some(sep1) = sep1 {
-                trace.step2("expr+sep");
-                let ast = AstTree::empty(sep1.take(0));
-                args.push(*ast);
-            }
-
-            // Loops and eats from loop_rest.
-            loop {
-                // Parse argument.
-                loop_rest = eat_space(loop_rest);
-                let expr = if lah_expr(loop_rest) {
-                    match opt_expr(trace, loop_rest) {
-                        Ok((rest2, Some(expr))) => {
-                            loop_rest = rest2;
-                            trace.step("arg", expr.span());
-                            Some(expr)
-                        }
-                        Ok((rest2, None)) => {
-                            loop_rest = rest2;
-                            trace.step("arg", Span::new(""));
-                            None
-                        }
-                        Err(e) => return Err(trace.parse_err(e)),
-                    }
-                } else {
-                    None
-                };
-
-                // Followed by a separator.
-                let sep1 = match separator(eat_space(loop_rest)) {
-                    Ok((rest2, sep1)) => {
-                        loop_rest = rest2;
-                        trace.step("separator", sep1);
-                        Some(sep1)
-                    }
-                    Err(nom::Err::Error(_)) => None,
-                    Err(e @ nom::Err::Failure(_)) => {
-                        return Err(trace.err(i, ParseExprError::fn_call, e));
-                    }
-                    Err(nom::Err::Incomplete(_)) => unreachable!(),
-                };
-
-                #[derive(PartialEq)]
-                enum Parens {
-                    Needed,
-                    Optional,
-                }
-
-                // Collecting args.
-                let parens = if let Some(expr) = expr {
-                    if sep1.is_some() {
-                        trace.step2("expr+sep");
-                        args.push(*expr);
-                        Parens::Optional
-                    } else {
-                        trace.step2("expr+none");
-                        args.push(*expr);
-                        Parens::Needed
-                    }
-                } else {
-                    if let Some(sep1) = sep1 {
-                        trace.step2("none+sep");
-                        let ast = AstTree::empty(sep1.take(0));
-                        args.push(*ast);
-                        Parens::Optional
-                    } else {
-                        // no arguments and no separator. empty argument lists are ok.
-                        trace.step2("None+None");
-                        Parens::Needed
-                    }
-                };
-
-                // find a closing paren next
-                match parenthesis_close(eat_space(loop_rest)) {
-                    Ok((rest2, par2)) => {
-                        let ast = AstTree::fn_call(fn_name, par1, args, par2);
-                        return Ok(trace.ok(ast.span(), rest2, Some(ast)));
-                    }
-                    Err(e @ nom::Err::Error(_)) => {
-                        if parens == Parens::Needed {
-                            return Err(trace.err(i, ParseExprError::fn_call, e));
-                        }
-                    }
-                    Err(e @ nom::Err::Failure(_)) => {
-                        return Err(trace.err(i, ParseExprError::fn_call, e))
-                    }
-                    Err(nom::Err::Incomplete(_)) => unreachable!(),
-                }
-            }
-        }
-        Err(e @ nom::Err::Error(_)) => return Err(trace.err(i, ParseExprError::fn_call, e)),
-        Err(e @ nom::Err::Failure(_)) => return Err(trace.err(i, ParseExprError::fn_call, e)),
-        Err(nom::Err::Incomplete(_)) => unreachable!(),
-    };
-}
-
-/// Optional number.
-pub fn opt_number<'s, 't>(
-    trace: &'t Tracer<'s>,
-    i: Span<'s>,
-) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
-    trace.enter("number", i);
-
-    match opt(super::tokens::number)(i) {
-        Ok((rest, Some(tok))) => match (*tok).parse::<f64>() {
-            Ok(val) => {
-                let ast = AstTree::number(val, tok);
-                Ok(trace.ok(ast.span(), rest, Some(ast)))
-            }
-            Err(_) => unreachable!(),
-        },
-        Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
-        Err(e) => Err(trace.err(i, ParseExprError::number, e)),
-    }
-}
-
-/// Optional string.
-pub fn opt_string<'s, 't>(
-    trace: &'t Tracer<'s>,
-    i: Span<'s>,
-) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
-    trace.enter("string", i);
-
-    match opt(super::tokens::string)(i) {
-        Ok((rest, Some(tok))) => {
-            let ast = AstTree::string(tok.to_string(), tok);
-            Ok(trace.ok(ast.span(), rest, Some(ast)))
-        }
-        Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
-        Err(e) => Err(trace.err(i, ParseExprError::string, e)),
     }
 }
 
@@ -806,6 +576,43 @@ mod ops {
             Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
+    }
+}
+
+/// Optional number.
+pub fn opt_number<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    trace.enter("number", i);
+
+    match opt(super::tokens::number)(i) {
+        Ok((rest, Some(tok))) => match (*tok).parse::<f64>() {
+            Ok(val) => {
+                let ast = AstTree::number(val, tok);
+                Ok(trace.ok(ast.span(), rest, Some(ast)))
+            }
+            Err(_) => unreachable!(),
+        },
+        Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
+        Err(e) => Err(trace.err(i, ParseExprError::number, e)),
+    }
+}
+
+/// Optional string.
+pub fn opt_string<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    trace.enter("string", i);
+
+    match opt(super::tokens::string)(i) {
+        Ok((rest, Some(tok))) => {
+            let ast = AstTree::string(tok.to_string(), tok);
+            Ok(trace.ok(ast.span(), rest, Some(ast)))
+        }
+        Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
+        Err(e) => Err(trace.err(i, ParseExprError::string, e)),
     }
 }
 
@@ -1188,6 +995,199 @@ mod refs {
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
+}
+
+struct ParenthesisExpr;
+
+impl<'s> GeneralExpr<'s> for ParenthesisExpr {
+    fn name() -> &'static str {
+        "parenthesis"
+    }
+
+    fn lah(i: Span<'s>) -> bool {
+        lah_parenthesis_open(i)
+    }
+
+    fn parse<'t>(
+        trace: &'t Tracer<'s>,
+        i: Span<'s>,
+    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+        trace.enter(Self::name(), i);
+
+        match super::tokens::parenthesis_open(i) {
+            Ok((rest1, par1)) => {
+                match opt_expr(trace, eat_space(rest1)) {
+                    Ok((rest2, Some(expr))) => {
+                        //
+                        match super::tokens::parenthesis_close(eat_space(rest2)) {
+                            Ok((rest3, par2)) => {
+                                let o = OFParOpen { span: par1 };
+                                let c = OFParClose { span: par2 };
+                                let ast = Box::new(AstTree::Parenthesis(o, expr, c));
+                                Ok(trace.ok(ast.span(), rest3, Some(ast)))
+                            }
+                            Err(e) => Err(trace.err(rest1, ParseExprError::parenthesis, e)),
+                        }
+                    }
+                    Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseExprError::parenthesis)),
+                    Err(e) => Err(trace.parse_err(e)),
+                }
+            }
+            Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::parenthesis, e)),
+            Err(nom::Err::Incomplete(_)) => unreachable!(),
+        }
+    }
+}
+
+/// Lookahead fn_call
+pub fn lah_fn_call<'s>(i: Span<'s>) -> bool {
+    lah_fn_name(i)
+}
+
+// FunctionName '(' ParameterList ')' |
+// FunctionName ::= LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
+// ParameterList ::= /* empty */ |
+//                      Parameter (Separator EmptyOrParameter )* |
+//                      Separator EmptyOrParameter /* First param empty */ (Separator EmptyOrParameter )*
+// EmptyOrParameter ::= /* empty */ Whitespace* | Parameter
+// Parameter ::= Expression
+// Separator ::= ';'
+#[allow(clippy::collapsible_else_if)]
+#[allow(clippy::needless_return)]
+/// Parses a function call.
+pub fn opt_fn_call<'s, 't>(
+    trace: &'t Tracer<'s>,
+    i: Span<'s>,
+) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    trace.enter("fn_call", i);
+
+    let (rest1, fn_name) = match recognize(fn_name)(i) {
+        Ok((rest, tok)) => (eat_space(rest), tok),
+        Err(nom::Err::Error(_)) => return Ok(trace.ok(Span::new(""), i, None)),
+        Err(e @ nom::Err::Failure(_)) => return Err(trace.err(i, ParseExprError::fn_call, e)),
+        Err(nom::Err::Incomplete(_)) => unreachable!(),
+    };
+
+    trace.step("name", fn_name);
+
+    let mut args = Vec::new();
+
+    match parenthesis_open(eat_space(rest1)) {
+        Ok((mut loop_rest, par1)) => {
+            // First separator is checked before the arguments as arguments can be empty.
+            let sep1 = match separator(eat_space(loop_rest)) {
+                Ok((rest2, sep1)) => {
+                    loop_rest = rest2;
+                    trace.step("initial arg", Span::new(""));
+                    trace.step("initial separator", sep1);
+                    Some(sep1)
+                }
+                Err(nom::Err::Error(_)) => {
+                    // Not necessary
+                    None
+                }
+                Err(e @ nom::Err::Failure(_)) => {
+                    return Err(trace.err(i, ParseExprError::fn_call, e));
+                }
+                Err(nom::Err::Incomplete(_)) => unreachable!(),
+            };
+
+            // Collecting args.
+            if let Some(sep1) = sep1 {
+                trace.step2("expr+sep");
+                let ast = AstTree::empty(sep1.take(0));
+                args.push(*ast);
+            }
+
+            // Loops and eats from loop_rest.
+            loop {
+                // Parse argument.
+                loop_rest = eat_space(loop_rest);
+                let expr = if lah_expr(loop_rest) {
+                    match opt_expr(trace, loop_rest) {
+                        Ok((rest2, Some(expr))) => {
+                            loop_rest = rest2;
+                            trace.step("arg", expr.span());
+                            Some(expr)
+                        }
+                        Ok((rest2, None)) => {
+                            loop_rest = rest2;
+                            trace.step("arg", Span::new(""));
+                            None
+                        }
+                        Err(e) => return Err(trace.parse_err(e)),
+                    }
+                } else {
+                    None
+                };
+
+                // Followed by a separator.
+                let sep1 = match separator(eat_space(loop_rest)) {
+                    Ok((rest2, sep1)) => {
+                        loop_rest = rest2;
+                        trace.step("separator", sep1);
+                        Some(sep1)
+                    }
+                    Err(nom::Err::Error(_)) => None,
+                    Err(e @ nom::Err::Failure(_)) => {
+                        return Err(trace.err(i, ParseExprError::fn_call, e));
+                    }
+                    Err(nom::Err::Incomplete(_)) => unreachable!(),
+                };
+
+                #[derive(PartialEq)]
+                enum Parens {
+                    Needed,
+                    Optional,
+                }
+
+                // Collecting args.
+                let parens = if let Some(expr) = expr {
+                    if sep1.is_some() {
+                        trace.step2("expr+sep");
+                        args.push(*expr);
+                        Parens::Optional
+                    } else {
+                        trace.step2("expr+none");
+                        args.push(*expr);
+                        Parens::Needed
+                    }
+                } else {
+                    if let Some(sep1) = sep1 {
+                        trace.step2("none+sep");
+                        let ast = AstTree::empty(sep1.take(0));
+                        args.push(*ast);
+                        Parens::Optional
+                    } else {
+                        // no arguments and no separator. empty argument lists are ok.
+                        trace.step2("None+None");
+                        Parens::Needed
+                    }
+                };
+
+                // find a closing paren next
+                match parenthesis_close(eat_space(loop_rest)) {
+                    Ok((rest2, par2)) => {
+                        let ast = AstTree::fn_call(fn_name, par1, args, par2);
+                        return Ok(trace.ok(ast.span(), rest2, Some(ast)));
+                    }
+                    Err(e @ nom::Err::Error(_)) => {
+                        if parens == Parens::Needed {
+                            return Err(trace.err(i, ParseExprError::fn_call, e));
+                        }
+                    }
+                    Err(e @ nom::Err::Failure(_)) => {
+                        return Err(trace.err(i, ParseExprError::fn_call, e))
+                    }
+                    Err(nom::Err::Incomplete(_)) => unreachable!(),
+                }
+            }
+        }
+        Err(e @ nom::Err::Error(_)) => return Err(trace.err(i, ParseExprError::fn_call, e)),
+        Err(e @ nom::Err::Failure(_)) => return Err(trace.err(i, ParseExprError::fn_call, e)),
+        Err(nom::Err::Incomplete(_)) => unreachable!(),
+    };
 }
 
 // NamedExpression ::= SimpleNamedExpression | SheetLocalNamedExpression | ExternalNamedExpression
