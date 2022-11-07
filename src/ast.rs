@@ -14,20 +14,7 @@ use std::{mem, slice};
 pub enum AstTree<'a> {
     /// Empty expression
     Empty(OFEmpty<'a>),
-    /// Number
-    Number(OFNumber<'a>),
-    /// String
-    String(OFString<'a>),
-    /// CellRef
-    CellRef(OFCellRef<'a>),
-    /// CellRange
-    CellRange(OFCellRange<'a>),
-    /// ColRange
-    ColRange(OFColRange<'a>),
-    /// RowRange
-    RowRange(OFRowRange<'a>),
-    /// Expression in parenthesis.
-    Parenthesis(OFParOpen<'a>, Box<AstTree<'a>>, OFParClose<'a>),
+
     /// Comparison expression.
     CompareExpr(Box<AstTree<'a>>, OFCompOp<'a>, Box<AstTree<'a>>),
     /// Additive expression.
@@ -36,10 +23,27 @@ pub enum AstTree<'a> {
     MulExpr(Box<AstTree<'a>>, OFMulOp<'a>, Box<AstTree<'a>>),
     /// Exponential expression.
     PowExpr(Box<AstTree<'a>>, OFPowOp<'a>, Box<AstTree<'a>>),
-    /// Prefix expression.
-    PrefixExpr(OFPrefixOp<'a>, Box<AstTree<'a>>),
     /// Postfix expression.
     PostfixExpr(Box<AstTree<'a>>, OFPostfixOp<'a>),
+    /// Prefix expression.
+    PrefixExpr(OFPrefixOp<'a>, Box<AstTree<'a>>),
+
+    /// Number
+    Number(OFNumber<'a>),
+    /// String
+    String(OFString<'a>),
+
+    /// CellRef
+    CellRef(OFCellRef<'a>),
+    /// CellRange
+    CellRange(OFCellRange<'a>),
+    /// ColRange
+    ColRange(OFColRange<'a>),
+    /// RowRange
+    RowRange(OFRowRange<'a>),
+
+    /// Expression in parenthesis.
+    Parenthesis(OFParOpen<'a>, Box<AstTree<'a>>, OFParClose<'a>),
     /// Function call expression.
     FnCallExpr(
         OFFnName<'a>,
@@ -54,13 +58,7 @@ impl<'a> AstTree<'a> {
     pub fn span(&self) -> Span<'a> {
         match self {
             AstTree::Empty(v) => v.1,
-            AstTree::Number(v) => v.1,
-            AstTree::String(v) => v.1,
-            AstTree::CellRef(v) => v.1,
-            AstTree::CellRange(v) => v.1,
-            AstTree::ColRange(v) => v.1,
-            AstTree::RowRange(v) => v.1,
-            AstTree::Parenthesis(o, _ex, c) => unsafe { Self::span_union(o.span(), c.span()) },
+
             AstTree::CompareExpr(ex1, _op, ex2) => unsafe {
                 Self::span_union(ex1.span(), ex2.span())
             },
@@ -69,6 +67,16 @@ impl<'a> AstTree<'a> {
             AstTree::PowExpr(ex1, _op, ex2) => unsafe { Self::span_union(ex1.span(), ex2.span()) },
             AstTree::PrefixExpr(op, ex) => unsafe { Self::span_union(op.span(), ex.span()) },
             AstTree::PostfixExpr(ex, op) => unsafe { Self::span_union(ex.span(), op.span()) },
+
+            AstTree::Number(v) => v.1,
+            AstTree::String(v) => v.1,
+
+            AstTree::CellRef(v) => v.1,
+            AstTree::CellRange(v) => v.1,
+            AstTree::ColRange(v) => v.1,
+            AstTree::RowRange(v) => v.1,
+
+            AstTree::Parenthesis(o, _ex, c) => unsafe { Self::span_union(o.span(), c.span()) },
             AstTree::FnCallExpr(name, _o, _v, c) => unsafe {
                 Self::span_union(name.span(), c.span())
             },
@@ -107,26 +115,6 @@ impl<'a> AstTree<'a> {
         Box::new(AstTree::Empty(OFEmpty((), s)))
     }
 
-    /// Number variant
-    pub fn number(v: f64, s: Span<'a>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::Number(OFNumber(v, s)))
-    }
-
-    /// String variant
-    pub fn string(v: String, s: Span<'a>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::String(OFString(v, s)))
-    }
-
-    /// PrefixExpr variant
-    pub fn prefix_expr(op: OFPrefixOp<'a>, expr1: Box<AstTree<'a>>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::PrefixExpr(op, expr1))
-    }
-
-    /// PostfixExpr variant
-    pub fn postfix_expr(expr1: Box<AstTree<'a>>, op: OFPostfixOp<'a>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::PostfixExpr(expr1, op))
-    }
-
     /// CompareExpr variant
     pub fn compare_expr(
         expr0: Box<AstTree<'a>>,
@@ -163,6 +151,26 @@ impl<'a> AstTree<'a> {
         Box::new(AstTree::PowExpr(expr0, op, expr1))
     }
 
+    /// PostfixExpr variant
+    pub fn postfix_expr(expr1: Box<AstTree<'a>>, op: OFPostfixOp<'a>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::PostfixExpr(expr1, op))
+    }
+
+    /// PrefixExpr variant
+    pub fn prefix_expr(op: OFPrefixOp<'a>, expr1: Box<AstTree<'a>>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::PrefixExpr(op, expr1))
+    }
+
+    /// Number variant
+    pub fn number(v: f64, s: Span<'a>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::Number(OFNumber(v, s)))
+    }
+
+    /// String variant
+    pub fn string(v: String, s: Span<'a>) -> Box<AstTree<'a>> {
+        Box::new(AstTree::String(OFString(v, s)))
+    }
+
     /// CellRef variant
     pub fn cellref(v: CellRef, s: Span<'a>) -> Box<AstTree<'a>> {
         Box::new(AstTree::CellRef(OFCellRef(v, s)))
@@ -181,6 +189,15 @@ impl<'a> AstTree<'a> {
     /// RowRange variant
     pub fn rowrange(v: RowRange, s: Span<'a>) -> Box<AstTree<'a>> {
         Box::new(AstTree::RowRange(OFRowRange(v, s)))
+    }
+
+    /// Parenthesis variant
+    pub fn parenthesis(
+        o: OFParOpen<'a>,
+        expr: Box<AstTree<'a>>,
+        c: OFParClose<'a>,
+    ) -> Box<AstTree<'a>> {
+        Box::new(AstTree::Parenthesis(o, expr, c))
     }
 
     /// FnCall variant
@@ -225,21 +242,25 @@ impl<'a> AstTree<'a> {
 
     fn debug_self(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let self_name = match self {
-            AstTree::Number(_) => "number",
-            AstTree::String(_) => "string",
-            AstTree::CellRef(_) => "cellref",
-            AstTree::CellRange(_) => "cellrange",
-            AstTree::ColRange(_) => "colrange",
-            AstTree::RowRange(_) => "rowrange",
-            AstTree::Parenthesis(_, _, _) => "parens",
+            AstTree::Empty(_) => "empty",
+
             AstTree::CompareExpr(_, _, _) => "compare",
             AstTree::AddExpr(_, _, _) => "add",
             AstTree::MulExpr(_, _, _) => "mul",
             AstTree::PowExpr(_, _, _) => "pow",
             AstTree::PrefixExpr(_, _) => "prefix",
             AstTree::PostfixExpr(_, _) => "postfix",
+
+            AstTree::Number(_) => "number",
+            AstTree::String(_) => "string",
+
+            AstTree::CellRef(_) => "cellref",
+            AstTree::CellRange(_) => "cellrange",
+            AstTree::ColRange(_) => "colrange",
+            AstTree::RowRange(_) => "rowrange",
+
+            AstTree::Parenthesis(_, _, _) => "parens",
             AstTree::FnCallExpr(_, _, _, _) => "function",
-            AstTree::Empty(_) => "empty",
         };
 
         write!(f, "{}    ", self_name)?;
@@ -281,30 +302,7 @@ impl<'a> AstTree<'a> {
                 self.debug_span(v.1, f)?;
                 writeln!(f)?;
             }
-            AstTree::Number(v) => {
-                self.debug_elem(&v.0, v.1, f)?;
-            }
-            AstTree::String(v) => {
-                self.debug_elem(&v.0, v.1, f)?;
-            }
-            AstTree::CellRef(v) => {
-                self.debug_elem(&v.0, v.1, f)?;
-            }
-            AstTree::CellRange(v) => {
-                self.debug_elem(&v.0, v.1, f)?;
-            }
-            AstTree::ColRange(v) => {
-                self.debug_elem(&v.0, v.1, f)?;
-            }
-            AstTree::RowRange(v) => {
-                self.debug_elem(&v.0, v.1, f)?;
-            }
-            AstTree::Parenthesis(_o, ex, _c) => {
-                self.debug_self(f)?;
 
-                self.arrow(indent + 1, f)?;
-                ex.debug(indent + 1, f)?;
-            }
             AstTree::CompareExpr(ex1, op, ex2) => {
                 self.debug_self(f)?;
 
@@ -361,6 +359,33 @@ impl<'a> AstTree<'a> {
                 self.indent(indent + 1, f)?;
                 self.debug_op(op.to_string().as_str(), op.span(), f)?;
             }
+
+            AstTree::Number(v) => {
+                self.debug_elem(&v.0, v.1, f)?;
+            }
+            AstTree::String(v) => {
+                self.debug_elem(&v.0, v.1, f)?;
+            }
+
+            AstTree::CellRef(v) => {
+                self.debug_elem(&v.0, v.1, f)?;
+            }
+            AstTree::CellRange(v) => {
+                self.debug_elem(&v.0, v.1, f)?;
+            }
+            AstTree::ColRange(v) => {
+                self.debug_elem(&v.0, v.1, f)?;
+            }
+            AstTree::RowRange(v) => {
+                self.debug_elem(&v.0, v.1, f)?;
+            }
+
+            AstTree::Parenthesis(_o, ex, _c) => {
+                self.debug_self(f)?;
+
+                self.arrow(indent + 1, f)?;
+                ex.debug(indent + 1, f)?;
+            }
             AstTree::FnCallExpr(name, _par1, v, _par2) => {
                 self.debug_self(f)?;
 
@@ -394,21 +419,33 @@ impl<'a> Display for AstTree<'a> {
             AstTree::Empty(v) => {
                 write!(f, "{}", v)
             }
+
+            AstTree::CompareExpr(expr1, op, expr2) => {
+                write!(f, "{} {} {}", expr1, op, expr2)
+            }
+            AstTree::AddExpr(expr1, op, expr2) => {
+                write!(f, "{} {} {}", expr1, op, expr2)
+            }
+            AstTree::MulExpr(expr1, op, expr2) => {
+                write!(f, "{} {} {}", expr1, op, expr2)
+            }
+            AstTree::PowExpr(expr1, op, expr2) => {
+                write!(f, "{} {} {}", expr1, op, expr2)
+            }
+            AstTree::PostfixExpr(expr, op) => {
+                write!(f, "{}{}", expr, op)
+            }
+            AstTree::PrefixExpr(op, expr) => {
+                write!(f, "{}{}", op, expr)
+            }
+
             AstTree::Number(v) => {
                 write!(f, "{}", v)
             }
             AstTree::String(v) => {
                 write!(f, "{}", v)
             }
-            AstTree::Parenthesis(_o, expr, _c) => {
-                write!(f, "({})", expr)
-            }
-            AstTree::PrefixExpr(op, expr) => {
-                write!(f, "{}{}", op, expr)
-            }
-            AstTree::PostfixExpr(expr, op) => {
-                write!(f, "{}{}", expr, op)
-            }
+
             AstTree::CellRef(v) => {
                 write!(f, "{}", v)
             }
@@ -421,17 +458,9 @@ impl<'a> Display for AstTree<'a> {
             AstTree::ColRange(v) => {
                 write!(f, "{}", v)
             }
-            AstTree::CompareExpr(expr1, op, expr2) => {
-                write!(f, "{} {} {}", expr1, op, expr2)
-            }
-            AstTree::AddExpr(expr1, op, expr2) => {
-                write!(f, "{} {} {}", expr1, op, expr2)
-            }
-            AstTree::MulExpr(expr1, op, expr2) => {
-                write!(f, "{} {} {}", expr1, op, expr2)
-            }
-            AstTree::PowExpr(expr1, op, expr2) => {
-                write!(f, "{} {} {}", expr1, op, expr2)
+
+            AstTree::Parenthesis(_o, expr, _c) => {
+                write!(f, "({})", expr)
             }
             AstTree::FnCallExpr(name, _par1, v, _par2) => {
                 write!(f, "{}(", name)?;
@@ -464,83 +493,26 @@ pub trait HaveSpan<'a> {
     fn span(&self) -> Span<'a>;
 }
 
-/// Function name.
-#[derive(Debug, Eq, PartialEq)]
-pub struct OFFnName<'a> {
-    /// Function name.
-    pub name: String,
-    /// Span
-    pub span: Span<'a>,
-}
+#[allow(clippy::manual_non_exhaustive)]
+/// Empty
+#[derive(Debug)]
+pub struct OFEmpty<'a>((), pub Span<'a>);
 
-impl<'a> HaveSpan<'a> for OFFnName<'a> {
-    /// Returns the span for each variant.
+impl<'a> HaveSpan<'a> for OFEmpty<'a> {
     fn span(&self) -> Span<'a> {
-        self.span
+        self.1
     }
 }
 
-impl<'a> Display for OFFnName<'a> {
+impl<'a> Display for OFEmpty<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)
+        write!(f, "")
     }
 }
 
-/// Prefix operands.
-#[derive(Debug)]
-pub enum OFPrefixOp<'a> {
-    /// Operator +
-    Plus(Span<'a>),
-    /// Operator -
-    Minus(Span<'a>),
-}
-
-op_decl!(OFPrefixOp);
-
-impl<'a> HaveSpan<'a> for OFPrefixOp<'a> {
-    /// Returns the span for each variant.
-    fn span(&self) -> Span<'a> {
-        match self {
-            OFPrefixOp::Plus(span) => *span,
-            OFPrefixOp::Minus(span) => *span,
-        }
-    }
-}
-
-impl<'a> Display for OFPrefixOp<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OFPrefixOp::Plus(_) => write!(f, "+"),
-            OFPrefixOp::Minus(_) => write!(f, "-"),
-        }
-    }
-}
-
-/// Paren open
-#[derive(Debug)]
-pub struct OFParOpen<'a> {
-    /// Span
-    pub span: Span<'a>,
-}
-
-impl<'a> HaveSpan<'a> for OFParOpen<'a> {
-    /// Span
-    fn span(&self) -> Span<'a> {
-        self.span
-    }
-}
-
-/// Paren open
-#[derive(Debug)]
-pub struct OFParClose<'a> {
-    /// Span
-    pub span: Span<'a>,
-}
-
-impl<'a> HaveSpan<'a> for OFParClose<'a> {
-    /// Span
-    fn span(&self) -> Span<'a> {
-        self.span
+impl<'a> PartialEq for OFEmpty<'a> {
+    fn eq(&self, _other: &Self) -> bool {
+        true
     }
 }
 
@@ -702,26 +674,33 @@ impl<'a> Display for OFPostfixOp<'a> {
     }
 }
 
-#[allow(clippy::manual_non_exhaustive)]
-/// Empty
+/// Prefix operands.
 #[derive(Debug)]
-pub struct OFEmpty<'a>((), pub Span<'a>);
+pub enum OFPrefixOp<'a> {
+    /// Operator +
+    Plus(Span<'a>),
+    /// Operator -
+    Minus(Span<'a>),
+}
 
-impl<'a> HaveSpan<'a> for OFEmpty<'a> {
+op_decl!(OFPrefixOp);
+
+impl<'a> HaveSpan<'a> for OFPrefixOp<'a> {
+    /// Returns the span for each variant.
     fn span(&self) -> Span<'a> {
-        self.1
+        match self {
+            OFPrefixOp::Plus(span) => *span,
+            OFPrefixOp::Minus(span) => *span,
+        }
     }
 }
 
-impl<'a> Display for OFEmpty<'a> {
+impl<'a> Display for OFPrefixOp<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "")
-    }
-}
-
-impl<'a> PartialEq for OFEmpty<'a> {
-    fn eq(&self, _other: &Self) -> bool {
-        true
+        match self {
+            OFPrefixOp::Plus(_) => write!(f, "+"),
+            OFPrefixOp::Minus(_) => write!(f, "-"),
+        }
     }
 }
 
@@ -830,5 +809,55 @@ impl<'a> Display for OFColRange<'a> {
 impl<'a> PartialEq for OFColRange<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
+    }
+}
+
+/// Paren open
+#[derive(Debug)]
+pub struct OFParOpen<'a> {
+    /// Span
+    pub span: Span<'a>,
+}
+
+impl<'a> HaveSpan<'a> for OFParOpen<'a> {
+    /// Span
+    fn span(&self) -> Span<'a> {
+        self.span
+    }
+}
+
+/// Paren open
+#[derive(Debug)]
+pub struct OFParClose<'a> {
+    /// Span
+    pub span: Span<'a>,
+}
+
+impl<'a> HaveSpan<'a> for OFParClose<'a> {
+    /// Span
+    fn span(&self) -> Span<'a> {
+        self.span
+    }
+}
+
+/// Function name.
+#[derive(Debug, Eq, PartialEq)]
+pub struct OFFnName<'a> {
+    /// Function name.
+    pub name: String,
+    /// Span
+    pub span: Span<'a>,
+}
+
+impl<'a> HaveSpan<'a> for OFFnName<'a> {
+    /// Returns the span for each variant.
+    fn span(&self) -> Span<'a> {
+        self.span
+    }
+}
+
+impl<'a> Display for OFFnName<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
     }
 }

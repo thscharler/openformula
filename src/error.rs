@@ -132,6 +132,21 @@ pub enum ParseExprError {
     /// Nom failed.
     NomFailure(ErrSpan),
 
+    /// Compare expr parsing error.
+    Comp(ErrSpan),
+    /// Additive expr parsing error.
+    Add(ErrSpan),
+    /// Multiplicative expr parsing error.
+    Mul(ErrSpan),
+    /// Power expr parsing error.
+    Pow(ErrSpan),
+    /// Postfix expr parsing error.
+    Postfix(ErrSpan),
+    /// Prefix expr parsing error.
+    Prefix(ErrSpan),
+    /// Elementary expr parsing error.
+    Elementary(ErrSpan),
+
     /// Number parsing error.
     Number(ErrSpan),
     /// String parsing error.
@@ -140,20 +155,6 @@ pub enum ParseExprError {
     Parenthesis(ErrSpan),
     /// Function call parsing error.
     FnCall(ErrSpan),
-
-    /// Elementary expr parsing error.
-    Elementary(ErrSpan),
-    /// Prefix expr parsing error.
-    Prefix(ErrSpan),
-    /// Power expr parsing error.
-    Pow(ErrSpan),
-    /// Multiplicative expr parsing error.
-    Mul(ErrSpan),
-    /// Additive expr parsing error.
-    Add(ErrSpan),
-    /// Compare expr parsing error.
-    Comp(ErrSpan),
-
     /// CellRef parsing error.
     CellRef(ErrSpan),
     /// CellRange parsing error.
@@ -180,6 +181,41 @@ impl ParseExprError {
         ParseExprError::NomFailure(span.into())
     }
 
+    /// Comp variant.
+    pub fn comp<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Comp(span.into())
+    }
+
+    /// Add variant.
+    pub fn add<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Add(span.into())
+    }
+
+    /// Mul variant.
+    pub fn mul<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Mul(span.into())
+    }
+
+    /// Pow variant.
+    pub fn pow<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Pow(span.into())
+    }
+
+    /// PrefixExpr variant.
+    pub fn postfix<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Postfix(span.into())
+    }
+
+    /// PrefixExpr variant.
+    pub fn prefix<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Prefix(span.into())
+    }
+
+    /// Elementary variant.
+    pub fn elementary<'a>(span: Span<'a>) -> ParseExprError {
+        ParseExprError::Elementary(span.into())
+    }
+
     /// Number variant.
     pub fn number<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::Number(span.into())
@@ -198,36 +234,6 @@ impl ParseExprError {
     /// Parenthesis variant.
     pub fn parenthesis<'a>(span: Span<'a>) -> ParseExprError {
         ParseExprError::Parenthesis(span.into())
-    }
-
-    /// Pow variant.
-    pub fn pow<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::Pow(span.into())
-    }
-
-    /// Mul variant.
-    pub fn mul<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::Mul(span.into())
-    }
-
-    /// Add variant.
-    pub fn add<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::Add(span.into())
-    }
-
-    /// Comp variant.
-    pub fn comp<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::Comp(span.into())
-    }
-
-    /// PrefixExpr variant.
-    pub fn prefix<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::Prefix(span.into())
-    }
-
-    /// Elementary variant.
-    pub fn elementary<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::Elementary(span.into())
     }
 
     /// CellRef variant.
@@ -263,6 +269,7 @@ impl Display for ParseExprError {
             ParseExprError::Parenthesis(s) => write!(f, "Parenthesis {}", s),
             ParseExprError::FnCall(s) => write!(f, "FnCall {}", s),
             ParseExprError::Elementary(s) => write!(f, "Elementary {}", s),
+            ParseExprError::Postfix(s) => write!(f, "Postfix {}", s),
             ParseExprError::Prefix(s) => write!(f, "Prefix {}", s),
             ParseExprError::Pow(s) => write!(f, "Pow {}", s),
             ParseExprError::Mul(s) => write!(f, "Mul {}", s),
