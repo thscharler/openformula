@@ -1,12 +1,12 @@
 //! Types for cell references.
 
+use crate::ast_parser::{CellRangeExpr, CellRefExpr, ColRangeExpr, RowRangeExpr};
 use crate::error::OFError;
 use crate::parse::ast_format::{
     fmt_cellrange, fmt_cellref, fmt_colrange, fmt_cref, fmt_rowrange, Fmt,
 };
-use crate::parse::ast_parser::parse_cellrange;
 use crate::parse::tracer::Tracer;
-use crate::parse::{ast_parser, Span};
+use crate::parse::Span;
 use crate::ToFormula;
 use std::fmt::{Display, Error, Formatter, Write};
 use std::{fmt, mem};
@@ -148,7 +148,7 @@ impl TryFrom<&str> for CellRef {
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         let trace = Tracer::new();
-        let (_rest, (_span, cell_ref)) = ast_parser::parse_cellref(&trace, Span::new(s))?;
+        let (_rest, cell_ref) = CellRefExpr::parse_full(&trace, Span::new(s))?;
         Ok(cell_ref)
     }
 }
@@ -282,7 +282,7 @@ impl TryFrom<&str> for CellRange {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let trace = Tracer::new();
-        let (_, (_, cellrange)) = parse_cellrange(&trace, Span::new(value))?;
+        let (_, cellrange) = CellRangeExpr::parse_full(&trace, Span::new(value))?;
         Ok(cellrange)
     }
 }
@@ -561,7 +561,7 @@ impl TryFrom<&str> for ColRange {
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         let trace = Tracer::new();
-        let (_, (_, col_range)) = ast_parser::parse_colrange(&trace, Span::new(s))?;
+        let (_rest, col_range) = ColRangeExpr::parse_full(&trace, Span::new(s))?;
         Ok(col_range)
     }
 }
@@ -690,7 +690,7 @@ impl TryFrom<&str> for RowRange {
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         let trace = Tracer::new();
-        let (_, (_, row_range)) = ast_parser::parse_rowrange(&trace, Span::new(s))?;
+        let (_, row_range) = RowRangeExpr::parse_full(&trace, Span::new(s))?;
         Ok(row_range)
     }
 }

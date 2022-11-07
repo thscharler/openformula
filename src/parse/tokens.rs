@@ -5,21 +5,11 @@
 use crate::parse::Span;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while, take_while1};
-use nom::character::complete::{alpha1, char as nchar, multispace0, none_of, one_of};
+use nom::character::complete::{alpha1, char as nchar, none_of, one_of};
 use nom::combinator::{opt, recognize};
 use nom::multi::{count, many0, many1};
 use nom::sequence::{delimited, terminated, tuple};
 use nom::IResult;
-
-/// Eats the leading whitespace.
-pub fn eat_space<'a>(i: Span<'a>) -> Span<'a> {
-    match multispace0::<Span<'a>, nom::error::Error<_>>(i) {
-        Ok((rest, _white)) => rest,
-        Err(nom::Err::Error(_)) => i,
-        Err(nom::Err::Failure(_)) => i,
-        Err(nom::Err::Incomplete(_)) => unreachable!(),
-    }
-}
 
 /// Lookahead for a number
 pub fn lah_number<'a>(i: Span<'a>) -> bool {
@@ -262,9 +252,10 @@ pub fn quoted<'a>(quote: char) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, Span
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
+    use crate::ast_parser::eat_space;
     use crate::parse::tokens::{col, iri, quoted, row, sheet_name};
     use crate::parse::Span;
-    use crate::tokens::{eat_space, lah_number, lah_parenthesis_open};
+    use crate::tokens::{lah_number, lah_parenthesis_open};
     use nom::error::ErrorKind;
     use nom::error::ParseError;
 
