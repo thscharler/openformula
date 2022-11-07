@@ -238,8 +238,8 @@ struct CompareExpr;
 impl<'s> BinaryExpr<'s> for CompareExpr {
     type Operator = OFCompOp<'s>;
     type Operand = AddExpr;
-    const AST_NODE: AstTreeFn<'s, Self::Operator> = AstTree::compare_expr;
-    const AST_ERR: ParseExprErrorFn = ParseExprError::comp;
+    const AST_NODE: AstTreeFn<'s, Self::Operator> = AstTree::compare;
+    const AST_ERR: ParseExprErrorFn = ParseExprError::compare;
 
     fn name() -> &'static str {
         "compare"
@@ -273,7 +273,7 @@ struct AddExpr;
 impl<'s> BinaryExpr<'s> for AddExpr {
     type Operator = OFAddOp<'s>;
     type Operand = MulExpr;
-    const AST_NODE: AstTreeFn<'s, Self::Operator> = AstTree::add_expr;
+    const AST_NODE: AstTreeFn<'s, Self::Operator> = AstTree::add;
     const AST_ERR: ParseExprErrorFn = ParseExprError::add;
 
     fn name() -> &'static str {
@@ -306,7 +306,7 @@ impl<'s> BinaryExpr<'s> for MulExpr {
     type Operator = OFMulOp<'s>;
     type Operand = PowExpr;
 
-    const AST_NODE: AstTreeFn<'s, Self::Operator> = AstTree::mul_expr;
+    const AST_NODE: AstTreeFn<'s, Self::Operator> = AstTree::mul;
     const AST_ERR: ParseExprErrorFn = ParseExprError::mul;
 
     fn name() -> &'static str {
@@ -338,7 +338,7 @@ struct PowExpr;
 impl<'s> BinaryExpr<'s> for PowExpr {
     type Operator = OFPowOp<'s>;
     type Operand = PostFixExpr;
-    const AST_NODE: AstTreeFn<'s, Self::Operator> = AstTree::pow_expr;
+    const AST_NODE: AstTreeFn<'s, Self::Operator> = AstTree::pow;
     const AST_ERR: ParseExprErrorFn = ParseExprError::pow;
 
     fn name() -> &'static str {
@@ -410,7 +410,7 @@ impl<'s> GeneralExpr<'s> for PostFixExpr {
                         Ok((rest1, Some(tok))) => {
                             trace.step("op", tok.span());
                             loop_rest = rest1;
-                            expr = AstTree::postfix_expr(expr, tok);
+                            expr = AstTree::postfix(expr, tok);
                         }
                         Ok((i2, None)) => break Ok(trace.ok(expr.span(), i2, Some(expr))),
                         Err(e) => break Err(trace.parse_err(e)),
@@ -467,7 +467,7 @@ impl<'s> GeneralExpr<'s> for PrefixExpr {
                 //
                 match PrefixExpr::parse(trace, eat_space(rest1)) {
                     Ok((rest2, Some(expr))) => {
-                        let ast = AstTree::prefix_expr(tok, expr);
+                        let ast = AstTree::prefix(tok, expr);
                         Ok(trace.ok(ast.span(), rest2, Some(ast)))
                     }
                     Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseExprError::prefix)),
@@ -693,13 +693,13 @@ impl CellRefExpr {
 
         match CellRefExpr::parse(trace, i) {
             Ok((rest, Some(expr))) => {
-                check_eof(rest, ParseExprError::cellref)?;
-                let AstTree::CellRef(OFCellRef(cellref, span)) = *expr else {
+                check_eof(rest, ParseExprError::cell_ref)?;
+                let AstTree::NodeCellRef(OFCellRef(cell_ref, span)) = *expr else {
                         panic!("Expected a CellRef");
                     };
-                Ok(trace.ok(span, rest, cellref))
+                Ok(trace.ok(span, rest, cell_ref))
             }
-            Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::cellref)),
+            Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::cell_ref)),
             Err(e) => Err(trace.parse_err(e)),
         }
     }
@@ -707,7 +707,7 @@ impl CellRefExpr {
 
 impl<'s> GeneralExpr<'s> for CellRefExpr {
     fn name() -> &'static str {
-        "cellref"
+        "cell_ref"
     }
 
     fn lah(i: Span<'s>) -> bool {
@@ -731,7 +731,7 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
         {
             Ok((rest, (tok, (iri, sheet_name, _dot, col, row)))) => {
                 //
-                let cellref = CellRef {
+                let cell_ref = CellRef {
                     iri: iri.map(|v| (*v).to_string()),
                     sheet: match sheet_name {
                         None => None,
@@ -744,7 +744,7 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
                         col: trace.re_err(try_u32_from_colname(col.1))?,
                     },
                 };
-                let ast = AstTree::cellref(cellref, tok);
+                let ast = AstTree::cell_ref(cell_ref, tok);
                 Ok(trace.ok(tok, rest, Some(ast)))
             }
 
@@ -769,13 +769,13 @@ impl CellRangeExpr {
 
         match CellRangeExpr::parse(trace, i) {
             Ok((rest, Some(expr))) => {
-                check_eof(rest, ParseExprError::cellrange)?;
-                let AstTree::CellRange(OFCellRange(cellrange, span)) = *expr else {
+                check_eof(rest, ParseExprError::cell_range)?;
+                let AstTree::NodeCellRange(OFCellRange(cell_range, span)) = *expr else {
                         panic!("Expected a CellRange");
                     };
-                Ok(trace.ok(span, rest, cellrange))
+                Ok(trace.ok(span, rest, cell_range))
             }
-            Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::cellrange)),
+            Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::cell_range)),
             Err(e) => Err(trace.parse_err(e)),
         }
     }
@@ -783,7 +783,7 @@ impl CellRangeExpr {
 
 impl<'s> GeneralExpr<'s> for CellRangeExpr {
     fn name() -> &'static str {
-        "cellrange"
+        "cell_range"
     }
 
     fn lah(i: Span<'s>) -> bool {
@@ -829,7 +829,7 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
                 ),
             )) => {
                 //
-                let cellrange = CellRange {
+                let cell_range = CellRange {
                     iri: iri.map(|v| (*v).to_string()),
                     from_sheet: match sheet_name_0 {
                         None => None,
@@ -852,7 +852,7 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
                         col: trace.re_err(try_u32_from_colname(col_1.1))?,
                     },
                 };
-                let ast = AstTree::cellrange(cellrange, tok);
+                let ast = AstTree::cell_range(cell_range, tok);
 
                 Ok(trace.ok(tok, rest, Some(ast)))
             }
@@ -875,13 +875,13 @@ impl ColRangeExpr {
 
         match Self::parse(trace, i) {
             Ok((rest, Some(expr))) => {
-                check_eof(rest, ParseExprError::colrange)?;
-                let AstTree::ColRange(OFColRange(colrange, span)) = *expr else {
+                check_eof(rest, ParseExprError::col_range)?;
+                let AstTree::NodeColRange(OFColRange(col_range, span)) = *expr else {
                         panic!("Expected a ColRange");
                     };
-                Ok(trace.ok(span, rest, colrange))
+                Ok(trace.ok(span, rest, col_range))
             }
-            Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::colrange)),
+            Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::col_range)),
             Err(e) => Err(trace.parse_err(e)),
         }
     }
@@ -889,7 +889,7 @@ impl ColRangeExpr {
 
 impl<'s> GeneralExpr<'s> for ColRangeExpr {
     fn name() -> &'static str {
-        "colrange"
+        "col_range"
     }
 
     fn lah(i: Span<'s>) -> bool {
@@ -919,7 +919,7 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
                 (tok, (iri, sheet_name_0, _dot_0, col_0, _colon, sheet_name_1, _dot_1, col_1)),
             )) => {
                 //
-                let colrange = ColRange {
+                let col_range = ColRange {
                     iri: iri.map(|v| (*v).to_string()),
                     from_sheet: match sheet_name_0 {
                         None => None,
@@ -934,7 +934,7 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
                     abs_to_col: try_bool_from_abs_flag(col_1.0),
                     to_col: trace.re_err(try_u32_from_colname(col_1.1))?,
                 };
-                let ast = AstTree::colrange(colrange, tok);
+                let ast = AstTree::col_range(col_range, tok);
 
                 Ok(trace.ok(tok, rest, Some(ast)))
             }
@@ -957,13 +957,13 @@ impl RowRangeExpr {
 
         match Self::parse(trace, i) {
             Ok((rest, Some(expr))) => {
-                check_eof(rest, ParseExprError::rowrange)?;
-                let AstTree::RowRange(OFRowRange(rowrange, span)) = *expr else {
+                check_eof(rest, ParseExprError::row_range)?;
+                let AstTree::NodeRowRange(OFRowRange(row_range, span)) = *expr else {
                         panic!("Expected a RowRange");
                     };
-                Ok(trace.ok(span, rest, rowrange))
+                Ok(trace.ok(span, rest, row_range))
             }
-            Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::rowrange)),
+            Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::row_range)),
             Err(e) => Err(trace.parse_err(e)),
         }
     }
@@ -971,7 +971,7 @@ impl RowRangeExpr {
 
 impl<'s> GeneralExpr<'s> for RowRangeExpr {
     fn name() -> &'static str {
-        "rowrange"
+        "row_range"
     }
 
     fn lah(i: Span<'s>) -> bool {
@@ -1001,7 +1001,7 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
                 (tok, (iri, sheet_name_0, _dot_0, row_0, _colon, sheet_name_1, _dot_1, row_1)),
             )) => {
                 //
-                let rowrange = RowRange {
+                let row_range = RowRange {
                     iri: iri.map(|v| (*v).to_string()),
                     from_sheet: match sheet_name_0 {
                         None => None,
@@ -1016,7 +1016,7 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
                     abs_to_row: try_bool_from_abs_flag(row_1.0),
                     to_row: trace.re_err(try_u32_from_rowname(row_1.1))?,
                 };
-                let ast = AstTree::rowrange(rowrange, tok);
+                let ast = AstTree::row_range(row_range, tok);
 
                 Ok(trace.ok(tok, rest, Some(ast)))
             }
@@ -1054,7 +1054,7 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
                             Ok((rest3, par2)) => {
                                 let o = OFParOpen { span: par1 };
                                 let c = OFParClose { span: par2 };
-                                let ast = Box::new(AstTree::Parenthesis(o, expr, c));
+                                let ast = Box::new(AstTree::NodeParenthesis(o, expr, c));
                                 Ok(trace.ok(ast.span(), rest3, Some(ast)))
                             }
                             Err(e) => Err(trace.err(rest1, ParseExprError::parenthesis, e)),
@@ -1271,7 +1271,6 @@ mod tests {
     use crate::parse::tracer::Tracer;
     use crate::parse::Span;
     use crate::{AstTree, CellRef, OFCellRef, ParseResult};
-    use nom_locate::LocatedSpan;
 
     fn run_test2<'s>(
         str: &'s str,
@@ -1344,37 +1343,17 @@ mod tests {
     fn test_cellref2() -> Result<(), OFError> {
         let trace = Tracer::new();
         unsafe {
-            let (rest, expr) = CellRefExpr::parse(&trace, Span::new(".A21"))?;
             assert_eq!(
                 CellRefExpr::parse(&trace, Span::new(".A21"))?,
                 (
                     Span::new_from_raw_offset(4, 1, "", ()),
-                    Some(Box::new(AstTree::CellRef(OFCellRef(
-                        CellRef::local(21, 0),
+                    Some(Box::new(AstTree::NodeCellRef(OFCellRef(
+                        CellRef::local(20, 0),
                         Span::new_from_raw_offset(1, 1, ".A21", ())
                     ))))
                 )
             );
         }
-        Ok(())
-    }
-
-    #[test]
-    fn test_cellref() -> Result<(), OFError> {
-        // let _trace = Tracer::new();
-        // unsafe {
-        //     TODO:this
-        //     assert_eq!(
-        //         CellRefExpr::parse(&trace, Span::new(".A21"))?,
-        //         (
-        //             LocatedSpan::new_from_raw_offset(4, 1, "", ()),
-        //             Some((
-        //                 LocatedSpan::new_from_raw_offset(0, 1, ".A21", ()),
-        //                 CellRef::local(21, 0)
-        //             ))
-        //         )
-        //     );
-        // }
         Ok(())
     }
 

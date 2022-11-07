@@ -52,11 +52,11 @@ pub enum ParseRownameError {
 pub fn try_u32_from_rowname<'a>(i: Span<'a>) -> Result<u32, ParseExprError> {
     match u32::from_str(*i) {
         Ok(v) if v > 0 => Ok(v - 1),
-        Ok(_v) => Err(ParseExprError::ParseRowname(
+        Ok(_v) => Err(ParseExprError::ErrRowname(
             i.into(),
             ParseRownameError::Zero,
         )),
-        Err(e) => Err(ParseExprError::ParseRowname(
+        Err(e) => Err(ParseExprError::ErrRowname(
             i.into(),
             match e.kind() {
                 IntErrorKind::Empty => ParseRownameError::Empty,
@@ -102,7 +102,7 @@ pub fn try_u32_from_colname<'a>(i: Span<'a>) -> Result<u32, ParseExprError> {
 
     for c in (*i).chars() {
         if !('A'..='Z').contains(&c) {
-            return Err(ParseExprError::ParseColname(
+            return Err(ParseExprError::ErrColname(
                 i.into(),
                 ParseColnameError::InvalidChar(c),
             ));
@@ -120,7 +120,7 @@ pub fn try_u32_from_colname<'a>(i: Span<'a>) -> Result<u32, ParseExprError> {
     }
 
     if col == 0 {
-        Err(ParseExprError::ParseColname(
+        Err(ParseExprError::ErrColname(
             i.into(),
             ParseColnameError::InvalidColname(format!("{:?}", i)),
         ))

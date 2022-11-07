@@ -36,112 +36,112 @@ where
 }
 
 /// Appends the cell reference
-pub fn fmt_cellref(f: &mut Formatter<'_>, cellref: &CellRef) -> fmt::Result {
-    fmt_iri(f, cellref.iri.as_ref())?;
-    if let Some(sheet) = cellref.sheet.as_ref() {
+pub fn fmt_cellref(f: &mut Formatter<'_>, cell_ref: &CellRef) -> fmt::Result {
+    fmt_iri(f, cell_ref.iri.as_ref())?;
+    if let Some(sheet) = cell_ref.sheet.as_ref() {
         fmt_sheet_name(
             f,
             sheet,
-            cellref.iri.is_some() || cellref.cell.abs_col || cellref.cell.abs_row,
+            cell_ref.iri.is_some() || cell_ref.cell.abs_col || cell_ref.cell.abs_row,
         )?;
     }
     write!(f, ".")?;
-    fmt_cref(f, cellref.cell)?;
+    fmt_cref(f, cell_ref.cell)?;
     Ok(())
 }
 
 /// Appends the range reference
-pub fn fmt_cellrange(f: &mut Formatter<'_>, cellrange: &CellRange) -> fmt::Result {
-    fmt_iri(f, cellrange.iri.as_ref())?;
-    if let Some(sheet) = cellrange.from_sheet.as_ref() {
+pub fn fmt_cellrange(f: &mut Formatter<'_>, cell_range: &CellRange) -> fmt::Result {
+    fmt_iri(f, cell_range.iri.as_ref())?;
+    if let Some(sheet) = cell_range.from_sheet.as_ref() {
         fmt_sheet_name(
             f,
             sheet,
-            cellrange.iri.is_some()
-                || cellrange.from.abs_row
-                || cellrange.from.abs_col
-                || cellrange.to.abs_row
-                || cellrange.to.abs_col,
+            cell_range.iri.is_some()
+                || cell_range.from.abs_row
+                || cell_range.from.abs_col
+                || cell_range.to.abs_row
+                || cell_range.to.abs_col,
         )?;
     }
     write!(f, ".")?;
-    fmt_cref(f, cellrange.from)?;
+    fmt_cref(f, cell_range.from)?;
     write!(f, ":")?;
-    if let Some(to_sheet) = cellrange.to_sheet.as_ref() {
+    if let Some(to_sheet) = cell_range.to_sheet.as_ref() {
         fmt_sheet_name(
             f,
             to_sheet,
-            cellrange.iri.is_some()
-                || cellrange.from.abs_row
-                || cellrange.from.abs_col
-                || cellrange.to.abs_row
-                || cellrange.to.abs_col,
+            cell_range.iri.is_some()
+                || cell_range.from.abs_row
+                || cell_range.from.abs_col
+                || cell_range.to.abs_row
+                || cell_range.to.abs_col,
         )?;
     }
     write!(f, ".")?;
-    fmt_cref(f, cellrange.to)?;
+    fmt_cref(f, cell_range.to)?;
     Ok(())
 }
 
 /// Appends the cell reference
-pub fn fmt_colrange(f: &mut Formatter<'_>, colrange: &ColRange) -> fmt::Result {
-    fmt_iri(f, colrange.iri.as_ref())?;
-    if let Some(sheet) = colrange.from_sheet.as_ref() {
+pub fn fmt_colrange(f: &mut Formatter<'_>, col_range: &ColRange) -> fmt::Result {
+    fmt_iri(f, col_range.iri.as_ref())?;
+    if let Some(sheet) = col_range.from_sheet.as_ref() {
         fmt_sheet_name(
             f,
             sheet,
-            colrange.iri.is_some() || colrange.abs_from_col || colrange.abs_to_col,
+            col_range.iri.is_some() || col_range.abs_from_col || col_range.abs_to_col,
         )?;
     }
     write!(f, ".")?;
-    if colrange.abs_from_col {
+    if col_range.abs_from_col {
         write!(f, "$")?;
     }
-    fmt_colname(f, colrange.from_col)?;
+    fmt_colname(f, col_range.from_col)?;
     write!(f, ":")?;
-    if let Some(to_sheet) = colrange.to_sheet.as_ref() {
+    if let Some(to_sheet) = col_range.to_sheet.as_ref() {
         fmt_sheet_name(
             f,
             to_sheet,
-            colrange.iri.is_some() || colrange.abs_from_col || colrange.abs_to_col,
+            col_range.iri.is_some() || col_range.abs_from_col || col_range.abs_to_col,
         )?;
     }
     write!(f, ".")?;
-    if colrange.abs_to_col {
+    if col_range.abs_to_col {
         write!(f, "$")?;
     }
-    fmt_colname(f, colrange.to_col)?;
+    fmt_colname(f, col_range.to_col)?;
     Ok(())
 }
 
 /// Appends the cell reference
-pub fn fmt_rowrange(f: &mut Formatter<'_>, rowrange: &RowRange) -> fmt::Result {
-    fmt_iri(f, rowrange.iri.as_ref())?;
-    if let Some(sheet) = rowrange.from_sheet.as_ref() {
+pub fn fmt_rowrange(f: &mut Formatter<'_>, row_range: &RowRange) -> fmt::Result {
+    fmt_iri(f, row_range.iri.as_ref())?;
+    if let Some(sheet) = row_range.from_sheet.as_ref() {
         fmt_sheet_name(
             f,
             sheet,
-            rowrange.iri.is_some() || rowrange.abs_from_row || rowrange.abs_to_row,
+            row_range.iri.is_some() || row_range.abs_from_row || row_range.abs_to_row,
         )?;
     }
     write!(f, ".")?;
-    if rowrange.abs_from_row {
+    if row_range.abs_from_row {
         write!(f, "$")?;
     }
-    fmt_rowname(f, rowrange.from_row)?;
+    fmt_rowname(f, row_range.from_row)?;
     write!(f, ":")?;
-    if let Some(to_sheet) = rowrange.to_sheet.as_ref() {
+    if let Some(to_sheet) = row_range.to_sheet.as_ref() {
         fmt_sheet_name(
             f,
             to_sheet,
-            rowrange.iri.is_some() || rowrange.abs_from_row || rowrange.abs_to_row,
+            row_range.iri.is_some() || row_range.abs_from_row || row_range.abs_to_row,
         )?;
     }
     write!(f, ".")?;
-    if rowrange.abs_to_row {
+    if row_range.abs_to_row {
         write!(f, "$")?;
     }
-    fmt_rowname(f, rowrange.to_row)?;
+    fmt_rowname(f, row_range.to_row)?;
     Ok(())
 }
 

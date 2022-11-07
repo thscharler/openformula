@@ -282,8 +282,8 @@ impl TryFrom<&str> for CellRange {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let trace = Tracer::new();
-        let (_, cellrange) = CellRangeExpr::parse_full(&trace, Span::new(value))?;
-        Ok(cellrange)
+        let (_, cell_range) = CellRangeExpr::parse_full(&trace, Span::new(value))?;
+        Ok(cell_range)
     }
 }
 
