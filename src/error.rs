@@ -20,7 +20,7 @@ pub enum OFError {
     ParseInt(std::num::ParseIntError),
     ParseBool(std::str::ParseBoolError),
     ParseFloat(std::num::ParseFloatError),
-    ParseExpr(ParseExprError),
+    ParseExpr(ParseOFError),
     Chrono(chrono::format::ParseError),
     Duration(time::OutOfRangeError),
     SystemTime(std::time::SystemTimeError),
@@ -89,8 +89,8 @@ impl From<std::num::ParseIntError> for OFError {
     }
 }
 
-impl From<ParseExprError> for OFError {
-    fn from(err: ParseExprError) -> OFError {
+impl From<ParseOFError> for OFError {
+    fn from(err: ParseOFError) -> OFError {
         OFError::ParseExpr(err)
     }
 }
@@ -126,7 +126,7 @@ where
 
 /// Error type for the parser.
 #[derive(Debug)]
-pub enum ParseExprError {
+pub enum ParseOFError {
     /// Some nom error occurred.
     ErrNomError(ErrSpan),
     /// Nom failed.
@@ -170,117 +170,117 @@ pub enum ParseExprError {
     ErrColname(ErrSpan, ParseColnameError),
 }
 
-impl ParseExprError {
+impl ParseOFError {
     /// NomError variant.
-    pub fn nom_error<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrNomError(span.into())
+    pub fn nom_error<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrNomError(span.into())
     }
 
     /// NomFailure variant.
-    pub fn nom_failure<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrNomFailure(span.into())
+    pub fn nom_failure<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrNomFailure(span.into())
     }
 
     /// Comp variant.
-    pub fn compare<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrCompare(span.into())
+    pub fn compare<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrCompare(span.into())
     }
 
     /// Add variant.
-    pub fn add<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrAdd(span.into())
+    pub fn add<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrAdd(span.into())
     }
 
     /// Mul variant.
-    pub fn mul<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrMul(span.into())
+    pub fn mul<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrMul(span.into())
     }
 
     /// Pow variant.
-    pub fn pow<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrPow(span.into())
+    pub fn pow<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrPow(span.into())
     }
 
     /// PrefixExpr variant.
-    pub fn postfix<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrPostfix(span.into())
+    pub fn postfix<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrPostfix(span.into())
     }
 
     /// PrefixExpr variant.
-    pub fn prefix<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrPrefix(span.into())
+    pub fn prefix<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrPrefix(span.into())
     }
 
     /// Elementary variant.
-    pub fn elementary<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrElementary(span.into())
+    pub fn elementary<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrElementary(span.into())
     }
 
     /// Number variant.
-    pub fn number<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrNumber(span.into())
+    pub fn number<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrNumber(span.into())
     }
 
     /// String variant.
-    pub fn string<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrString(span.into())
+    pub fn string<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrString(span.into())
     }
 
     /// FnCall variant.
-    pub fn fn_call<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrFnCall(span.into())
+    pub fn fn_call<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrFnCall(span.into())
     }
 
     /// Parenthesis variant.
-    pub fn parentheses<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrParenthesis(span.into())
+    pub fn parentheses<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrParenthesis(span.into())
     }
 
     /// CellRef variant.
-    pub fn cell_ref<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrCellRef(span.into())
+    pub fn cell_ref<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrCellRef(span.into())
     }
 
     /// CellRange variant.
-    pub fn cell_range<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrCellRange(span.into())
+    pub fn cell_range<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrCellRange(span.into())
     }
 
     /// ColRange variant.
-    pub fn col_range<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrColRange(span.into())
+    pub fn col_range<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrColRange(span.into())
     }
 
     /// RowRange variant.
-    pub fn row_range<'a>(span: Span<'a>) -> ParseExprError {
-        ParseExprError::ErrRowRange(span.into())
+    pub fn row_range<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrRowRange(span.into())
     }
 }
 
-impl Error for ParseExprError {}
+impl Error for ParseOFError {}
 
-impl Display for ParseExprError {
+impl Display for ParseOFError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseExprError::ErrNomError(s) => write!(f, "NomError {}", s),
-            ParseExprError::ErrNomFailure(s) => write!(f, "NomFailure {}", s),
-            ParseExprError::ErrNumber(s) => write!(f, "Number {}", s),
-            ParseExprError::ErrString(s) => write!(f, "String {}", s),
-            ParseExprError::ErrParenthesis(s) => write!(f, "Parenthesis {}", s),
-            ParseExprError::ErrFnCall(s) => write!(f, "FnCall {}", s),
-            ParseExprError::ErrElementary(s) => write!(f, "Elementary {}", s),
-            ParseExprError::ErrPostfix(s) => write!(f, "Postfix {}", s),
-            ParseExprError::ErrPrefix(s) => write!(f, "Prefix {}", s),
-            ParseExprError::ErrPow(s) => write!(f, "Pow {}", s),
-            ParseExprError::ErrMul(s) => write!(f, "Mul {}", s),
-            ParseExprError::ErrAdd(s) => write!(f, "Add {}", s),
-            ParseExprError::ErrCompare(s) => write!(f, "Comp {}", s),
-            ParseExprError::ErrCellRef(s) => write!(f, "CellRef {}", s),
-            ParseExprError::ErrCellRange(s) => write!(f, "CellRange {}", s),
-            ParseExprError::ErrColRange(s) => write!(f, "ColRange {}", s),
-            ParseExprError::ErrRowRange(s) => write!(f, "RowRange {}", s),
-            ParseExprError::ErrRowname(s, e) => write!(f, "ParseRowname {} {:?}", s, e),
-            ParseExprError::ErrColname(s, e) => write!(f, "ParseColname {} {:?}", s, e),
+            ParseOFError::ErrNomError(s) => write!(f, "NomError {}", s),
+            ParseOFError::ErrNomFailure(s) => write!(f, "NomFailure {}", s),
+            ParseOFError::ErrNumber(s) => write!(f, "Number {}", s),
+            ParseOFError::ErrString(s) => write!(f, "String {}", s),
+            ParseOFError::ErrParenthesis(s) => write!(f, "Parenthesis {}", s),
+            ParseOFError::ErrFnCall(s) => write!(f, "FnCall {}", s),
+            ParseOFError::ErrElementary(s) => write!(f, "Elementary {}", s),
+            ParseOFError::ErrPostfix(s) => write!(f, "Postfix {}", s),
+            ParseOFError::ErrPrefix(s) => write!(f, "Prefix {}", s),
+            ParseOFError::ErrPow(s) => write!(f, "Pow {}", s),
+            ParseOFError::ErrMul(s) => write!(f, "Mul {}", s),
+            ParseOFError::ErrAdd(s) => write!(f, "Add {}", s),
+            ParseOFError::ErrCompare(s) => write!(f, "Comp {}", s),
+            ParseOFError::ErrCellRef(s) => write!(f, "CellRef {}", s),
+            ParseOFError::ErrCellRange(s) => write!(f, "CellRange {}", s),
+            ParseOFError::ErrColRange(s) => write!(f, "ColRange {}", s),
+            ParseOFError::ErrRowRange(s) => write!(f, "RowRange {}", s),
+            ParseOFError::ErrRowname(s, e) => write!(f, "ParseRowname {} {:?}", s, e),
+            ParseOFError::ErrColname(s, e) => write!(f, "ParseColname {} {:?}", s, e),
         }
     }
 }

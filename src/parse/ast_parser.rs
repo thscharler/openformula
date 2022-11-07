@@ -7,9 +7,9 @@
 //!
 //! The look-ahead functions are called internally at certain branching points.
 
-use crate::ast::AstTree;
+use crate::ast::OFAst;
 use crate::conv::{try_bool_from_abs_flag, try_u32_from_colname, try_u32_from_rowname};
-use crate::error::ParseExprError;
+use crate::error::ParseOFError;
 use crate::parse::{ParseResult, Span, Tracer};
 use crate::{
     tokens, CRef, CellRange, CellRef, ColRange, HaveSpan, OFAddOp, OFCellRange, OFCellRef,
@@ -89,18 +89,15 @@ pub trait GeneralExpr<'s> {
     fn lah(i: Span<'s>) -> bool;
 
     /// Parses the expression.
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>>;
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>)
+        -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>>;
 }
 
 /// Conversion function for a binary expression into an AstTree
-type AstTreeFn<'a, T> =
-    fn(expr0: Box<AstTree<'a>>, op: T, expr1: Box<AstTree<'a>>) -> Box<AstTree<'a>>;
+type AstTreeFn<'a, T> = fn(expr0: Box<OFAst<'a>>, op: T, expr1: Box<OFAst<'a>>) -> Box<OFAst<'a>>;
 
 /// Conversion function into a ParseExprError
-type ParseExprErrorFn = for<'a> fn(span: Span<'a>) -> ParseExprError;
+type ParseExprErrorFn = for<'a> fn(span: Span<'a>) -> ParseOFError;
 
 /// Special trait for binary expressions.
 pub trait BinaryExpr<'s> {
@@ -126,7 +123,7 @@ pub trait BinaryExpr<'s> {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         match Self::operand(trace, i) {
@@ -159,7 +156,7 @@ pub trait BinaryExpr<'s> {
     fn operand<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         Self::Operand::parse(trace, i)
     }
 
@@ -171,16 +168,12 @@ pub trait BinaryExpr<'s> {
     ) -> ParseResult<'s, 't, Option<Self::Operator>>;
 
     /// Creates an AST node.
-    fn ast(
-        expr0: Box<AstTree<'s>>,
-        op: Self::Operator,
-        expr1: Box<AstTree<'s>>,
-    ) -> Box<AstTree<'s>> {
+    fn ast(expr0: Box<OFAst<'s>>, op: Self::Operator, expr1: Box<OFAst<'s>>) -> Box<OFAst<'s>> {
         Self::AST_NODE(expr0, op, expr1)
     }
 
     /// Creates an ParseExprError
-    fn ast_err(span: Span<'s>) -> ParseExprError {
+    fn ast_err(span: Span<'s>) -> ParseOFError {
         Self::AST_ERR(span)
     }
 }
@@ -201,7 +194,7 @@ where
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         <Self as BinaryExpr>::parse(trace, i)
     }
 }
@@ -222,7 +215,7 @@ impl<'s> GeneralExpr<'s> for Expr {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         match <CompareExpr as BinaryExpr>::parse(trace, i) {
@@ -238,8 +231,8 @@ struct CompareExpr;
 impl<'s> BinaryExpr<'s> for CompareExpr {
     type Operator = OFCompOp<'s>;
     type Operand = AddExpr;
-    const AST_NODE: AstTreeFn<'s, Self::Operator> = AstTree::compare;
-    const AST_ERR: ParseExprErrorFn = ParseExprError::compare;
+    const AST_NODE: AstTreeFn<'s, Self::Operator> = OFAst::compare;
+    const AST_ERR: ParseExprErrorFn = ParseOFError::compare;
 
     fn name() -> &'static str {
         "compare"
@@ -262,7 +255,7 @@ impl<'s> BinaryExpr<'s> for CompareExpr {
             },
 
             Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -273,8 +266,8 @@ struct AddExpr;
 impl<'s> BinaryExpr<'s> for AddExpr {
     type Operator = OFAddOp<'s>;
     type Operand = MulExpr;
-    const AST_NODE: AstTreeFn<'s, Self::Operator> = AstTree::add;
-    const AST_ERR: ParseExprErrorFn = ParseExprError::add;
+    const AST_NODE: AstTreeFn<'s, Self::Operator> = OFAst::add;
+    const AST_ERR: ParseExprErrorFn = ParseOFError::add;
 
     fn name() -> &'static str {
         "add"
@@ -293,8 +286,8 @@ impl<'s> BinaryExpr<'s> for AddExpr {
             },
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
 
-            Err(e @ nom::Err::Error(_)) => Err(trace.err(i, ParseExprError::nom_error, e)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
+            Err(e @ nom::Err::Error(_)) => Err(trace.err(i, ParseOFError::nom_error, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -306,8 +299,8 @@ impl<'s> BinaryExpr<'s> for MulExpr {
     type Operator = OFMulOp<'s>;
     type Operand = PowExpr;
 
-    const AST_NODE: AstTreeFn<'s, Self::Operator> = AstTree::mul;
-    const AST_ERR: ParseExprErrorFn = ParseExprError::mul;
+    const AST_NODE: AstTreeFn<'s, Self::Operator> = OFAst::mul;
+    const AST_ERR: ParseExprErrorFn = ParseOFError::mul;
 
     fn name() -> &'static str {
         "mul"
@@ -326,8 +319,8 @@ impl<'s> BinaryExpr<'s> for MulExpr {
             },
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
 
-            Err(e @ nom::Err::Error(_)) => Err(trace.err(i, ParseExprError::nom_error, e)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
+            Err(e @ nom::Err::Error(_)) => Err(trace.err(i, ParseOFError::nom_error, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -338,8 +331,8 @@ struct PowExpr;
 impl<'s> BinaryExpr<'s> for PowExpr {
     type Operator = OFPowOp<'s>;
     type Operand = PostFixExpr;
-    const AST_NODE: AstTreeFn<'s, Self::Operator> = AstTree::pow;
-    const AST_ERR: ParseExprErrorFn = ParseExprError::pow;
+    const AST_NODE: AstTreeFn<'s, Self::Operator> = OFAst::pow;
+    const AST_ERR: ParseExprErrorFn = ParseOFError::pow;
 
     fn name() -> &'static str {
         "pow"
@@ -357,8 +350,8 @@ impl<'s> BinaryExpr<'s> for PowExpr {
             },
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
 
-            Err(e @ nom::Err::Error(_)) => Err(trace.err(i, ParseExprError::nom_error, e)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
+            Err(e @ nom::Err::Error(_)) => Err(trace.err(i, ParseOFError::nom_error, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -380,8 +373,8 @@ impl PostFixExpr {
             },
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
 
-            Err(e @ nom::Err::Error(_)) => Err(trace.err(i, ParseExprError::nom_error, e)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
+            Err(e @ nom::Err::Error(_)) => Err(trace.err(i, ParseOFError::nom_error, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -399,7 +392,7 @@ impl<'s> GeneralExpr<'s> for PostFixExpr {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         match PrefixExpr::parse(trace, i) {
@@ -410,7 +403,7 @@ impl<'s> GeneralExpr<'s> for PostFixExpr {
                         Ok((rest1, Some(tok))) => {
                             trace.step("op", tok.span());
                             loop_rest = rest1;
-                            expr = AstTree::postfix(expr, tok);
+                            expr = OFAst::postfix(expr, tok);
                         }
                         Ok((i2, None)) => break Ok(trace.ok(expr.span(), i2, Some(expr))),
                         Err(e) => break Err(trace.parse_err(e)),
@@ -441,7 +434,7 @@ impl PrefixExpr {
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
 
             Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -459,7 +452,7 @@ impl<'s> GeneralExpr<'s> for PrefixExpr {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         match Self::operator(trace, i) {
@@ -467,10 +460,10 @@ impl<'s> GeneralExpr<'s> for PrefixExpr {
                 //
                 match PrefixExpr::parse(trace, eat_space(rest1)) {
                     Ok((rest2, Some(expr))) => {
-                        let ast = AstTree::prefix(tok, expr);
+                        let ast = OFAst::prefix(tok, expr);
                         Ok(trace.ok(ast.span(), rest2, Some(ast)))
                     }
-                    Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseExprError::prefix)),
+                    Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseOFError::prefix)),
                     Err(e) => Err(trace.parse_err(e)),
                 }
             }
@@ -507,7 +500,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         if NumberExpr::lah(i) {
@@ -570,19 +563,19 @@ impl<'s> GeneralExpr<'s> for NumberExpr {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         match opt(super::tokens::number)(i) {
             Ok((rest, Some(tok))) => match (*tok).parse::<f64>() {
                 Ok(val) => {
-                    let ast = AstTree::number(val, tok);
+                    let ast = OFAst::number(val, tok);
                     Ok(trace.ok(ast.span(), rest, Some(ast)))
                 }
                 Err(_) => unreachable!(),
             },
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
-            Err(e) => Err(trace.err(i, ParseExprError::number, e)),
+            Err(e) => Err(trace.err(i, ParseOFError::number, e)),
         }
     }
 }
@@ -603,16 +596,16 @@ impl<'s> GeneralExpr<'s> for StringExpr {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         match opt(super::tokens::string)(i) {
             Ok((rest, Some(tok))) => {
-                let ast = AstTree::string(tok.to_string(), tok);
+                let ast = OFAst::string(tok.to_string(), tok);
                 Ok(trace.ok(ast.span(), rest, Some(ast)))
             }
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
-            Err(e) => Err(trace.err(i, ParseExprError::string, e)),
+            Err(e) => Err(trace.err(i, ParseOFError::string, e)),
         }
     }
 }
@@ -654,7 +647,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         match CellRangeExpr::parse(trace, i) {
@@ -693,13 +686,13 @@ impl CellRefExpr {
 
         match CellRefExpr::parse(trace, i) {
             Ok((rest, Some(expr))) => {
-                check_eof(rest, ParseExprError::cell_ref)?;
-                let AstTree::NodeCellRef(OFCellRef(cell_ref, span)) = *expr else {
+                check_eof(rest, ParseOFError::cell_ref)?;
+                let OFAst::NodeCellRef(OFCellRef(cell_ref, span)) = *expr else {
                         panic!("Expected a CellRef");
                     };
                 Ok(trace.ok(span, rest, cell_ref))
             }
-            Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::cell_ref)),
+            Ok((rest, None)) => Err(trace.ast_err(rest, ParseOFError::cell_ref)),
             Err(e) => Err(trace.parse_err(e)),
         }
     }
@@ -718,7 +711,7 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         match consumed(tuple((
@@ -744,12 +737,12 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
                         col: trace.re_err(try_u32_from_colname(col.1))?,
                     },
                 };
-                let ast = AstTree::cell_ref(cell_ref, tok);
+                let ast = OFAst::cell_ref(cell_ref, tok);
                 Ok(trace.ok(tok, rest, Some(ast)))
             }
 
             Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -769,13 +762,13 @@ impl CellRangeExpr {
 
         match CellRangeExpr::parse(trace, i) {
             Ok((rest, Some(expr))) => {
-                check_eof(rest, ParseExprError::cell_range)?;
-                let AstTree::NodeCellRange(OFCellRange(cell_range, span)) = *expr else {
+                check_eof(rest, ParseOFError::cell_range)?;
+                let OFAst::NodeCellRange(OFCellRange(cell_range, span)) = *expr else {
                         panic!("Expected a CellRange");
                     };
                 Ok(trace.ok(span, rest, cell_range))
             }
-            Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::cell_range)),
+            Ok((rest, None)) => Err(trace.ast_err(rest, ParseOFError::cell_range)),
             Err(e) => Err(trace.parse_err(e)),
         }
     }
@@ -794,7 +787,7 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         match consumed(tuple((
@@ -852,13 +845,13 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
                         col: trace.re_err(try_u32_from_colname(col_1.1))?,
                     },
                 };
-                let ast = AstTree::cell_range(cell_range, tok);
+                let ast = OFAst::cell_range(cell_range, tok);
 
                 Ok(trace.ok(tok, rest, Some(ast)))
             }
 
             Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -875,13 +868,13 @@ impl ColRangeExpr {
 
         match Self::parse(trace, i) {
             Ok((rest, Some(expr))) => {
-                check_eof(rest, ParseExprError::col_range)?;
-                let AstTree::NodeColRange(OFColRange(col_range, span)) = *expr else {
+                check_eof(rest, ParseOFError::col_range)?;
+                let OFAst::NodeColRange(OFColRange(col_range, span)) = *expr else {
                         panic!("Expected a ColRange");
                     };
                 Ok(trace.ok(span, rest, col_range))
             }
-            Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::col_range)),
+            Ok((rest, None)) => Err(trace.ast_err(rest, ParseOFError::col_range)),
             Err(e) => Err(trace.parse_err(e)),
         }
     }
@@ -900,7 +893,7 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         match consumed(tuple((
@@ -934,13 +927,13 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
                     abs_to_col: try_bool_from_abs_flag(col_1.0),
                     to_col: trace.re_err(try_u32_from_colname(col_1.1))?,
                 };
-                let ast = AstTree::col_range(col_range, tok);
+                let ast = OFAst::col_range(col_range, tok);
 
                 Ok(trace.ok(tok, rest, Some(ast)))
             }
 
             Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -957,13 +950,13 @@ impl RowRangeExpr {
 
         match Self::parse(trace, i) {
             Ok((rest, Some(expr))) => {
-                check_eof(rest, ParseExprError::row_range)?;
-                let AstTree::NodeRowRange(OFRowRange(row_range, span)) = *expr else {
+                check_eof(rest, ParseOFError::row_range)?;
+                let OFAst::NodeRowRange(OFRowRange(row_range, span)) = *expr else {
                         panic!("Expected a RowRange");
                     };
                 Ok(trace.ok(span, rest, row_range))
             }
-            Ok((rest, None)) => Err(trace.ast_err(rest, ParseExprError::row_range)),
+            Ok((rest, None)) => Err(trace.ast_err(rest, ParseOFError::row_range)),
             Err(e) => Err(trace.parse_err(e)),
         }
     }
@@ -982,7 +975,7 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         match consumed(tuple((
@@ -1016,13 +1009,13 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
                     abs_to_row: try_bool_from_abs_flag(row_1.0),
                     to_row: trace.re_err(try_u32_from_rowname(row_1.1))?,
                 };
-                let ast = AstTree::row_range(row_range, tok);
+                let ast = OFAst::row_range(row_range, tok);
 
                 Ok(trace.ok(tok, rest, Some(ast)))
             }
 
             Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::nom_failure, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -1042,7 +1035,7 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         match super::tokens::parentheses_open(i) {
@@ -1054,18 +1047,18 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
                             Ok((rest3, par2)) => {
                                 let o = OFParOpen { span: par1 };
                                 let c = OFParClose { span: par2 };
-                                let ast = AstTree::parens(o, expr, c);
+                                let ast = OFAst::parens(o, expr, c);
                                 Ok(trace.ok(ast.span(), rest3, Some(ast)))
                             }
-                            Err(e) => Err(trace.err(rest1, ParseExprError::parentheses, e)),
+                            Err(e) => Err(trace.err(rest1, ParseOFError::parentheses, e)),
                         }
                     }
-                    Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseExprError::parentheses)),
+                    Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseOFError::parentheses)),
                     Err(e) => Err(trace.parse_err(e)),
                 }
             }
             Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseExprError::parentheses, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::parentheses, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -1098,13 +1091,13 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>> {
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
         let (rest1, fn_name) = match recognize(tokens::fn_name)(i) {
             Ok((rest, tok)) => (eat_space(rest), tok),
             Err(nom::Err::Error(_)) => return Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => return Err(trace.err(i, ParseExprError::fn_call, e)),
+            Err(e @ nom::Err::Failure(_)) => return Err(trace.err(i, ParseOFError::fn_call, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         };
 
@@ -1127,7 +1120,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         None
                     }
                     Err(e @ nom::Err::Failure(_)) => {
-                        return Err(trace.err(i, ParseExprError::fn_call, e));
+                        return Err(trace.err(i, ParseOFError::fn_call, e));
                     }
                     Err(nom::Err::Incomplete(_)) => unreachable!(),
                 };
@@ -1135,7 +1128,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                 // Collecting args.
                 if let Some(sep1) = sep1 {
                     trace.step2("expr+sep");
-                    let ast = AstTree::empty(sep1.take(0));
+                    let ast = OFAst::empty(sep1.take(0));
                     args.push(*ast);
                 }
 
@@ -1170,7 +1163,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         }
                         Err(nom::Err::Error(_)) => None,
                         Err(e @ nom::Err::Failure(_)) => {
-                            return Err(trace.err(i, ParseExprError::fn_call, e));
+                            return Err(trace.err(i, ParseOFError::fn_call, e));
                         }
                         Err(nom::Err::Incomplete(_)) => unreachable!(),
                     };
@@ -1195,7 +1188,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                     } else {
                         if let Some(sep1) = sep1 {
                             trace.step2("none+sep");
-                            let ast = AstTree::empty(sep1.take(0));
+                            let ast = OFAst::empty(sep1.take(0));
                             args.push(*ast);
                             Parens::Optional
                         } else {
@@ -1208,23 +1201,23 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                     // find a closing paren next
                     match tokens::parentheses_close(eat_space(loop_rest)) {
                         Ok((rest2, par2)) => {
-                            let ast = AstTree::fn_call(fn_name, par1, args, par2);
+                            let ast = OFAst::fn_call(fn_name, par1, args, par2);
                             return Ok(trace.ok(ast.span(), rest2, Some(ast)));
                         }
                         Err(e @ nom::Err::Error(_)) => {
                             if parens == Parens::Needed {
-                                return Err(trace.err(i, ParseExprError::fn_call, e));
+                                return Err(trace.err(i, ParseOFError::fn_call, e));
                             }
                         }
                         Err(e @ nom::Err::Failure(_)) => {
-                            return Err(trace.err(i, ParseExprError::fn_call, e))
+                            return Err(trace.err(i, ParseOFError::fn_call, e))
                         }
                         Err(nom::Err::Incomplete(_)) => unreachable!(),
                     }
                 }
             }
-            Err(e @ nom::Err::Error(_)) => return Err(trace.err(i, ParseExprError::fn_call, e)),
-            Err(e @ nom::Err::Failure(_)) => return Err(trace.err(i, ParseExprError::fn_call, e)),
+            Err(e @ nom::Err::Error(_)) => return Err(trace.err(i, ParseOFError::fn_call, e)),
+            Err(e @ nom::Err::Failure(_)) => return Err(trace.err(i, ParseOFError::fn_call, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         };
     }
@@ -1252,8 +1245,8 @@ pub fn eat_space<'a>(i: Span<'a>) -> Span<'a> {
 /// Fails if the string was not fully parsed.
 pub fn check_eof<'a>(
     i: Span<'a>,
-    err: fn(span: Span<'a>) -> ParseExprError,
-) -> Result<(), ParseExprError> {
+    err: fn(span: Span<'a>) -> ParseOFError,
+) -> Result<(), ParseOFError> {
     if (*i).is_empty() {
         Ok(())
     } else {
@@ -1270,14 +1263,11 @@ mod tests {
     use crate::error::OFError;
     use crate::parse::tracer::Tracer;
     use crate::parse::Span;
-    use crate::{AstTree, CellRef, OFCellRef, ParseResult};
+    use crate::{CellRef, OFAst, OFCellRef, ParseResult};
 
     fn run_test2<'s>(
         str: &'s str,
-        testfn: for<'t> fn(
-            &'t Tracer<'s>,
-            Span<'s>,
-        ) -> ParseResult<'s, 't, Option<Box<AstTree<'s>>>>,
+        testfn: for<'t> fn(&'t Tracer<'s>, Span<'s>) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>>,
     ) {
         let tracer = Tracer::new();
         {
@@ -1347,7 +1337,7 @@ mod tests {
                 CellRefExpr::parse(&trace, Span::new(".A21"))?,
                 (
                     Span::new_from_raw_offset(4, 1, "", ()),
-                    Some(Box::new(AstTree::NodeCellRef(OFCellRef(
+                    Some(Box::new(OFAst::NodeCellRef(OFCellRef(
                         CellRef::local(20, 0),
                         Span::new_from_raw_offset(1, 1, ".A21", ())
                     ))))

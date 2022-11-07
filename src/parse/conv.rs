@@ -2,7 +2,7 @@
 //! Low level conversions from a Span<'a> to ...
 //!
 
-use crate::error::ParseExprError;
+use crate::error::ParseOFError;
 use crate::parse::Span;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -49,14 +49,11 @@ pub enum ParseRownameError {
 
 /// Parse a row number to a row index.
 #[allow(clippy::explicit_auto_deref)]
-pub fn try_u32_from_rowname<'a>(i: Span<'a>) -> Result<u32, ParseExprError> {
+pub fn try_u32_from_rowname<'a>(i: Span<'a>) -> Result<u32, ParseOFError> {
     match u32::from_str(*i) {
         Ok(v) if v > 0 => Ok(v - 1),
-        Ok(_v) => Err(ParseExprError::ErrRowname(
-            i.into(),
-            ParseRownameError::Zero,
-        )),
-        Err(e) => Err(ParseExprError::ErrRowname(
+        Ok(_v) => Err(ParseOFError::ErrRowname(i.into(), ParseRownameError::Zero)),
+        Err(e) => Err(ParseOFError::ErrRowname(
             i.into(),
             match e.kind() {
                 IntErrorKind::Empty => ParseRownameError::Empty,
@@ -97,12 +94,12 @@ impl Display for ParseColnameError {
 impl Error for ParseColnameError {}
 
 /// Parse a col label to a column index.
-pub fn try_u32_from_colname<'a>(i: Span<'a>) -> Result<u32, ParseExprError> {
+pub fn try_u32_from_colname<'a>(i: Span<'a>) -> Result<u32, ParseOFError> {
     let mut col = 0u32;
 
     for c in (*i).chars() {
         if !('A'..='Z').contains(&c) {
-            return Err(ParseExprError::ErrColname(
+            return Err(ParseOFError::ErrColname(
                 i.into(),
                 ParseColnameError::InvalidChar(c),
             ));
@@ -120,7 +117,7 @@ pub fn try_u32_from_colname<'a>(i: Span<'a>) -> Result<u32, ParseExprError> {
     }
 
     if col == 0 {
-        Err(ParseExprError::ErrColname(
+        Err(ParseOFError::ErrColname(
             i.into(),
             ParseColnameError::InvalidColname(format!("{:?}", i)),
         ))

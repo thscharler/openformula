@@ -8,7 +8,7 @@ pub mod conv;
 pub mod tokens;
 pub mod tracer;
 
-use crate::error::ParseExprError;
+use crate::error::ParseOFError;
 use crate::parse::tracer::Tracer;
 use nom_locate::LocatedSpan;
 
@@ -16,4 +16,4 @@ use nom_locate::LocatedSpan;
 pub type Span<'a> = LocatedSpan<&'a str>;
 
 /// Result type.
-pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseExprError>;
+pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseOFError>;

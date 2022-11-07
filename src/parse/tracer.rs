@@ -4,7 +4,7 @@
 //! Doesn't copy any strings, just tracks all function calls in the parser.
 //!
 
-use crate::error::ParseExprError;
+use crate::error::ParseOFError;
 use crate::parse::Span;
 use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter};
@@ -107,8 +107,8 @@ impl<'span> Tracer<'span> {
     pub fn ast_err(
         &self,
         rest: Span<'span>,
-        err_fn: fn(span: Span<'span>) -> ParseExprError,
-    ) -> ParseExprError {
+        err_fn: fn(span: Span<'span>) -> ParseOFError,
+    ) -> ParseOFError {
         let err = err_fn(rest);
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks
@@ -122,7 +122,7 @@ impl<'span> Tracer<'span> {
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
-    pub fn parse_err(&self, err: ParseExprError) -> ParseExprError {
+    pub fn parse_err(&self, err: ParseOFError) -> ParseOFError {
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks
             .borrow_mut()
@@ -139,9 +139,9 @@ impl<'span> Tracer<'span> {
     pub fn err(
         &self,
         rest: Span<'span>,
-        err_fn: fn(span: Span<'span>) -> ParseExprError,
+        err_fn: fn(span: Span<'span>) -> ParseOFError,
         nom: nom::Err<nom::error::Error<Span<'span>>>,
-    ) -> ParseExprError {
+    ) -> ParseOFError {
         let err = err_fn(rest);
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks
@@ -152,9 +152,9 @@ impl<'span> Tracer<'span> {
 
     /// Notes some error and converts it to a ParseExprError.
     /// Used for ParseIntError et al.
-    pub fn re_err<V, E>(&self, err: Result<V, E>) -> Result<V, ParseExprError>
+    pub fn re_err<V, E>(&self, err: Result<V, E>) -> Result<V, ParseOFError>
     where
-        E: Into<ParseExprError>,
+        E: Into<ParseOFError>,
         E: Display,
     {
         match err {

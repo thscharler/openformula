@@ -12,7 +12,7 @@ use std::{mem, slice};
 
 /// Defines the AST tree.
 #[derive(PartialEq)]
-pub enum AstTree<'a> {
+pub enum OFAst<'a> {
     /// Empty expression
     NodeEmpty(OFEmpty<'a>),
 
@@ -49,40 +49,40 @@ pub enum AstTree<'a> {
     NodeFnCall(OFFnCall<'a>),
 }
 
-impl<'a> AstTree<'a> {
+impl<'a> OFAst<'a> {
     /// Calculates the span of the complete AST tree.
     pub fn span(&self) -> Span<'a> {
         match self {
-            AstTree::NodeEmpty(v) => v.1,
-            AstTree::NodeCompare(ex) => ex.span(),
-            AstTree::NodeAdd(ex) => ex.span(),
-            AstTree::NodeMul(ex) => ex.span(),
-            AstTree::NodePow(ex) => ex.span(),
-            AstTree::NodePrefix(ex) => ex.span(),
-            AstTree::NodePostfix(ex) => ex.span(),
-            AstTree::NodeNumber(v) => v.1,
-            AstTree::NodeString(v) => v.1,
-            AstTree::NodeCellRef(v) => v.1,
-            AstTree::NodeCellRange(v) => v.1,
-            AstTree::NodeColRange(v) => v.1,
-            AstTree::NodeRowRange(v) => v.1,
-            AstTree::NodeParens(ex) => ex.span(),
-            AstTree::NodeFnCall(ex) => ex.span(),
+            OFAst::NodeEmpty(v) => v.1,
+            OFAst::NodeCompare(ex) => ex.span(),
+            OFAst::NodeAdd(ex) => ex.span(),
+            OFAst::NodeMul(ex) => ex.span(),
+            OFAst::NodePow(ex) => ex.span(),
+            OFAst::NodePrefix(ex) => ex.span(),
+            OFAst::NodePostfix(ex) => ex.span(),
+            OFAst::NodeNumber(v) => v.1,
+            OFAst::NodeString(v) => v.1,
+            OFAst::NodeCellRef(v) => v.1,
+            OFAst::NodeCellRange(v) => v.1,
+            OFAst::NodeColRange(v) => v.1,
+            OFAst::NodeRowRange(v) => v.1,
+            OFAst::NodeParens(ex) => ex.span(),
+            OFAst::NodeFnCall(ex) => ex.span(),
         }
     }
 
     /// Empty variant
-    pub fn empty(s: Span<'a>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeEmpty(OFEmpty((), s)))
+    pub fn empty(s: Span<'a>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeEmpty(OFEmpty((), s)))
     }
 
     /// CompareExpr variant
     pub fn compare(
-        expr0: Box<AstTree<'a>>,
+        expr0: Box<OFAst<'a>>,
         op: OFCompOp<'a>,
-        expr1: Box<AstTree<'a>>,
-    ) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeCompare(OFCompare {
+        expr1: Box<OFAst<'a>>,
+    ) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeCompare(OFCompare {
             left: expr0,
             op,
             right: expr1,
@@ -90,12 +90,8 @@ impl<'a> AstTree<'a> {
     }
 
     /// AddExpr variant
-    pub fn add(
-        expr0: Box<AstTree<'a>>,
-        op: OFAddOp<'a>,
-        expr1: Box<AstTree<'a>>,
-    ) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeAdd(OFAdd {
+    pub fn add(expr0: Box<OFAst<'a>>, op: OFAddOp<'a>, expr1: Box<OFAst<'a>>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeAdd(OFAdd {
             left: expr0,
             op,
             right: expr1,
@@ -103,12 +99,8 @@ impl<'a> AstTree<'a> {
     }
 
     /// MulExpr variant
-    pub fn mul(
-        expr0: Box<AstTree<'a>>,
-        op: OFMulOp<'a>,
-        expr1: Box<AstTree<'a>>,
-    ) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeMul(OFMul {
+    pub fn mul(expr0: Box<OFAst<'a>>, op: OFMulOp<'a>, expr1: Box<OFAst<'a>>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeMul(OFMul {
             left: expr0,
             op,
             right: expr1,
@@ -116,12 +108,8 @@ impl<'a> AstTree<'a> {
     }
 
     /// PowExpr variant
-    pub fn pow(
-        expr0: Box<AstTree<'a>>,
-        op: OFPowOp<'a>,
-        expr1: Box<AstTree<'a>>,
-    ) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodePow(OFPow {
+    pub fn pow(expr0: Box<OFAst<'a>>, op: OFPowOp<'a>, expr1: Box<OFAst<'a>>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodePow(OFPow {
             left: expr0,
             op,
             right: expr1,
@@ -129,58 +117,58 @@ impl<'a> AstTree<'a> {
     }
 
     /// PostfixExpr variant
-    pub fn postfix(expr1: Box<AstTree<'a>>, op: OFPostfixOp<'a>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodePostfix(OFPostfix { expr: expr1, op }))
+    pub fn postfix(expr1: Box<OFAst<'a>>, op: OFPostfixOp<'a>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodePostfix(OFPostfix { expr: expr1, op }))
     }
 
     /// PrefixExpr variant
-    pub fn prefix(op: OFPrefixOp<'a>, expr1: Box<AstTree<'a>>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodePrefix(OFPrefix { op, expr: expr1 }))
+    pub fn prefix(op: OFPrefixOp<'a>, expr1: Box<OFAst<'a>>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodePrefix(OFPrefix { op, expr: expr1 }))
     }
 
     /// Number variant
-    pub fn number(v: f64, s: Span<'a>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeNumber(OFNumber(v, s)))
+    pub fn number(v: f64, s: Span<'a>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeNumber(OFNumber(v, s)))
     }
 
     /// String variant
-    pub fn string(v: String, s: Span<'a>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeString(OFString(v, s)))
+    pub fn string(v: String, s: Span<'a>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeString(OFString(v, s)))
     }
 
     /// CellRef variant
-    pub fn cell_ref(v: CellRef, s: Span<'a>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeCellRef(OFCellRef(v, s)))
+    pub fn cell_ref(v: CellRef, s: Span<'a>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeCellRef(OFCellRef(v, s)))
     }
 
     /// CellRange variant
-    pub fn cell_range(v: CellRange, s: Span<'a>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeCellRange(OFCellRange(v, s)))
+    pub fn cell_range(v: CellRange, s: Span<'a>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeCellRange(OFCellRange(v, s)))
     }
 
     /// ColRange variant
-    pub fn col_range(v: ColRange, s: Span<'a>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeColRange(OFColRange(v, s)))
+    pub fn col_range(v: ColRange, s: Span<'a>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeColRange(OFColRange(v, s)))
     }
 
     /// RowRange variant
-    pub fn row_range(v: RowRange, s: Span<'a>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeRowRange(OFRowRange(v, s)))
+    pub fn row_range(v: RowRange, s: Span<'a>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeRowRange(OFRowRange(v, s)))
     }
 
     /// Parens variant
-    pub fn parens(o: OFParOpen<'a>, expr: Box<AstTree<'a>>, c: OFParClose<'a>) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeParens(OFParens { o, expr, c }))
+    pub fn parens(o: OFParOpen<'a>, expr: Box<OFAst<'a>>, c: OFParClose<'a>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeParens(OFParens { o, expr, c }))
     }
 
     /// FnCall variant
     pub fn fn_call(
         name: Span<'a>,
         o: Span<'a>,
-        arg: Vec<AstTree<'a>>,
+        arg: Vec<OFAst<'a>>,
         c: Span<'a>,
-    ) -> Box<AstTree<'a>> {
-        Box::new(AstTree::NodeFnCall(OFFnCall {
+    ) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeFnCall(OFFnCall {
             name: OFFnName {
                 name: "".to_string(),
                 span: name,
@@ -192,7 +180,7 @@ impl<'a> AstTree<'a> {
     }
 }
 
-impl<'a> AstTree<'a> {
+impl<'a> OFAst<'a> {
     fn indent(&self, indent: u32, f: &mut Formatter<'_>) -> std::fmt::Result {
         for _ in 0..indent * 4 {
             write!(f, " ")?;
@@ -215,21 +203,21 @@ impl<'a> AstTree<'a> {
 
     fn debug_self(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let self_name = match self {
-            AstTree::NodeEmpty(_) => "empty",
-            AstTree::NodeCompare(_) => "compare",
-            AstTree::NodeAdd(_) => "add",
-            AstTree::NodeMul(_) => "mul",
-            AstTree::NodePow(_) => "pow",
-            AstTree::NodePrefix(_) => "prefix",
-            AstTree::NodePostfix(_) => "postfix",
-            AstTree::NodeNumber(_) => "number",
-            AstTree::NodeString(_) => "string",
-            AstTree::NodeCellRef(_) => "cell_ref",
-            AstTree::NodeCellRange(_) => "cell_range",
-            AstTree::NodeColRange(_) => "col_range",
-            AstTree::NodeRowRange(_) => "row_range",
-            AstTree::NodeParens(_) => "parens",
-            AstTree::NodeFnCall(_) => "function",
+            OFAst::NodeEmpty(_) => "empty",
+            OFAst::NodeCompare(_) => "compare",
+            OFAst::NodeAdd(_) => "add",
+            OFAst::NodeMul(_) => "mul",
+            OFAst::NodePow(_) => "pow",
+            OFAst::NodePrefix(_) => "prefix",
+            OFAst::NodePostfix(_) => "postfix",
+            OFAst::NodeNumber(_) => "number",
+            OFAst::NodeString(_) => "string",
+            OFAst::NodeCellRef(_) => "cell_ref",
+            OFAst::NodeCellRange(_) => "cell_range",
+            OFAst::NodeColRange(_) => "col_range",
+            OFAst::NodeRowRange(_) => "row_range",
+            OFAst::NodeParens(_) => "parens",
+            OFAst::NodeFnCall(_) => "function",
         };
 
         write!(f, "{}    ", self_name)?;
@@ -266,12 +254,12 @@ impl<'a> AstTree<'a> {
 
     fn debug(&self, indent: u32, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            AstTree::NodeEmpty(v) => {
+            OFAst::NodeEmpty(v) => {
                 write!(f, "()    ")?;
                 self.debug_span(v.1, f)?;
                 writeln!(f)?;
             }
-            AstTree::NodeCompare(ex) => {
+            OFAst::NodeCompare(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
@@ -281,7 +269,7 @@ impl<'a> AstTree<'a> {
                 self.indent(indent + 1, f)?;
                 ex.right.debug(indent + 1, f)?;
             }
-            AstTree::NodeAdd(ex) => {
+            OFAst::NodeAdd(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
@@ -291,7 +279,7 @@ impl<'a> AstTree<'a> {
                 self.indent(indent + 1, f)?;
                 ex.right.debug(indent + 1, f)?;
             }
-            AstTree::NodeMul(ex) => {
+            OFAst::NodeMul(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
@@ -301,7 +289,7 @@ impl<'a> AstTree<'a> {
                 self.indent(indent + 1, f)?;
                 ex.right.debug(indent + 1, f)?;
             }
-            AstTree::NodePow(ex) => {
+            OFAst::NodePow(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
@@ -311,7 +299,7 @@ impl<'a> AstTree<'a> {
                 self.indent(indent + 1, f)?;
                 ex.right.debug(indent + 1, f)?;
             }
-            AstTree::NodePrefix(ex) => {
+            OFAst::NodePrefix(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
@@ -319,7 +307,7 @@ impl<'a> AstTree<'a> {
                 self.indent(indent + 1, f)?;
                 ex.expr.debug(indent + 1, f)?;
             }
-            AstTree::NodePostfix(ex) => {
+            OFAst::NodePostfix(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
@@ -327,31 +315,31 @@ impl<'a> AstTree<'a> {
                 self.indent(indent + 1, f)?;
                 self.debug_op(ex.op.to_string().as_str(), ex.op.span(), f)?;
             }
-            AstTree::NodeNumber(v) => {
+            OFAst::NodeNumber(v) => {
                 self.debug_elem(&v.0, v.1, f)?;
             }
-            AstTree::NodeString(v) => {
+            OFAst::NodeString(v) => {
                 self.debug_elem(&v.0, v.1, f)?;
             }
-            AstTree::NodeCellRef(v) => {
+            OFAst::NodeCellRef(v) => {
                 self.debug_elem(&v.0, v.1, f)?;
             }
-            AstTree::NodeCellRange(v) => {
+            OFAst::NodeCellRange(v) => {
                 self.debug_elem(&v.0, v.1, f)?;
             }
-            AstTree::NodeColRange(v) => {
+            OFAst::NodeColRange(v) => {
                 self.debug_elem(&v.0, v.1, f)?;
             }
-            AstTree::NodeRowRange(v) => {
+            OFAst::NodeRowRange(v) => {
                 self.debug_elem(&v.0, v.1, f)?;
             }
-            AstTree::NodeParens(ex) => {
+            OFAst::NodeParens(ex) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
                 ex.expr.debug(indent + 1, f)?;
             }
-            AstTree::NodeFnCall(ff) => {
+            OFAst::NodeFnCall(ff) => {
                 self.debug_self(f)?;
 
                 self.arrow(indent + 1, f)?;
@@ -372,58 +360,58 @@ impl<'a> AstTree<'a> {
     }
 }
 
-impl<'a> Debug for AstTree<'a> {
+impl<'a> Debug for OFAst<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.debug(0, f)
     }
 }
 
-impl<'a> Display for AstTree<'a> {
+impl<'a> Display for OFAst<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            AstTree::NodeEmpty(v) => {
+            OFAst::NodeEmpty(v) => {
                 write!(f, "{}", v)
             }
-            AstTree::NodeCompare(ex) => {
+            OFAst::NodeCompare(ex) => {
                 write!(f, "{}", ex)
             }
-            AstTree::NodeAdd(ex) => {
+            OFAst::NodeAdd(ex) => {
                 write!(f, "{}", ex)
             }
-            AstTree::NodeMul(ex) => {
+            OFAst::NodeMul(ex) => {
                 write!(f, "{}", ex)
             }
-            AstTree::NodePow(ex) => {
+            OFAst::NodePow(ex) => {
                 write!(f, "{}", ex)
             }
-            AstTree::NodePostfix(ex) => {
+            OFAst::NodePostfix(ex) => {
                 write!(f, "{}", ex)
             }
-            AstTree::NodePrefix(ex) => {
+            OFAst::NodePrefix(ex) => {
                 write!(f, "{}", ex)
             }
-            AstTree::NodeNumber(v) => {
+            OFAst::NodeNumber(v) => {
                 write!(f, "{}", v)
             }
-            AstTree::NodeString(v) => {
+            OFAst::NodeString(v) => {
                 write!(f, "{}", v)
             }
-            AstTree::NodeCellRef(v) => {
+            OFAst::NodeCellRef(v) => {
                 write!(f, "{}", v)
             }
-            AstTree::NodeCellRange(v) => {
+            OFAst::NodeCellRange(v) => {
                 write!(f, "{}", v)
             }
-            AstTree::NodeRowRange(v) => {
+            OFAst::NodeRowRange(v) => {
                 write!(f, "{}", v)
             }
-            AstTree::NodeColRange(v) => {
+            OFAst::NodeColRange(v) => {
                 write!(f, "{}", v)
             }
-            AstTree::NodeParens(ex) => {
+            OFAst::NodeParens(ex) => {
                 write!(f, "{}", ex)
             }
-            AstTree::NodeFnCall(ex) => {
+            OFAst::NodeFnCall(ex) => {
                 write!(f, "{}", ex)
             }
         }
@@ -473,11 +461,11 @@ impl<'a> PartialEq for OFEmpty<'a> {
 #[derive(Debug, PartialEq)]
 pub struct OFCompare<'a> {
     /// Left operand
-    pub left: Box<AstTree<'a>>,
+    pub left: Box<OFAst<'a>>,
     /// Operator
     pub op: OFCompOp<'a>,
     /// Right operand
-    pub right: Box<AstTree<'a>>,
+    pub right: Box<OFAst<'a>>,
 }
 
 impl<'a> HaveSpan<'a> for OFCompare<'a> {
@@ -542,11 +530,11 @@ impl<'a> Display for OFCompOp<'a> {
 #[derive(Debug, PartialEq)]
 pub struct OFAdd<'a> {
     /// Left operand
-    pub left: Box<AstTree<'a>>,
+    pub left: Box<OFAst<'a>>,
     /// Operator
     pub op: OFAddOp<'a>,
     /// Right operand
-    pub right: Box<AstTree<'a>>,
+    pub right: Box<OFAst<'a>>,
 }
 
 impl<'a> HaveSpan<'a> for OFAdd<'a> {
@@ -595,11 +583,11 @@ impl<'a> Display for OFAddOp<'a> {
 #[derive(Debug, PartialEq)]
 pub struct OFMul<'a> {
     /// Left operand
-    pub left: Box<AstTree<'a>>,
+    pub left: Box<OFAst<'a>>,
     /// Operator
     pub op: OFMulOp<'a>,
     /// Right operand
-    pub right: Box<AstTree<'a>>,
+    pub right: Box<OFAst<'a>>,
 }
 
 impl<'a> HaveSpan<'a> for OFMul<'a> {
@@ -648,11 +636,11 @@ impl<'a> Display for OFMulOp<'a> {
 #[derive(Debug, PartialEq)]
 pub struct OFPow<'a> {
     /// Left operand
-    pub left: Box<AstTree<'a>>,
+    pub left: Box<OFAst<'a>>,
     /// Operator
     pub op: OFPowOp<'a>,
     /// Right operand
-    pub right: Box<AstTree<'a>>,
+    pub right: Box<OFAst<'a>>,
 }
 
 impl<'a> HaveSpan<'a> for OFPow<'a> {
@@ -696,7 +684,7 @@ impl<'a> Display for OFPowOp<'a> {
 #[derive(Debug, PartialEq)]
 pub struct OFPostfix<'a> {
     /// Expression
-    pub expr: Box<AstTree<'a>>,
+    pub expr: Box<OFAst<'a>>,
     /// Operator
     pub op: OFPostfixOp<'a>,
 }
@@ -744,7 +732,7 @@ pub struct OFPrefix<'a> {
     /// Operator
     pub op: OFPrefixOp<'a>,
     /// Expression
-    pub expr: Box<AstTree<'a>>,
+    pub expr: Box<OFAst<'a>>,
 }
 
 impl<'a> HaveSpan<'a> for OFPrefix<'a> {
@@ -902,7 +890,7 @@ pub struct OFParens<'a> {
     /// Open parentheses
     pub o: OFParOpen<'a>,
     /// Expression
-    pub expr: Box<AstTree<'a>>,
+    pub expr: Box<OFAst<'a>>,
     /// Closing parentheses
     pub c: OFParClose<'a>,
 }
@@ -955,7 +943,7 @@ pub struct OFFnCall<'a> {
     /// Open parentheses
     pub o: OFParOpen<'a>,
     /// Args
-    pub arg: Vec<AstTree<'a>>,
+    pub arg: Vec<OFAst<'a>>,
     /// Closing parentheses
     pub c: OFParClose<'a>,
 }
