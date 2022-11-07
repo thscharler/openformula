@@ -36,6 +36,7 @@
 #![allow(clippy::needless_lifetimes)]
 
 mod ast;
+mod dbg_ast;
 mod error;
 mod parse;
 mod refs;
