@@ -1,5 +1,9 @@
+use crate::refnew::error::CellRefError;
 use crate::refnew::refs_format::{
     fmt_cellrange, fmt_cellref, fmt_colrange, fmt_cref, fmt_rowrange, Fmt,
+};
+use crate::refnew::refs_parser::{
+    parse_cell_range, parse_cell_ref, parse_col_range, parse_row_range, Span,
 };
 use std::fmt;
 use std::fmt::{Display, Formatter, Write};
@@ -120,6 +124,26 @@ pub struct CellRef {
 }
 
 impl CellRef {
+    pub fn new_all(
+        iri: Option<String>,
+        table: Option<String>,
+        row_abs: bool,
+        row: u32,
+        col_abs: bool,
+        col: u32,
+    ) -> Self {
+        Self {
+            iri,
+            table,
+            cell: CRef {
+                row_abs,
+                row,
+                col_abs,
+                col,
+            },
+        }
+    }
+
     pub fn new() -> Self {
         Default::default()
     }
@@ -249,11 +273,15 @@ impl CellRef {
 }
 
 impl TryFrom<&str> for CellRef {
-    type Error = OdsError;
+    type Error = CellRefError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
-        let mut pos = 0usize;
-        parse_cellref(s, &mut pos)
+        let (rest, (cell_ref, _tok)) = parse_cell_ref(Span::new(s))?;
+        if rest.is_empty() {
+            Ok(cell_ref)
+        } else {
+            Err(CellRefError::cell_ref(rest))
+        }
     }
 }
 
@@ -287,6 +315,38 @@ pub struct CellRange {
 }
 
 impl CellRange {
+    pub fn new_all(
+        iri: Option<String>,
+        from_table: Option<String>,
+        from_row_abs: bool,
+        from_row: u32,
+        from_col_abs: bool,
+        from_col: u32,
+        to_table: Option<String>,
+        to_row_abs: bool,
+        to_row: u32,
+        to_col_abs: bool,
+        to_col: u32,
+    ) -> Self {
+        Self {
+            iri,
+            from_table,
+            from: CRef {
+                row_abs: from_row_abs,
+                row: from_row,
+                col_abs: from_col_abs,
+                col: from_col,
+            },
+            to_table,
+            to: CRef {
+                row_abs: to_row_abs,
+                row: to_row,
+                col_abs: to_col_abs,
+                col: to_col,
+            },
+        }
+    }
+
     /// Empty
     pub fn new() -> Self {
         Default::default()
@@ -525,7 +585,18 @@ impl CellRange {
     }
 }
 
-// impl TryFrom<&str> for CellRange
+impl TryFrom<&str> for CellRange {
+    type Error = CellRefError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        let (rest, (cell_range, _tok)) = parse_cell_range(Span::new(s))?;
+        if rest.is_empty() {
+            Ok(cell_range)
+        } else {
+            Err(CellRefError::cell_ref(rest))
+        }
+    }
+}
 
 impl Display for CellRange {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -553,6 +624,26 @@ pub struct ColRange {
 }
 
 impl ColRange {
+    pub fn new_all(
+        iri: Option<String>,
+        from_table: Option<String>,
+        from_col_abs: bool,
+        from_col: u32,
+        to_table: Option<String>,
+        to_col_abs: bool,
+        to_col: u32,
+    ) -> Self {
+        Self {
+            iri,
+            from_table,
+            from_col_abs,
+            from_col,
+            to_table,
+            to_col_abs,
+            to_col,
+        }
+    }
+
     /// New range.
     pub fn new(from_col: u32, to_col: u32) -> Self {
         assert!(from_col <= to_col);
@@ -660,7 +751,18 @@ impl ColRange {
     }
 }
 
-// TODO: impl TryFrom<&str> for ColRange
+impl TryFrom<&str> for ColRange {
+    type Error = CellRefError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        let (rest, (col_range, _tok)) = parse_col_range(Span::new(s))?;
+        if rest.is_empty() {
+            Ok(col_range)
+        } else {
+            Err(CellRefError::cell_ref(rest))
+        }
+    }
+}
 
 impl Display for ColRange {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -689,6 +791,26 @@ pub struct RowRange {
 }
 
 impl RowRange {
+    pub fn new_all(
+        iri: Option<String>,
+        from_table: Option<String>,
+        from_row_abs: bool,
+        from_row: u32,
+        to_table: Option<String>,
+        to_row_abs: bool,
+        to_row: u32,
+    ) -> Self {
+        Self {
+            iri,
+            from_table,
+            from_row_abs,
+            from_row,
+            to_table,
+            to_row_abs,
+            to_row,
+        }
+    }
+
     /// New range.
     pub fn new(from_row: u32, to_row: u32) -> Self {
         assert!(from_row <= to_row);
@@ -793,6 +915,19 @@ impl RowRange {
     /// The range is inclusive with the to_row.
     pub fn contains(&self, row: u32) -> bool {
         row >= self.from_row && row <= self.to_row
+    }
+}
+
+impl TryFrom<&str> for RowRange {
+    type Error = CellRefError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        let (rest, (row_range, _tok)) = parse_row_range(Span::new(s))?;
+        if rest.is_empty() {
+            Ok(row_range)
+        } else {
+            Err(CellRefError::cell_ref(rest))
+        }
     }
 }
 
