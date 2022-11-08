@@ -39,6 +39,7 @@ mod ast;
 mod dbg_ast;
 mod error;
 mod parse;
+mod refnew;
 mod refs;
 
 pub use ast::*;

@@ -731,9 +731,9 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
                         Some((_, v)) => Some((*v).to_string()),
                     },
                     cell: CRef {
-                        abs_row: try_bool_from_abs_flag(row.0),
+                        row_abs: try_bool_from_abs_flag(row.0),
                         row: trace.re_err(try_u32_from_rowname(row.1))?,
-                        abs_col: try_bool_from_abs_flag(col.0),
+                        col_abs: try_bool_from_abs_flag(col.0),
                         col: trace.re_err(try_u32_from_colname(col.1))?,
                     },
                 };
@@ -829,9 +829,9 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
                         Some((_, v)) => Some((*v).to_string()),
                     },
                     from: CRef {
-                        abs_row: try_bool_from_abs_flag(row_0.0),
+                        row_abs: try_bool_from_abs_flag(row_0.0),
                         row: trace.re_err(try_u32_from_rowname(row_0.1))?,
-                        abs_col: try_bool_from_abs_flag(col_0.0),
+                        col_abs: try_bool_from_abs_flag(col_0.0),
                         col: trace.re_err(try_u32_from_colname(col_0.1))?,
                     },
                     to_sheet: match sheet_name_1 {
@@ -839,9 +839,9 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
                         Some((_, v)) => Some((*v).to_string()),
                     },
                     to: CRef {
-                        abs_row: try_bool_from_abs_flag(row_1.0),
+                        row_abs: try_bool_from_abs_flag(row_1.0),
                         row: trace.re_err(try_u32_from_rowname(row_1.1))?,
-                        abs_col: try_bool_from_abs_flag(col_1.0),
+                        col_abs: try_bool_from_abs_flag(col_1.0),
                         col: trace.re_err(try_u32_from_colname(col_1.1))?,
                     },
                 };

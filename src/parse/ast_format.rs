@@ -42,7 +42,7 @@ pub fn fmt_cellref(f: &mut Formatter<'_>, cell_ref: &CellRef) -> fmt::Result {
         fmt_sheet_name(
             f,
             sheet,
-            cell_ref.iri.is_some() || cell_ref.cell.abs_col || cell_ref.cell.abs_row,
+            cell_ref.iri.is_some() || cell_ref.cell.col_abs || cell_ref.cell.row_abs,
         )?;
     }
     write!(f, ".")?;
@@ -58,10 +58,10 @@ pub fn fmt_cellrange(f: &mut Formatter<'_>, cell_range: &CellRange) -> fmt::Resu
             f,
             sheet,
             cell_range.iri.is_some()
-                || cell_range.from.abs_row
-                || cell_range.from.abs_col
-                || cell_range.to.abs_row
-                || cell_range.to.abs_col,
+                || cell_range.from.row_abs
+                || cell_range.from.col_abs
+                || cell_range.to.row_abs
+                || cell_range.to.col_abs,
         )?;
     }
     write!(f, ".")?;
@@ -72,10 +72,10 @@ pub fn fmt_cellrange(f: &mut Formatter<'_>, cell_range: &CellRange) -> fmt::Resu
             f,
             to_sheet,
             cell_range.iri.is_some()
-                || cell_range.from.abs_row
-                || cell_range.from.abs_col
-                || cell_range.to.abs_row
-                || cell_range.to.abs_col,
+                || cell_range.from.row_abs
+                || cell_range.from.col_abs
+                || cell_range.to.row_abs
+                || cell_range.to.col_abs,
         )?;
     }
     write!(f, ".")?;
@@ -173,12 +173,13 @@ pub fn fmt_sheet_name(f: &mut Formatter<'_>, sheet_name: &str, abs: bool) -> fmt
 }
 
 /// Appends a simple cell reference.
+// TODO: KILL
 pub fn fmt_cref(f: &mut Formatter<'_>, r: CRef) -> fmt::Result {
-    if r.abs_col {
+    if r.col_abs {
         write!(f, "$")?;
     }
     fmt_colname(f, r.col)?;
-    if r.abs_row {
+    if r.row_abs {
         write!(f, "$")?;
     }
     fmt_rowname(f, r.row)?;
@@ -186,6 +187,7 @@ pub fn fmt_cref(f: &mut Formatter<'_>, r: CRef) -> fmt::Result {
 }
 
 /// Appends the spreadsheet row name
+// TODO: KILL
 pub fn fmt_rowname(f: &mut Formatter<'_>, row: u32) -> fmt::Result {
     let mut i = 0;
     let mut dbuf = [0u8; 10];
@@ -211,6 +213,7 @@ pub fn fmt_rowname(f: &mut Formatter<'_>, row: u32) -> fmt::Result {
 }
 
 /// Appends the spreadsheet column name.
+// TODO: KILL
 pub fn fmt_colname(f: &mut Formatter<'_>, mut col: u32) -> fmt::Result {
     let mut i = 0;
     let mut dbuf = [0u8; 7];

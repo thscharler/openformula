@@ -15,27 +15,29 @@ use std::{fmt, mem};
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CRef {
     /// Row reference is fixed.
-    pub abs_row: bool,
+    pub row_abs: bool,
     /// Row.
     pub row: u32,
     /// Column reference is fixed.
-    pub abs_col: bool,
+    pub col_abs: bool,
     /// Column.
     pub col: u32,
 }
 
 impl CRef {
     /// New empty.
+    // TODO: KILL
     pub fn new() -> Self {
         Default::default()
     }
 
     /// New reference.
+    // TODO: KILL
     pub fn local(row: u32, col: u32) -> Self {
         Self {
-            abs_row: false,
+            row_abs: false,
             row,
-            abs_col: false,
+            col_abs: false,
             col,
         }
     }
@@ -61,20 +63,20 @@ impl CRef {
 
     /// Absolute.
     pub fn abs(mut self) -> Self {
-        self.abs_col = true;
-        self.abs_row = true;
+        self.col_abs = true;
+        self.row_abs = true;
         self
     }
 
     /// Absolute row.
     pub fn abs_row(mut self) -> Self {
-        self.abs_row = true;
+        self.row_abs = true;
         self
     }
 
     /// Absolute column.
     pub fn abs_col(mut self) -> Self {
-        self.abs_col = true;
+        self.col_abs = true;
         self
     }
 }
@@ -165,9 +167,9 @@ impl CellRef {
             iri: None,
             sheet: None,
             cell: CRef {
-                abs_row: false,
+                row_abs: false,
                 row,
-                abs_col: false,
+                col_abs: false,
                 col,
             },
         }
@@ -179,9 +181,9 @@ impl CellRef {
             iri: None,
             sheet: Some(sheet.into()),
             cell: CRef {
-                abs_row: false,
+                row_abs: false,
                 row,
-                abs_col: false,
+                col_abs: false,
                 col,
             },
         }
@@ -220,20 +222,20 @@ impl CellRef {
 
     /// Makes this an absolute CellRef.
     pub fn abs(mut self) -> Self {
-        self.cell.abs_row = true;
-        self.cell.abs_col = true;
+        self.cell.row_abs = true;
+        self.cell.col_abs = true;
         self
     }
 
     /// Makes this an CellRef with an absolute row.
     pub fn abs_row(mut self) -> Self {
-        self.cell.abs_row = true;
+        self.cell.row_abs = true;
         self
     }
 
     /// Makes this a CellRef with an absolute column.
     pub fn abs_col(mut self) -> Self {
-        self.cell.abs_col = true;
+        self.cell.col_abs = true;
         self
     }
 }
@@ -313,16 +315,16 @@ impl CellRange {
             iri: None,
             from_sheet: None,
             from: CRef {
-                abs_row: false,
+                row_abs: false,
                 row,
-                abs_col: false,
+                col_abs: false,
                 col,
             },
             to_sheet: None,
             to: CRef {
-                abs_row: false,
+                row_abs: false,
                 row: to_row,
-                abs_col: false,
+                col_abs: false,
                 col: to_col,
             },
         }
@@ -349,16 +351,16 @@ impl CellRange {
             iri: None,
             from_sheet: None,
             from: CRef {
-                abs_row: false,
+                row_abs: false,
                 row,
-                abs_col: false,
+                col_abs: false,
                 col,
             },
             to_sheet: None,
             to: CRef {
-                abs_row: false,
+                row_abs: false,
                 row: row + span.row_span - 1,
-                abs_col: false,
+                col_abs: false,
                 col: col + span.col_span - 1,
             },
         }
@@ -388,16 +390,16 @@ impl CellRange {
             iri: None,
             from_sheet: Some(sheet.into()),
             from: CRef {
-                abs_row: false,
+                row_abs: false,
                 row,
-                abs_col: false,
+                col_abs: false,
                 col,
             },
             to_sheet: None,
             to: CRef {
-                abs_row: false,
+                row_abs: false,
                 row: to_row,
-                abs_col: false,
+                col_abs: false,
                 col: to_col,
             },
         }
@@ -444,20 +446,20 @@ impl CellRange {
 
     /// Makes this an absolute CellRef.
     pub fn abs_from(mut self) -> Self {
-        self.from.abs_row = true;
-        self.from.abs_col = true;
+        self.from.row_abs = true;
+        self.from.col_abs = true;
         self
     }
 
     /// Makes this an CellRef with an absolute row.
     pub fn abs_from_row(mut self) -> Self {
-        self.from.abs_row = true;
+        self.from.row_abs = true;
         self
     }
 
     /// Makes this a CellRef with an absolute column.
     pub fn abs_from_col(mut self) -> Self {
-        self.from.abs_col = true;
+        self.from.col_abs = true;
         self
     }
 
@@ -492,20 +494,20 @@ impl CellRange {
 
     /// Makes this an absolute CellRef.
     pub fn abs_to(mut self) -> Self {
-        self.to.abs_row = true;
-        self.to.abs_col = true;
+        self.to.row_abs = true;
+        self.to.col_abs = true;
         self
     }
 
     /// Makes this an CellRef with an absolute row.
     pub fn abs_to_row(mut self) -> Self {
-        self.to.abs_row = true;
+        self.to.row_abs = true;
         self
     }
 
     /// Makes this a CellRef with an absolute column.
     pub fn abs_to_col(mut self) -> Self {
-        self.to.abs_col = true;
+        self.to.col_abs = true;
         self
     }
 
