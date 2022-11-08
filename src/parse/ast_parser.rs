@@ -703,11 +703,13 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
         "cell_ref"
     }
 
+    // TODO: MEND
     fn lah(i: Span<'s>) -> bool {
         tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
     }
 
     #[allow(clippy::manual_map)]
+    // TODO: MEND
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
@@ -779,10 +781,12 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
         "cell_range"
     }
 
+    // TODO: MEND
     fn lah(i: Span<'s>) -> bool {
         tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
     }
 
+    // TODO: MEND
     #[allow(clippy::manual_map)]
     fn parse<'t>(
         trace: &'t Tracer<'s>,
@@ -967,10 +971,12 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
         "row_range"
     }
 
+    // TODO: MEND
     fn lah(i: Span<'s>) -> bool {
         tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
     }
 
+    // TODO: MEND
     #[allow(clippy::manual_map)]
     fn parse<'t>(
         trace: &'t Tracer<'s>,

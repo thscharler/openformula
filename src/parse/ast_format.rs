@@ -11,6 +11,7 @@ use std::fmt::{Debug, Display, Formatter};
 /// use openformula::ast_format::{Fmt, fmt_colname};
 /// format!("{}", Fmt(|f| fmt_colname(f, 32)));
 /// ```
+// TODO: KILL
 pub struct Fmt<F>(pub F)
 where
     for<'a> F: Fn(&mut Formatter<'a>) -> fmt::Result;
@@ -20,6 +21,7 @@ where
     for<'a> F: Fn(&mut Formatter<'a>) -> fmt::Result,
 {
     /// Calls f with the given Formatter.
+    // TODO: KILL
     fn fmt<'a>(&self, f: &mut Formatter<'a>) -> fmt::Result {
         (self.0)(f)
     }
@@ -29,6 +31,7 @@ impl<F> Display for Fmt<F>
 where
     for<'a> F: Fn(&mut Formatter<'a>) -> fmt::Result,
 {
+    // TODO: KILL
     /// Calls f with the given Formatter.
     fn fmt<'a>(&self, f: &mut Formatter<'a>) -> fmt::Result {
         (self.0)(f)
@@ -36,6 +39,7 @@ where
 }
 
 /// Appends the cell reference
+// TODO: KILL
 pub fn fmt_cellref(f: &mut Formatter<'_>, cell_ref: &CellRef) -> fmt::Result {
     fmt_iri(f, cell_ref.iri.as_ref())?;
     if let Some(sheet) = cell_ref.table.as_ref() {
@@ -51,6 +55,7 @@ pub fn fmt_cellref(f: &mut Formatter<'_>, cell_ref: &CellRef) -> fmt::Result {
 }
 
 /// Appends the range reference
+// TODO: KILL
 pub fn fmt_cellrange(f: &mut Formatter<'_>, cell_range: &CellRange) -> fmt::Result {
     fmt_iri(f, cell_range.iri.as_ref())?;
     if let Some(sheet) = cell_range.from_sheet.as_ref() {
@@ -84,6 +89,7 @@ pub fn fmt_cellrange(f: &mut Formatter<'_>, cell_range: &CellRange) -> fmt::Resu
 }
 
 /// Appends the cell reference
+// TODO: KILL
 pub fn fmt_colrange(f: &mut Formatter<'_>, col_range: &ColRange) -> fmt::Result {
     fmt_iri(f, col_range.iri.as_ref())?;
     if let Some(sheet) = col_range.from_sheet.as_ref() {
@@ -115,6 +121,7 @@ pub fn fmt_colrange(f: &mut Formatter<'_>, col_range: &ColRange) -> fmt::Result 
 }
 
 /// Appends the cell reference
+// TODO: KILL
 pub fn fmt_rowrange(f: &mut Formatter<'_>, row_range: &RowRange) -> fmt::Result {
     fmt_iri(f, row_range.iri.as_ref())?;
     if let Some(sheet) = row_range.from_sheet.as_ref() {
@@ -146,6 +153,7 @@ pub fn fmt_rowrange(f: &mut Formatter<'_>, row_range: &RowRange) -> fmt::Result 
 }
 
 /// Appends the IRI
+// TODO: KILL
 pub fn fmt_iri(f: &mut Formatter<'_>, iri: Option<&String>) -> fmt::Result {
     if let Some(iri) = iri {
         write!(f, "'")?;
@@ -158,6 +166,7 @@ pub fn fmt_iri(f: &mut Formatter<'_>, iri: Option<&String>) -> fmt::Result {
 }
 
 /// Appends the table-name
+// TODO: KILL
 pub fn fmt_sheet_name(f: &mut Formatter<'_>, sheet_name: &str, abs: bool) -> fmt::Result {
     if abs {
         write!(f, "$")?;

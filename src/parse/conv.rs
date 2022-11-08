@@ -10,6 +10,7 @@ use std::num::IntErrorKind;
 use std::str::FromStr;
 
 /// Parse a bool if a '$' exists.
+// TODO: KILL
 pub fn try_bool_from_abs_flag<'a>(i: Option<Span<'a>>) -> bool {
     if let Some(i) = i {
         *i == "$"
@@ -49,6 +50,7 @@ pub enum ParseRownameError {
 
 /// Parse a row number to a row index.
 #[allow(clippy::explicit_auto_deref)]
+// TODO: KILL
 pub fn try_u32_from_rowname<'a>(i: Span<'a>) -> Result<u32, ParseOFError> {
     match u32::from_str(*i) {
         Ok(v) if v > 0 => Ok(v - 1),
@@ -78,6 +80,7 @@ pub enum ParseColnameError {
 }
 
 impl Display for ParseColnameError {
+    // TODO: KILL
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ParseColnameError::InvalidChar(e) => {
@@ -94,6 +97,7 @@ impl Display for ParseColnameError {
 impl Error for ParseColnameError {}
 
 /// Parse a col label to a column index.
+// TODO: KILL
 pub fn try_u32_from_colname<'a>(i: Span<'a>) -> Result<u32, ParseOFError> {
     let mut col = 0u32;
 
