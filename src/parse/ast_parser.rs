@@ -726,7 +726,7 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
                 //
                 let cell_ref = CellRef {
                     iri: iri.map(|v| (*v).to_string()),
-                    sheet: match sheet_name {
+                    table: match sheet_name {
                         None => None,
                         Some((_, v)) => Some((*v).to_string()),
                     },

@@ -82,6 +82,7 @@ impl CRef {
 }
 
 impl Display for CRef {
+    // TODO: KILL
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         fmt_cref(f, *self)
     }
@@ -134,7 +135,7 @@ pub struct CellRef {
     /// External reference.
     pub iri: Option<String>,
     /// sheet reference.
-    pub sheet: Option<String>,
+    pub table: Option<String>,
     /// Cell reference.
     pub cell: CRef,
 }
@@ -165,7 +166,7 @@ impl CellRef {
     pub fn local(row: u32, col: u32) -> Self {
         Self {
             iri: None,
-            sheet: None,
+            table: None,
             cell: CRef {
                 row_abs: false,
                 row,
@@ -179,7 +180,7 @@ impl CellRef {
     pub fn sheet<S: Into<String>>(sheet: S, row: u32, col: u32) -> Self {
         Self {
             iri: None,
-            sheet: Some(sheet.into()),
+            table: Some(sheet.into()),
             cell: CRef {
                 row_abs: false,
                 row,
@@ -197,7 +198,7 @@ impl CellRef {
 
     /// Sheet.
     pub fn sheet_<S: Into<String>>(mut self, sheet: S) -> Self {
-        self.sheet = Some(sheet.into());
+        self.table = Some(sheet.into());
         self
     }
 

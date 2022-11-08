@@ -38,7 +38,7 @@ where
 /// Appends the cell reference
 pub fn fmt_cellref(f: &mut Formatter<'_>, cell_ref: &CellRef) -> fmt::Result {
     fmt_iri(f, cell_ref.iri.as_ref())?;
-    if let Some(sheet) = cell_ref.sheet.as_ref() {
+    if let Some(sheet) = cell_ref.table.as_ref() {
         fmt_sheet_name(
             f,
             sheet,
