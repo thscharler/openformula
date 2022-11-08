@@ -41,6 +41,20 @@ pub fn fmt_cellref(f: &mut Formatter<'_>, cell_ref: &CellRef) -> fmt::Result {
     Ok(())
 }
 
+/// Returns a list of ranges as string.
+pub fn fmt_cellranges(f: &mut Formatter<'_>, values: &[CellRange]) -> fmt::Result {
+    let mut first = true;
+    for cell_range in values {
+        if first {
+            first = false;
+        } else {
+            write!(f, " ")?;
+        }
+        fmt_cellrange(f, cell_range)?;
+    }
+    Ok(())
+}
+
 /// Appends the range reference
 pub fn fmt_cellrange(f: &mut Formatter<'_>, cell_range: &CellRange) -> fmt::Result {
     fmt_iri(f, cell_range.iri())?;

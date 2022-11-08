@@ -49,6 +49,11 @@ pub fn colon<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(":")(i)
 }
 
+/// Parse one space
+pub fn space<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    tag(" ")(i)
+}
+
 // Row ::= '$'? [1-9] [0-9]*
 /// Row label
 pub fn row<'a>(i: Span<'a>) -> IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {

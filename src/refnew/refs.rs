@@ -1,9 +1,9 @@
 use crate::refnew::error::CellRefError;
 use crate::refnew::refs_format::{
-    fmt_cellrange, fmt_cellref, fmt_colrange, fmt_cref, fmt_rowrange, Fmt,
+    fmt_cellrange, fmt_cellranges, fmt_cellref, fmt_colrange, fmt_cref, fmt_rowrange, Fmt,
 };
 use crate::refnew::refs_parser::{
-    parse_cell_range, parse_cell_ref, parse_col_range, parse_row_range, Span,
+    parse_cell_range, parse_cell_range_list, parse_cell_ref, parse_col_range, parse_row_range, Span,
 };
 use std::fmt;
 use std::fmt::{Display, Formatter, Write};
@@ -936,3 +936,315 @@ impl Display for RowRange {
         write!(f, "{}", Fmt(|f| fmt_rowrange(f, self)))
     }
 }
+
+/// Parse a cell reference.
+#[deprecated]
+pub fn parse_cellref(buf: &str, pos: &mut usize) -> Result<CellRef, CellRefError> {
+    let (_rest, (cell_ref, _tok)) = parse_cell_ref(Span::new(&buf[*pos..]))?;
+    Ok(cell_ref)
+}
+
+/// Parse a list of range refs
+#[deprecated]
+pub fn parse_cellranges(
+    buf: &str,
+    pos: &mut usize,
+) -> Result<Option<Vec<CellRange>>, CellRefError> {
+    let (_rest, vec) = parse_cell_range_list(Span::new(&buf[*pos..]))?;
+    Ok(vec)
+}
+
+/// Returns a list of ranges as string.
+#[deprecated]
+pub fn cellranges_string(vec: &[CellRange]) -> String {
+    let mut buf = String::new();
+    let _ = write!(buf, "{}", Fmt(|f| fmt_cellranges(f, vec)));
+    buf
+}
+
+// #[cfg(test)]
+// mod tests {
+//     #[test]
+//     fn test_names() {
+//         let mut buf = String::new();
+//
+//         push_colname(&mut buf, 0);
+//         assert_eq!(buf, "A");
+//         buf.clear();
+//
+//         push_colname(&mut buf, 1);
+//         assert_eq!(buf, "B");
+//         buf.clear();
+//
+//         push_colname(&mut buf, 26);
+//         assert_eq!(buf, "AA");
+//         buf.clear();
+//
+//         push_colname(&mut buf, 675);
+//         assert_eq!(buf, "YZ");
+//         buf.clear();
+//
+//         push_colname(&mut buf, 676);
+//         assert_eq!(buf, "ZA");
+//         buf.clear();
+//
+//         push_colname(&mut buf, u32::MAX - 1);
+//         assert_eq!(buf, "MWLQKWU");
+//         buf.clear();
+//
+//         push_colname(&mut buf, u32::MAX);
+//         assert_eq!(buf, "MWLQKWV");
+//         buf.clear();
+//
+//         push_rowname(&mut buf, 0);
+//         assert_eq!(buf, "1");
+//         buf.clear();
+//
+//         push_rowname(&mut buf, 927);
+//         assert_eq!(buf, "928");
+//         buf.clear();
+//
+//         push_rowname(&mut buf, u32::MAX - 1);
+//         assert_eq!(buf, "4294967295");
+//         buf.clear();
+//
+//         push_rowname(&mut buf, u32::MAX);
+//         assert_eq!(buf, "4294967296");
+//         buf.clear();
+//
+//         push_tablename(&mut buf, Some(&"fable".to_string()), false);
+//         assert_eq!(buf, "fable.");
+//         buf.clear();
+//
+//         push_tablename(&mut buf, Some(&"fa le".to_string()), false);
+//         assert_eq!(buf, "'fa le'.");
+//         buf.clear();
+//
+//         push_tablename(&mut buf, Some(&"fa'le".to_string()), false);
+//         assert_eq!(buf, "'fa''le'.");
+//         buf.clear();
+//
+//         push_tablename(&mut buf, Some(&"fa.le".to_string()), false);
+//         assert_eq!(buf, "'fa.le'.");
+//         buf.clear();
+//
+//         push_tablename(&mut buf, None, false);
+//         assert_eq!(buf, ".");
+//         buf.clear();
+//
+//         push_cellref(&mut buf, &CellRef::local(5, 6));
+//         assert_eq!(buf, ".G6");
+//         buf.clear();
+//
+//         push_cellrange(&mut buf, &CellRange::local(5, 6, 7, 8));
+//         assert_eq!(buf, ".G6:.I8");
+//         buf.clear();
+//
+//         push_cellrange(&mut buf, &CellRange::remote("blame", 5, 6, 7, 8));
+//         assert_eq!(buf, "blame.G6:.I8");
+//         buf.clear();
+//     }
+//
+//     use crate::refnew::refs_parser::Span;
+//     use crate::refnew::tokens::{col, row};
+//
+//     #[test]
+//     fn test_parse() -> Result<(), OdsError> {
+//         fn rowname(row: u32) -> String {
+//             let mut row_str = String::new();
+//             push_rowname(&mut row_str, row);
+//             row_str
+//         }
+//         fn colname(col: u32) -> String {
+//             let mut col_str = String::new();
+//             push_colname(&mut col_str, col);
+//             col_str
+//         }
+//
+//         for i in 0..704 {
+//             let cn = colname(i);
+//             let (_rest, (ccc, _tok)) = col(Span::new(cn.as_str()));
+//             assert_eq!(Some(i), ccc);
+//             assert_eq!(cn.len(), pos);
+//         }
+//
+//         for i in 0..101 {
+//             let mut pos = 0usize;
+//             let cn = rowname(i);
+//             let (_rest, (cr, _tok)) = row(Span::new(cn.as_str()));
+//             assert_eq!(Some(i), cr);
+//             assert_eq!(cn.len(), pos);
+//         }
+//
+//         let mut pos = 0usize;
+//         let cn = "A32";
+//         let cc = parse_colname(cn, &mut pos);
+//         assert_eq!(Some(0), cc);
+//         assert_eq!(1, pos);
+//
+//         let mut pos = 0usize;
+//         let cn = "AAAA32 ";
+//         let cc = parse_colname(cn, &mut pos);
+//         assert_eq!(Some(18278), cc);
+//         assert_eq!(4, pos);
+//         let cr = parse_rowname(cn, &mut pos);
+//         assert_eq!(Some(31), cr);
+//         assert_eq!(6, pos);
+//
+//         let mut pos = 0usize;
+//         let cn = ".A3";
+//         let cr = parse_cellref(cn, &mut pos)?;
+//         assert_eq!(cr, CellRef::local(2, 0));
+//
+//         let mut pos = 0usize;
+//         let cn = ".$A3";
+//         let cr = parse_cellref(cn, &mut pos)?;
+//         assert_eq!(
+//             cr,
+//             CellRef {
+//                 table: None,
+//                 row: 2,
+//                 row_abs: false,
+//                 col: 0,
+//                 col_abs: true,
+//             }
+//         );
+//
+//         let mut pos = 0usize;
+//         let cn = ".A$3";
+//         let cr = parse_cellref(cn, &mut pos)?;
+//         assert_eq!(
+//             cr,
+//             CellRef {
+//                 table: None,
+//                 row: 2,
+//                 row_abs: true,
+//                 col: 0,
+//                 col_abs: false,
+//             }
+//         );
+//
+//         let mut pos = 0usize;
+//         let cn = "fufufu.A3";
+//         let cr = parse_cellref(cn, &mut pos)?;
+//         assert_eq!(
+//             cr,
+//             CellRef {
+//                 table: Some("fufufu".to_string()),
+//                 row: 2,
+//                 row_abs: false,
+//                 col: 0,
+//                 col_abs: false,
+//             }
+//         );
+//
+//         let mut pos = 0usize;
+//         let cn = "'lak.moi'.A3";
+//         let cr = parse_cellref(cn, &mut pos)?;
+//         assert_eq!(
+//             cr,
+//             CellRef {
+//                 table: Some("lak.moi".to_string()),
+//                 row: 2,
+//                 row_abs: false,
+//                 col: 0,
+//                 col_abs: false,
+//             }
+//         );
+//
+//         let mut pos = 0usize;
+//         let cn = "'lak''moi'.A3";
+//         let cr = parse_cellref(cn, &mut pos)?;
+//         assert_eq!(
+//             cr,
+//             CellRef {
+//                 table: Some("lak'moi".to_string()),
+//                 row: 2,
+//                 row_abs: false,
+//                 col: 0,
+//                 col_abs: false,
+//             }
+//         );
+//
+//         let mut pos = 4usize;
+//         let cn = "****.B4";
+//         let cr = parse_cellref(cn, &mut pos)?;
+//         assert_eq!(
+//             cr,
+//             CellRef {
+//                 table: None,
+//                 row: 3,
+//                 row_abs: false,
+//                 col: 1,
+//                 col_abs: false,
+//             }
+//         );
+//
+//         let mut pos = 0usize;
+//         let cn = ".A3:.F9";
+//         let cr = parse_cellrange(cn, &mut pos)?;
+//         assert_eq!(
+//             cr,
+//             CellRange {
+//                 table: None,
+//                 row_abs: false,
+//                 row: 2,
+//                 col_abs: false,
+//                 col: 0,
+//                 to_row_abs: false,
+//                 to_row: 8,
+//                 to_col_abs: false,
+//                 to_col: 5,
+//             }
+//         );
+//
+//         let mut pos = 0usize;
+//         let cn = "table.A3:.F9";
+//         let cr = parse_cellrange(cn, &mut pos)?;
+//         assert_eq!(
+//             cr,
+//             CellRange {
+//                 table: Some("table".to_string()),
+//                 row_abs: false,
+//                 row: 2,
+//                 col_abs: false,
+//                 col: 0,
+//                 to_row_abs: false,
+//                 to_row: 8,
+//                 to_col_abs: false,
+//                 to_col: 5,
+//             }
+//         );
+//
+//         let mut pos = 0usize;
+//         let cn = "table.A3:.F9";
+//         let cr = parse_cellrange(cn, &mut pos)?;
+//         assert_eq!(
+//             cr,
+//             CellRange {
+//                 table: Some("table".to_string()),
+//                 row_abs: false,
+//                 row: 2,
+//                 col_abs: false,
+//                 col: 0,
+//                 to_row_abs: false,
+//                 to_row: 8,
+//                 to_col_abs: false,
+//                 to_col: 5,
+//             }
+//         );
+//
+//         let mut pos = 0usize;
+//         let cn = "table.A3:.F9 table.A4:.F10";
+//         let cr = parse_cellranges(cn, &mut pos)?;
+//         assert_eq!(
+//             cr,
+//             Some(vec![
+//                 CellRange::remote("table", 2, 0, 8, 5),
+//                 CellRange::remote("table", 3, 0, 9, 5),
+//             ])
+//         );
+//
+//         Ok(())
+//     }
+// }

@@ -1,6 +1,7 @@
 use crate::refnew::error::CellRefError;
 use crate::refnew::refs::{CellRange, CellRef, ColRange, RowRange};
 use crate::refnew::tokens;
+use crate::refnew::tokens::space;
 use nom::combinator::{consumed, opt};
 use nom::sequence::tuple;
 use nom_locate::LocatedSpan;
@@ -55,7 +56,34 @@ pub fn lah_cell_range<'s>(i: Span<'s>) -> bool {
     tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
 }
 
-/// Parses a cell range.
+/// Parses a space separated list of cell-ranges.
+pub fn parse_cell_range_list<'s>(i: Span<'s>) -> ParseResult<'s, Option<Vec<CellRange>>> {
+    let mut vec = Vec::new();
+
+    let rest = loop {
+        let (rest, (cell_range, _tok)) = parse_cell_range(i)?;
+        vec.push(cell_range);
+
+        if rest.is_empty() {
+            break rest;
+        }
+
+        match space(rest) {
+            Ok(_) => { /* ok, skip */ }
+            Err(e @ nom::Err::Error(_)) => return Err(CellRefError::nom_error(i, e)),
+            Err(e @ nom::Err::Failure(_)) => return Err(CellRefError::nom_failure(i, e)),
+            Err(nom::Err::Incomplete(_)) => unreachable!(),
+        }
+    };
+
+    if vec.is_empty() {
+        Ok((rest, None))
+    } else {
+        Ok((rest, Some(vec)))
+    }
+}
+
+/// Parses a cell-range.
 pub fn parse_cell_range<'s>(i: Span<'s>) -> ParseResult<'s, (CellRange, Span<'s>)> {
     match consumed(tuple((
         opt(tokens::iri),
