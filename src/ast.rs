@@ -2,10 +2,10 @@
 //! AST for OpenFormula
 //!
 
+use crate::dbg_ast;
 use crate::parse::Span;
-use crate::refs::CellRef;
-use crate::{dbg_ast, CellRange, ColRange, RowRange};
 use nom::Offset;
+use spreadsheet_ods_cellref::{CellRange, CellRef, ColRange, RowRange};
 use std::fmt::{Debug, Display, Formatter};
 use std::str::from_utf8_unchecked;
 use std::{fmt, mem, slice};

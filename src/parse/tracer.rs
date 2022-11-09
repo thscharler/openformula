@@ -6,6 +6,7 @@
 
 use crate::error::ParseOFError;
 use crate::parse::Span;
+use spreadsheet_ods_cellref::CellRefError;
 use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter};
 
@@ -131,18 +132,58 @@ impl<'span> Tracer<'span> {
         err
     }
 
+    /// Erring in a parser. Handles CellRefError.
+    ///
+    /// Panic
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn ref_err(&self, err: CellRefError) -> ParseOFError {
+        match err {
+            CellRefError::ErrNomError(span, e) => ParseOFError::ErrNomError(span.into(), e),
+            CellRefError::ErrNomFailure(span, e) => ParseOFError::ErrNomFailure(span.into(), e),
+            CellRefError::ErrCellRef(span) => ParseOFError::ErrCellRef(span.into()),
+            CellRefError::ErrCellRange(span) => ParseOFError::ErrCellRange(span.into()),
+            CellRefError::ErrColRange(span) => ParseOFError::ErrColRange(span.into()),
+            CellRefError::ErrRowRange(span) => ParseOFError::ErrRowRange(span.into()),
+            CellRefError::ErrRowname(span, e) => ParseOFError::ErrRowname(span.into(), e),
+            CellRefError::ErrColname(span, e) => ParseOFError::ErrColname(span.into(), e),
+        }
+    }
+
     /// Erring in a parser. Handles all nom errors.
     ///
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
-    pub fn err(
+    pub fn nom_err(
         &self,
         rest: Span<'span>,
         err_fn: fn(span: Span<'span>) -> ParseOFError,
         nom: nom::Err<nom::error::Error<Span<'span>>>,
     ) -> ParseOFError {
         let err = err_fn(rest);
+        let func = self.func.borrow_mut().pop().unwrap();
+        self.tracks
+            .borrow_mut()
+            .push(Track::Error(func, err.to_string(), nom));
+        err
+    }
+
+    /// Erring in a parser. Handles all nom errors.
+    ///
+    /// Panic
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn nom_err2(
+        &self,
+        rest: Span<'span>,
+        err_fn: fn(
+            span: Span<'span>,
+            nom: &nom::Err<nom::error::Error<Span<'span>>>,
+        ) -> ParseOFError,
+        nom: nom::Err<nom::error::Error<Span<'span>>>,
+    ) -> ParseOFError {
+        let err = err_fn(rest, &nom);
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks
             .borrow_mut()

@@ -8,18 +8,19 @@
 //! The look-ahead functions are called internally at certain branching points.
 
 use crate::ast::OFAst;
-use crate::conv::{try_bool_from_abs_flag, try_u32_from_colname, try_u32_from_rowname};
 use crate::error::ParseOFError;
 use crate::parse::{ParseResult, Span, Tracer};
 use crate::{
-    tokens, CRef, CellRange, CellRef, ColRange, Node, OFAddOp, OFCellRange, OFCellRef, OFColRange,
-    OFCompOp, OFMulOp, OFParClose, OFParOpen, OFPostfixOp, OFPowOp, OFPrefixOp, OFRowRange,
-    RowRange,
+    tokens, Node, OFAddOp, OFCellRange, OFCellRef, OFColRange, OFCompOp, OFMulOp, OFParClose,
+    OFParOpen, OFPostfixOp, OFPowOp, OFPrefixOp, OFRowRange,
 };
 use nom::character::complete::multispace0;
-use nom::combinator::{consumed, opt, recognize};
-use nom::sequence::tuple;
+use nom::combinator::{opt, recognize};
 use nom::InputTake;
+use spreadsheet_ods_cellref::refs_parser::{parse_cell_range, parse_col_range, parse_row_range};
+use spreadsheet_ods_cellref::{
+    refs_parser, tokens as refs_tokens, CellRange, CellRef, CellRefError, ColRange, RowRange,
+};
 
 // Expression ::=
 // Whitespace* (
@@ -255,7 +256,7 @@ impl<'s> BinaryExpr<'s> for CompareExpr {
             },
 
             Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err2(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -286,8 +287,8 @@ impl<'s> BinaryExpr<'s> for AddExpr {
             },
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
 
-            Err(e @ nom::Err::Error(_)) => Err(trace.err(i, ParseOFError::nom_error, e)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
+            Err(e @ nom::Err::Error(_)) => Err(trace.nom_err2(i, ParseOFError::nom_error, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err2(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -319,8 +320,8 @@ impl<'s> BinaryExpr<'s> for MulExpr {
             },
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
 
-            Err(e @ nom::Err::Error(_)) => Err(trace.err(i, ParseOFError::nom_error, e)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
+            Err(e @ nom::Err::Error(_)) => Err(trace.nom_err2(i, ParseOFError::nom_error, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err2(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -350,8 +351,8 @@ impl<'s> BinaryExpr<'s> for PowExpr {
             },
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
 
-            Err(e @ nom::Err::Error(_)) => Err(trace.err(i, ParseOFError::nom_error, e)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
+            Err(e @ nom::Err::Error(_)) => Err(trace.nom_err2(i, ParseOFError::nom_error, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err2(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -373,8 +374,8 @@ impl PostFixExpr {
             },
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
 
-            Err(e @ nom::Err::Error(_)) => Err(trace.err(i, ParseOFError::nom_error, e)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
+            Err(e @ nom::Err::Error(_)) => Err(trace.nom_err2(i, ParseOFError::nom_error, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err2(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -434,7 +435,7 @@ impl PrefixExpr {
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
 
             Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err2(i, ParseOFError::nom_failure, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -575,7 +576,7 @@ impl<'s> GeneralExpr<'s> for NumberExpr {
                 Err(_) => unreachable!(),
             },
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
-            Err(e) => Err(trace.err(i, ParseOFError::number, e)),
+            Err(e) => Err(trace.nom_err(i, ParseOFError::number, e)),
         }
     }
 }
@@ -605,7 +606,7 @@ impl<'s> GeneralExpr<'s> for StringExpr {
                 Ok(trace.ok(ast.span(), rest, Some(ast)))
             }
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
-            Err(e) => Err(trace.err(i, ParseOFError::string, e)),
+            Err(e) => Err(trace.nom_err(i, ParseOFError::string, e)),
         }
     }
 }
@@ -703,49 +704,25 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
         "cell_ref"
     }
 
-    // TODO: MEND
     fn lah(i: Span<'s>) -> bool {
-        tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
+        refs_tokens::lah_iri(i) || refs_tokens::lah_sheet_name(i) || refs_tokens::lah_dot(i)
     }
 
     #[allow(clippy::manual_map)]
-    // TODO: MEND
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
     ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
-        match consumed(tuple((
-            opt(tokens::iri),
-            opt(tokens::sheet_name),
-            tokens::dot, // TODO: this is not user-facing but the stored format.
-            tokens::col,
-            tokens::row,
-        )))(i)
-        {
-            Ok((rest, (tok, (iri, sheet_name, _dot, col, row)))) => {
-                //
-                let cell_ref = CellRef {
-                    iri: iri.map(|v| (*v).to_string()),
-                    table: match sheet_name {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
-                    },
-                    cell: CRef {
-                        row_abs: try_bool_from_abs_flag(row.0),
-                        row: trace.re_err(try_u32_from_rowname(row.1))?,
-                        col_abs: try_bool_from_abs_flag(col.0),
-                        col: trace.re_err(try_u32_from_colname(col.1))?,
-                    },
-                };
+        match refs_parser::parse_cell_ref(i) {
+            Ok((rest, (cell_ref, tok))) => {
                 let ast = OFAst::cell_ref(cell_ref, tok);
                 Ok(trace.ok(tok, rest, Some(ast)))
             }
 
-            Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(CellRefError::ErrNomError(_, _)) => Ok(trace.ok(Span::new(""), i, None)),
+            Err(e) => Err(trace.ref_err(e)),
         }
     }
 }
@@ -781,12 +758,10 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
         "cell_range"
     }
 
-    // TODO: MEND
     fn lah(i: Span<'s>) -> bool {
-        tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
+        refs_tokens::lah_iri(i) || refs_tokens::lah_sheet_name(i) || refs_tokens::lah_dot(i)
     }
 
-    // TODO: MEND
     #[allow(clippy::manual_map)]
     fn parse<'t>(
         trace: &'t Tracer<'s>,
@@ -794,69 +769,14 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
     ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
-        match consumed(tuple((
-            opt(tokens::iri),
-            opt(tokens::sheet_name),
-            tokens::dot,
-            tokens::col,
-            tokens::row,
-            tokens::colon,
-            opt(tokens::sheet_name),
-            tokens::dot,
-            tokens::col,
-            tokens::row,
-        )))(i)
-        {
-            Ok((
-                rest,
-                (
-                    tok,
-                    (
-                        iri,
-                        sheet_name_0,
-                        _dot_0,
-                        col_0,
-                        row_0,
-                        _colon,
-                        sheet_name_1,
-                        _dot_1,
-                        col_1,
-                        row_1,
-                    ),
-                ),
-            )) => {
-                //
-                let cell_range = CellRange {
-                    iri: iri.map(|v| (*v).to_string()),
-                    from_sheet: match sheet_name_0 {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
-                    },
-                    from: CRef {
-                        row_abs: try_bool_from_abs_flag(row_0.0),
-                        row: trace.re_err(try_u32_from_rowname(row_0.1))?,
-                        col_abs: try_bool_from_abs_flag(col_0.0),
-                        col: trace.re_err(try_u32_from_colname(col_0.1))?,
-                    },
-                    to_sheet: match sheet_name_1 {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
-                    },
-                    to: CRef {
-                        row_abs: try_bool_from_abs_flag(row_1.0),
-                        row: trace.re_err(try_u32_from_rowname(row_1.1))?,
-                        col_abs: try_bool_from_abs_flag(col_1.0),
-                        col: trace.re_err(try_u32_from_colname(col_1.1))?,
-                    },
-                };
+        match parse_cell_range(i) {
+            Ok((rest, (cell_range, tok))) => {
                 let ast = OFAst::cell_range(cell_range, tok);
-
                 Ok(trace.ok(tok, rest, Some(ast)))
             }
 
-            Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(CellRefError::ErrNomError(_, _)) => Ok(trace.ok(Span::new(""), i, None)),
+            Err(e) => Err(trace.ref_err(e)),
         }
     }
 }
@@ -890,7 +810,7 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
     }
 
     fn lah(i: Span<'s>) -> bool {
-        tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
+        refs_tokens::lah_iri(i) || refs_tokens::lah_sheet_name(i) || refs_tokens::lah_dot(i)
     }
 
     #[allow(clippy::manual_map)]
@@ -900,45 +820,14 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
     ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
-        match consumed(tuple((
-            opt(tokens::iri),
-            opt(tokens::sheet_name),
-            tokens::dot,
-            tokens::col,
-            tokens::colon,
-            opt(tokens::sheet_name),
-            tokens::dot,
-            tokens::col,
-        )))(i)
-        {
-            Ok((
-                rest,
-                (tok, (iri, sheet_name_0, _dot_0, col_0, _colon, sheet_name_1, _dot_1, col_1)),
-            )) => {
-                //
-                let col_range = ColRange {
-                    iri: iri.map(|v| (*v).to_string()),
-                    from_sheet: match sheet_name_0 {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
-                    },
-                    abs_from_col: try_bool_from_abs_flag(col_0.0),
-                    from_col: trace.re_err(try_u32_from_colname(col_0.1))?,
-                    to_sheet: match sheet_name_1 {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
-                    },
-                    abs_to_col: try_bool_from_abs_flag(col_1.0),
-                    to_col: trace.re_err(try_u32_from_colname(col_1.1))?,
-                };
+        match parse_col_range(i) {
+            Ok((rest, (col_range, tok))) => {
                 let ast = OFAst::col_range(col_range, tok);
-
                 Ok(trace.ok(tok, rest, Some(ast)))
             }
 
-            Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(CellRefError::ErrNomError(_, _)) => Ok(trace.ok(Span::new(""), i, None)),
+            Err(e) => Err(trace.ref_err(e)),
         }
     }
 }
@@ -971,12 +860,10 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
         "row_range"
     }
 
-    // TODO: MEND
     fn lah(i: Span<'s>) -> bool {
-        tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
+        refs_tokens::lah_iri(i) || refs_tokens::lah_sheet_name(i) || refs_tokens::lah_dot(i)
     }
 
-    // TODO: MEND
     #[allow(clippy::manual_map)]
     fn parse<'t>(
         trace: &'t Tracer<'s>,
@@ -984,45 +871,14 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
     ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
-        match consumed(tuple((
-            opt(tokens::iri),
-            opt(tokens::sheet_name),
-            tokens::dot,
-            tokens::row,
-            tokens::colon,
-            opt(tokens::sheet_name),
-            tokens::dot,
-            tokens::row,
-        )))(i)
-        {
-            Ok((
-                rest,
-                (tok, (iri, sheet_name_0, _dot_0, row_0, _colon, sheet_name_1, _dot_1, row_1)),
-            )) => {
-                //
-                let row_range = RowRange {
-                    iri: iri.map(|v| (*v).to_string()),
-                    from_sheet: match sheet_name_0 {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
-                    },
-                    abs_from_row: try_bool_from_abs_flag(row_0.0),
-                    from_row: trace.re_err(try_u32_from_rowname(row_0.1))?,
-                    to_sheet: match sheet_name_1 {
-                        None => None,
-                        Some((_, v)) => Some((*v).to_string()),
-                    },
-                    abs_to_row: try_bool_from_abs_flag(row_1.0),
-                    to_row: trace.re_err(try_u32_from_rowname(row_1.1))?,
-                };
+        match parse_row_range(i) {
+            Ok((rest, (row_range, tok))) => {
                 let ast = OFAst::row_range(row_range, tok);
-
                 Ok(trace.ok(tok, rest, Some(ast)))
             }
 
-            Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::nom_failure, e)),
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(CellRefError::ErrNomError(_, _)) => Ok(trace.ok(Span::new(""), i, None)),
+            Err(e) => Err(trace.ref_err(e)),
         }
     }
 }
@@ -1056,7 +912,7 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
                                 let ast = OFAst::parens(o, expr, c);
                                 Ok(trace.ok(ast.span(), rest3, Some(ast)))
                             }
-                            Err(e) => Err(trace.err(rest1, ParseOFError::parentheses, e)),
+                            Err(e) => Err(trace.nom_err(rest1, ParseOFError::parentheses, e)),
                         }
                     }
                     Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseOFError::parentheses)),
@@ -1064,7 +920,7 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
                 }
             }
             Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.err(i, ParseOFError::parentheses, e)),
+            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err(i, ParseOFError::parentheses, e)),
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         }
     }
@@ -1103,7 +959,9 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
         let (rest1, fn_name) = match recognize(tokens::fn_name)(i) {
             Ok((rest, tok)) => (eat_space(rest), tok),
             Err(nom::Err::Error(_)) => return Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => return Err(trace.err(i, ParseOFError::fn_call, e)),
+            Err(e @ nom::Err::Failure(_)) => {
+                return Err(trace.nom_err(i, ParseOFError::fn_call, e))
+            }
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         };
 
@@ -1126,7 +984,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         None
                     }
                     Err(e @ nom::Err::Failure(_)) => {
-                        return Err(trace.err(i, ParseOFError::fn_call, e));
+                        return Err(trace.nom_err(i, ParseOFError::fn_call, e));
                     }
                     Err(nom::Err::Incomplete(_)) => unreachable!(),
                 };
@@ -1169,7 +1027,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         }
                         Err(nom::Err::Error(_)) => None,
                         Err(e @ nom::Err::Failure(_)) => {
-                            return Err(trace.err(i, ParseOFError::fn_call, e));
+                            return Err(trace.nom_err(i, ParseOFError::fn_call, e));
                         }
                         Err(nom::Err::Incomplete(_)) => unreachable!(),
                     };
@@ -1212,18 +1070,20 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         }
                         Err(e @ nom::Err::Error(_)) => {
                             if parens == Parens::Needed {
-                                return Err(trace.err(i, ParseOFError::fn_call, e));
+                                return Err(trace.nom_err(i, ParseOFError::fn_call, e));
                             }
                         }
                         Err(e @ nom::Err::Failure(_)) => {
-                            return Err(trace.err(i, ParseOFError::fn_call, e))
+                            return Err(trace.nom_err(i, ParseOFError::fn_call, e))
                         }
                         Err(nom::Err::Incomplete(_)) => unreachable!(),
                     }
                 }
             }
-            Err(e @ nom::Err::Error(_)) => return Err(trace.err(i, ParseOFError::fn_call, e)),
-            Err(e @ nom::Err::Failure(_)) => return Err(trace.err(i, ParseOFError::fn_call, e)),
+            Err(e @ nom::Err::Error(_)) => return Err(trace.nom_err(i, ParseOFError::fn_call, e)),
+            Err(e @ nom::Err::Failure(_)) => {
+                return Err(trace.nom_err(i, ParseOFError::fn_call, e))
+            }
             Err(nom::Err::Incomplete(_)) => unreachable!(),
         };
     }
@@ -1269,7 +1129,8 @@ mod tests {
     use crate::error::OFError;
     use crate::parse::tracer::Tracer;
     use crate::parse::Span;
-    use crate::{CellRef, OFAst, OFCellRef, ParseResult};
+    use crate::{OFAst, OFCellRef, ParseResult};
+    use spreadsheet_ods_cellref::CellRef;
 
     fn run_test2<'s>(
         str: &'s str,

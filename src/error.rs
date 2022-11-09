@@ -2,9 +2,8 @@
 //! Defines the error type.
 //!
 
-use crate::conv::ParseRownameError;
-use crate::parse::conv::ParseColnameError;
 use crate::parse::Span;
+use spreadsheet_ods_cellref::refs_parser::{ParseColnameError, ParseRownameError};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
@@ -128,9 +127,9 @@ where
 #[derive(Debug)]
 pub enum ParseOFError {
     /// Some nom error occurred.
-    ErrNomError(ErrSpan),
+    ErrNomError(ErrSpan, nom::error::ErrorKind),
     /// Nom failed.
-    ErrNomFailure(ErrSpan),
+    ErrNomFailure(ErrSpan, nom::error::ErrorKind),
 
     /// Compare expr parsing error.
     ErrCompare(ErrSpan),
@@ -171,14 +170,28 @@ pub enum ParseOFError {
 }
 
 impl ParseOFError {
+    fn error_kind(err: &nom::Err<nom::error::Error<Span<'_>>>) -> nom::error::ErrorKind {
+        match err {
+            nom::Err::Incomplete(_e) => nom::error::ErrorKind::Fail,
+            nom::Err::Error(e) => e.code,
+            nom::Err::Failure(e) => e.code,
+        }
+    }
+
     /// NomError variant.
-    pub fn nom_error<'a>(span: Span<'a>) -> ParseOFError {
-        ParseOFError::ErrNomError(span.into())
+    pub fn nom_error<'s>(
+        span: Span<'s>,
+        err: &nom::Err<nom::error::Error<Span<'s>>>,
+    ) -> ParseOFError {
+        ParseOFError::ErrNomError(span.into(), Self::error_kind(err))
     }
 
     /// NomFailure variant.
-    pub fn nom_failure<'a>(span: Span<'a>) -> ParseOFError {
-        ParseOFError::ErrNomFailure(span.into())
+    pub fn nom_failure<'s>(
+        span: Span<'s>,
+        err: &nom::Err<nom::error::Error<Span<'s>>>,
+    ) -> ParseOFError {
+        ParseOFError::ErrNomFailure(span.into(), Self::error_kind(err))
     }
 
     /// Comp variant.
@@ -262,8 +275,8 @@ impl Error for ParseOFError {}
 impl Display for ParseOFError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseOFError::ErrNomError(s) => write!(f, "NomError {}", s),
-            ParseOFError::ErrNomFailure(s) => write!(f, "NomFailure {}", s),
+            ParseOFError::ErrNomError(s, e) => write!(f, "NomError {} {:?}", s, e),
+            ParseOFError::ErrNomFailure(s, e) => write!(f, "NomFailure {} {:?}", s, e),
             ParseOFError::ErrNumber(s) => write!(f, "Number {}", s),
             ParseOFError::ErrString(s) => write!(f, "String {}", s),
             ParseOFError::ErrParenthesis(s) => write!(f, "Parenthesis {}", s),
@@ -314,6 +327,17 @@ impl Display for ErrSpan {
             "(@{}:{} str '{}')",
             self.line, self.column, self.fragment
         )
+    }
+}
+
+impl From<spreadsheet_ods_cellref::error::ErrSpan> for ErrSpan {
+    fn from(span: spreadsheet_ods_cellref::error::ErrSpan) -> Self {
+        Self {
+            offset: span.offset,
+            line: span.line,
+            column: span.column,
+            fragment: span.fragment,
+        }
     }
 }
 

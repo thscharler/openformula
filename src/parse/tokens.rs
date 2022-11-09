@@ -117,19 +117,19 @@ pub fn separator<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 }
 
 /// Lookahead for a dot.
-// TODO: KILL
+// TODO: WATCH
 pub fn lah_dot<'a>(i: Span<'a>) -> bool {
     nchar::<Span<'a>, nom::error::Error<_>>('.')(i).is_ok()
 }
 
 /// Parse dot
-// TODO: KILL
+// TODO: WATCH
 pub fn dot<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(".")(i)
 }
 
 /// Parse colon
-// TODO: KILL
+// TODO: WATCH
 pub fn colon<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(":")(i)
 }
@@ -189,61 +189,10 @@ pub fn postfix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(tag("%"))(i)
 }
 
-/// Lookahead for an IRI.
-// TODO: KILL
-pub fn lah_iri<'a>(i: Span<'a>) -> bool {
-    nchar::<Span<'a>, nom::error::Error<_>>('\'')(i).is_ok()
-}
-
-// Source ::= "'" IRI "'" "#"
-/// IRI
-// TODO: KILL
-pub fn iri<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    let (i, iri) = terminated(quoted('\''), tag("#"))(i)?;
-    Ok((i, iri))
-}
-
-/// Lookahead for a sheet-name
-// TODO: KILL
-pub fn lah_sheet_name<'a>(i: Span<'a>) -> bool {
-    // TODO: none_of("]. #$") is a very wide definition.
-    alt::<_, char, nom::error::Error<_>, _>((nchar('$'), nchar('\''), none_of("]. #$")))(i).is_ok()
-}
-
-// SheetName ::= QuotedSheetName | '$'? [^\]\. #$']+
-/// Sheet name
-// TODO: KILL
-pub fn sheet_name<'a>(i: Span<'a>) -> IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
-    let (i, abs) = opt(tag("$"))(i)?;
-    let (i, name) = alt((quoted('\''), recognize(many1(none_of("]. #$'")))))(i)?;
-
-    Ok((i, (abs, name)))
-}
-
-// Row ::= '$'? [1-9] [0-9]*
-/// Row label
-// TODO: KILL
-pub fn row<'a>(i: Span<'a>) -> IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
-    let (i, abs) = opt(tag("$"))(i)?;
-    let (i, row) = recognize(many1(one_of("0123456789")))(i)?;
-
-    Ok((i, (abs, row)))
-}
-
-// Column ::= '$'? [A-Z]+
-/// Column label
-// TODO: KILL
-pub fn col<'a>(i: Span<'a>) -> IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
-    let (i, abs) = opt(tag("$"))(i)?;
-    let (i, col) = alpha1(i)?;
-    Ok((i, (abs, col)))
-}
-
 // SingleQuoted ::= "'" ([^'] | "''")+ "'"
 /// Parse a quoted string. A double quote within is an escaped quote.
 /// Returns the string within the outer quotes. The double quotes are not
 /// reduced.
-// TODO: KILL
 pub fn quoted<'a>(quote: char) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     move |i| {
         let (i, r) = delimited(
