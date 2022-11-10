@@ -10,14 +10,17 @@
 use crate::ast::OFAst;
 use crate::error::ParseOFError;
 use crate::parse::{ParseResult, Span, Tracer};
+use crate::tokens::{dollar_dollar, dot, identifier, lah_dollar_dollar, lah_identifier, quoted};
 use crate::{
     tokens, Node, OFAddOp, OFCellRange, OFCellRef, OFColRange, OFCompOp, OFMulOp, OFParClose,
     OFParOpen, OFPostfixOp, OFPowOp, OFPrefixOp, OFRowRange,
 };
 use nom::character::complete::multispace0;
 use nom::combinator::{opt, recognize};
+use nom::sequence::tuple;
 use nom::InputTake;
 use spreadsheet_ods_cellref::refs_parser::{parse_cell_range, parse_col_range, parse_row_range};
+use spreadsheet_ods_cellref::tokens::{iri, lah_iri, lah_sheet_name, sheet_name};
 use spreadsheet_ods_cellref::{
     refs_parser, tokens as refs_tokens, CellRange, CellRef, CellRefError, ColRange, RowRange,
 };
@@ -1095,8 +1098,83 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
 // ExternalNamedExpression ::= Source (SimpleNamedExpression | SheetLocalNamedExpression)
 // Identifier ::= ( LetterXML
 //                      (LetterXML | DigitXML | '_' | CombiningCharXML)* )
-//                      - ( [A-Za-z]+[0-9]+ )
-//                      - ([Tt][Rr][Uu][Ee]) - ([Ff][Aa][Ll][Ss][Ee])
+//                      - ( [A-Za-z]+[0-9]+ )  # means no cell reference
+//                      - ([Tt][Rr][Uu][Ee]) - ([Ff][Aa][Ll][Ss][Ee]) # true or false
+
+#[derive(Debug)]
+struct NamedExpr;
+
+impl<'s> GeneralExpr<'s> for NamedExpr {
+    fn name() -> &'static str {
+        "named"
+    }
+
+    fn lah(i: Span<'s>) -> bool {
+        lah_iri(i) || lah_sheet_name(i) || lah_dollar_dollar(i) || lah_identifier(i)
+    }
+
+    fn parse<'t>(
+        trace: &'t Tracer<'s>,
+        span: Span<'s>,
+    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+        // NamedExpression := IRI?
+        //                      (QuotedSheetName '.')?
+        //                      (Identifier | '$$' (Identifier | SingleQuoted)
+        //
+
+        let (span, iri) = match iri(span) {
+            Ok((span, iri)) => {
+                //
+                (span, OFAst::iri(Some(iri)))
+            }
+            Err(nom::Err::Error(_)) => {
+                //
+                (span, OFAst::iri(None))
+            }
+            Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
+        };
+
+        let (span, sheet_name) = match tuple((sheet_name, dot))(span) {
+            Ok((span, ((abs, sheet_name), _dot))) => {
+                //
+                (span, OFAst::sheet_name(abs, Some(sheet_name)))
+            }
+            Err(nom::Err::Error(_)) => {
+                //
+                (span, OFAst::sheet_name(None, None))
+            }
+            Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
+        };
+
+        let (span, ident) = match identifier(span) {
+            Ok((span, ident)) => {
+                //
+                (span, OFAst::identifier(ident))
+            }
+            Err(nom::Err::Error(_)) => match dollar_dollar(span) {
+                Ok((span, _tag)) => match identifier(span) {
+                    Ok((span, ident)) => {
+                        //
+                        (span, OFAst::identifier(ident))
+                    }
+                    Err(nom::Err::Error(_)) => match quoted('\'')(span) {
+                        Ok((span, ident)) => {
+                            //
+                            (span, OFAst::identifier(ident))
+                        }
+                        Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
+                    },
+                    Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
+                },
+                Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
+            },
+            Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
+        };
+
+        let ast = OFAst::named(iri, sheet_name, ident);
+        Ok(trace.ok(ast.span(), span, Some(ast)))
+    }
+}
 
 /// Eats the leading whitespace.
 pub fn eat_space<'a>(i: Span<'a>) -> Span<'a> {

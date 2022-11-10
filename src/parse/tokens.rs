@@ -5,10 +5,10 @@
 use crate::parse::Span;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while, take_while1};
-use nom::character::complete::{alpha1, char as nchar, none_of, one_of};
+use nom::character::complete::{char as nchar, one_of};
 use nom::combinator::{opt, recognize};
 use nom::multi::{count, many0, many1};
-use nom::sequence::{delimited, terminated, tuple};
+use nom::sequence::{delimited, tuple};
 use nom::IResult;
 
 /// Lookahead for a number
@@ -65,17 +65,16 @@ pub fn string<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 pub fn lah_fn_name<'a>(i: Span<'a>) -> bool {
     match (*i).chars().next() {
         None => false,
-        Some(c) => c.is_alphabetic(),
+        Some(c) => unicode_ident::is_xid_start(c),
     }
 }
 
 // LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
-// TODO: CombiningCharXML not used.
 /// Function name.
 pub fn fn_name<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     recognize(tuple((
-        take_while1(|c: char| c.is_alphabetic()),
-        take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '.'),
+        take_while1(unicode_ident::is_xid_start),
+        take_while(|c: char| unicode_ident::is_xid_continue(c) || c == '_' || c == '.'),
     )))(i)
 }
 
@@ -109,6 +108,16 @@ pub fn ref_intersection_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 /// Parse concat operator..
 pub fn ref_concatenation_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("~")(i)
+}
+
+/// Parse separator char for function args.
+pub fn lah_dollar_dollar<'a>(i: Span<'a>) -> bool {
+    tag::<&str, Span<'a>, nom::error::Error<_>>("$$")(i).is_ok()
+}
+
+/// Parse separator char for function args.
+pub fn dollar_dollar<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    tag("$$")(i)
 }
 
 /// Parse separator char for function args.
@@ -160,33 +169,59 @@ pub fn brackets_close<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 }
 
 /// Tries to parses any additive operator.
+// TODO: do we need this opt here (and somewhere else too).
 pub fn add_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(alt((tag("+"), tag("-"))))(i)
 }
 
 /// Tries to parses any multiplicative operator.
+// TODO: do we need this opt here (and somewhere else too).
 pub fn mul_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(alt((tag("*"), tag("/"))))(i)
 }
 
 /// Tries to parses the power operator.
+// TODO: do we need this opt here (and somewhere else too).
 pub fn pow_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(tag("^"))(i)
 }
 
 /// Lookahead for any prefix operator.
+// TODO: do we need this opt here (and somewhere else too).
 pub fn lah_prefix_op<'a>(i: Span<'a>) -> bool {
     one_of::<Span<'a>, _, nom::error::Error<_>>("+-")(i).is_ok()
 }
 
 /// Tries to parse any prefix operator.
+// TODO: do we need this opt here (and somewhere else too).
 pub fn prefix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(alt((tag("+"), tag("-"))))(i)
 }
 
 /// Tries to parse any postfix operator.
+// TODO: do we need this opt here (and somewhere else too).
 pub fn postfix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(tag("%"))(i)
+}
+
+/// Simple lookahead for a identifier.
+pub fn lah_identifier<'a>(i: Span<'a>) -> bool {
+    match (*i).chars().next() {
+        None => false,
+        Some(c) => unicode_ident::is_xid_start(c),
+    }
+}
+
+// Identifier ::= ( LetterXML
+//                      (LetterXML | DigitXML | '_' | CombiningCharXML)* )
+//                      - ( [A-Za-z]+[0-9]+ )  # means no cell reference
+//                      - ([Tt][Rr][Uu][Ee]) - ([Ff][Aa][Ll][Ss][Ee]) # true and false
+/// Identifier.
+pub fn identifier<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    recognize(tuple((
+        take_while1(unicode_ident::is_xid_start),
+        take_while1(unicode_ident::is_xid_continue),
+    )))(i)
 }
 
 // SingleQuoted ::= "'" ([^'] | "''")+ "'"
@@ -212,11 +247,12 @@ pub fn quoted<'a>(quote: char) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, Span
 #[cfg(test)]
 mod tests {
     use crate::ast_parser::eat_space;
-    use crate::parse::tokens::{col, iri, quoted, row, sheet_name};
+    use crate::parse::tokens::quoted;
     use crate::parse::Span;
     use crate::tokens::{lah_number, lah_parentheses_open};
     use nom::error::ErrorKind;
     use nom::error::ParseError;
+    use spreadsheet_ods_cellref::tokens::{col, iri, row, sheet_name};
 
     #[test]
     fn test_quoted() {

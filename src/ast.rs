@@ -33,6 +33,9 @@ pub enum OFAst<'a> {
     NodeNumber(OFNumber<'a>),
     /// String
     NodeString(OFString<'a>),
+    /// Named expression
+    // TODO: check rest for a better structure.
+    NodeNamed(OFNamed<'a>),
 
     /// CellRef
     NodeCellRef(OFCellRef<'a>),
@@ -68,6 +71,7 @@ impl<'a> OFAst<'a> {
             OFAst::NodeRowRange(v) => v.span(),
             OFAst::NodeParens(v) => v.span(),
             OFAst::NodeFnCall(v) => v.span(),
+            OFAst::NodeNamed(v) => v.span(),
         }
     }
 
@@ -134,6 +138,52 @@ impl<'a> OFAst<'a> {
     /// String variant
     pub fn string(v: String, s: Span<'a>) -> Box<OFAst<'a>> {
         Box::new(OFAst::NodeString(OFString(v, s)))
+    }
+
+    /// Named variant
+    pub fn named(
+        iri: Option<OFIri<'a>>,
+        sheet_name: Option<OFSheetName<'a>>,
+        identifier: OFIdentifier<'a>,
+    ) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeNamed(OFNamed {
+            iri,
+            sheet_name,
+            identifier,
+        }))
+    }
+
+    /// Creates a OFIri
+    pub fn iri(iri: Option<Span<'a>>) -> Option<OFIri<'a>> {
+        iri.map(|v| OFIri(v.to_string(), v))
+    }
+
+    /// Creates a OFSheetName
+    pub fn sheet_name(
+        abs: Option<Span<'a>>,
+        sheet_name: Option<Span<'a>>,
+    ) -> Option<OFSheetName<'a>> {
+        if let Some(sheet_name) = sheet_name {
+            unsafe {
+                if let Some(abs) = abs {
+                    let complete_span = span_union(abs, sheet_name);
+                    Some(OFSheetName(
+                        *abs == "$",
+                        sheet_name.to_string(),
+                        complete_span,
+                    ))
+                } else {
+                    Some(OFSheetName(false, sheet_name.to_string(), sheet_name))
+                }
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Creates a OFIdentifier
+    pub fn identifier(ident: Span<'a>) -> OFIdentifier<'a> {
+        OFIdentifier(ident.to_string(), ident)
     }
 
     /// CellRef variant
@@ -204,6 +254,7 @@ impl<'a> Display for OFAst<'a> {
             OFAst::NodeColRange(v) => Display::fmt(v, f),
             OFAst::NodeParens(v) => Display::fmt(v, f),
             OFAst::NodeFnCall(v) => Display::fmt(v, f),
+            OFAst::NodeNamed(v) => Display::fmt(v, f),
         }
     }
 }
@@ -827,6 +878,152 @@ impl<'a> Display for OFString<'a> {
 impl<'a> PartialEq for OFString<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
+    }
+}
+
+/// Represents an external source reference.
+pub struct OFIri<'a>(String, Span<'a>);
+
+impl<'a> Node<'a> for OFIri<'a> {
+    fn name(&self) -> &str {
+        "iri"
+    }
+
+    fn span(&self) -> Span<'a> {
+        self.1
+    }
+}
+
+impl<'a> Debug for OFIri<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        dbg_ast::debug_elem(self, f)
+    }
+}
+
+impl<'a> Display for OFIri<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl<'a> PartialEq for OFIri<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+/// Sheet name.
+pub struct OFSheetName<'a>(bool, String, Span<'a>);
+
+impl<'a> Node<'a> for OFSheetName<'a> {
+    fn name(&self) -> &str {
+        "sheet_name"
+    }
+
+    fn span(&self) -> Span<'a> {
+        self.2
+    }
+}
+
+impl<'a> Debug for OFSheetName<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        dbg_ast::debug_elem(self, f)
+    }
+}
+
+impl<'a> Display for OFSheetName<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}'{}'.", if self.0 { "$" } else { "" }, self.1)
+    }
+}
+
+impl<'a> PartialEq for OFSheetName<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1 == other.1
+    }
+}
+
+/// Identifier.
+pub struct OFIdentifier<'a>(String, Span<'a>);
+
+impl<'a> Node<'a> for OFIdentifier<'a> {
+    fn name(&self) -> &str {
+        "identifier"
+    }
+
+    fn span(&self) -> Span<'a> {
+        self.1
+    }
+}
+
+impl<'a> Debug for OFIdentifier<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        dbg_ast::debug_elem(self, f)
+    }
+}
+
+impl<'a> Display for OFIdentifier<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl<'a> PartialEq for OFIdentifier<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+/// A named expression.
+pub struct OFNamed<'a> {
+    /// External source
+    pub iri: Option<OFIri<'a>>,
+    /// Sheet name
+    pub sheet_name: Option<OFSheetName<'a>>,
+    /// Identifier
+    pub identifier: OFIdentifier<'a>,
+}
+
+impl<'a> Node<'a> for OFNamed<'a> {
+    fn name(&self) -> &str {
+        "identifier"
+    }
+
+    fn span(&self) -> Span<'a> {
+        if let Some(iri) = &self.iri {
+            unsafe { span_union(iri.span(), self.identifier.span()) }
+        } else if let Some(sheet_name) = &self.sheet_name {
+            unsafe { span_union(sheet_name.span(), self.identifier.span()) }
+        } else {
+            self.identifier.1
+        }
+    }
+}
+
+impl<'a> Debug for OFNamed<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        dbg_ast::debug_elem(self, f)
+    }
+}
+
+impl<'a> Display for OFNamed<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if let Some(iri) = &self.iri {
+            write!(f, "{}", iri)?;
+        }
+        if let Some(sheet_name) = &self.sheet_name {
+            write!(f, "{}", sheet_name)?;
+        }
+        write!(f, "{}", self.identifier)?;
+        Ok(())
+    }
+}
+
+impl<'a> PartialEq for OFNamed<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.iri == other.iri
+            && self.sheet_name == other.sheet_name
+            && self.identifier == other.identifier
     }
 }
 

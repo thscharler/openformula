@@ -71,6 +71,7 @@ pub fn debug_ast<'a, 'b>(ast: &OFAst<'a>, indent: u32, f: &mut Formatter<'b>) ->
         OFAst::NodeRowRange(v) => debug_elem(v, f),
         OFAst::NodeParens(ex) => debug_parens(ex, indent, f),
         OFAst::NodeFnCall(ff) => debug_fn_call(ff, indent, f),
+        OFAst::NodeNamed(v) => debug_elem(v, f),
     }
 }
 

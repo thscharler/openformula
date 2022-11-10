@@ -21,7 +21,6 @@ pub enum OFError {
     ParseFloat(std::num::ParseFloatError),
     ParseExpr(ParseOFError),
     Chrono(chrono::format::ParseError),
-    Duration(time::OutOfRangeError),
     SystemTime(std::time::SystemTimeError),
     Nom(nom::Err<nom::error::Error<String>>),
 }
@@ -36,7 +35,6 @@ impl Display for OFError {
             OFError::ParseBool(e) => write!(f, "ParseBool {}", e)?,
             OFError::ParseFloat(e) => write!(f, "ParseFloat {}", e)?,
             OFError::Chrono(e) => write!(f, "Chrono {}", e)?,
-            OFError::Duration(e) => write!(f, "Duration {}", e)?,
             OFError::SystemTime(e) => write!(f, "SystemTime {}", e)?,
             OFError::Nom(e) => write!(f, "Nom {}", e)?,
             OFError::ParseExpr(e) => write!(f, "ParseExpr {}", e)?,
@@ -56,17 +54,10 @@ impl std::error::Error for OFError {
             OFError::ParseBool(e) => Some(e),
             OFError::ParseFloat(e) => Some(e),
             OFError::Chrono(e) => Some(e),
-            OFError::Duration(e) => Some(e),
             OFError::SystemTime(e) => Some(e),
             OFError::Nom(e) => Some(e),
             OFError::ParseExpr(e) => Some(e),
         }
-    }
-}
-
-impl From<time::OutOfRangeError> for OFError {
-    fn from(err: time::OutOfRangeError) -> OFError {
-        OFError::Duration(err)
     }
 }
 
@@ -150,6 +141,8 @@ pub enum ParseOFError {
     ErrNumber(ErrSpan),
     /// String parsing error.
     ErrString(ErrSpan),
+    /// Named expr error.
+    ErrNamed(ErrSpan),
     /// Parenthesis parsing error.
     ErrParenthesis(ErrSpan),
     /// Function call parsing error.
@@ -239,6 +232,11 @@ impl ParseOFError {
         ParseOFError::ErrString(span.into())
     }
 
+    /// Named variant.
+    pub fn named<'a>(span: Span<'a>) -> ParseOFError {
+        ParseOFError::ErrNamed(span.into())
+    }
+
     /// FnCall variant.
     pub fn fn_call<'a>(span: Span<'a>) -> ParseOFError {
         ParseOFError::ErrFnCall(span.into())
@@ -279,6 +277,7 @@ impl Display for ParseOFError {
             ParseOFError::ErrNomFailure(s, e) => write!(f, "NomFailure {} {:?}", s, e),
             ParseOFError::ErrNumber(s) => write!(f, "Number {}", s),
             ParseOFError::ErrString(s) => write!(f, "String {}", s),
+            ParseOFError::ErrNamed(s) => write!(f, "Named {}", s),
             ParseOFError::ErrParenthesis(s) => write!(f, "Parenthesis {}", s),
             ParseOFError::ErrFnCall(s) => write!(f, "FnCall {}", s),
             ParseOFError::ErrElementary(s) => write!(f, "Elementary {}", s),
