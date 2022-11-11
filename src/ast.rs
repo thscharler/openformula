@@ -112,6 +112,11 @@ impl<'a> OFAst<'a> {
     pub fn simple_named(ident: String, span: Span<'a>) -> OFSimpleNamed<'a> {
         OFSimpleNamed { ident, span }
     }
+
+    /// Creates a OFFnName
+    pub fn fn_name(name: String, span: Span<'a>) -> OFFnName<'a> {
+        OFFnName { name, span }
+    }
 }
 
 //
@@ -181,47 +186,42 @@ impl<'a> OFAst<'a> {
     }
 
     /// CellRef variant
+    // TODO:
     pub fn cell_ref(v: CellRef, s: Span<'a>) -> Box<OFAst<'a>> {
         Box::new(OFAst::NodeCellRef(OFCellRef(v, s)))
     }
 
     /// CellRange variant
+    // TODO:
     pub fn cell_range(v: CellRange, s: Span<'a>) -> Box<OFAst<'a>> {
         Box::new(OFAst::NodeCellRange(OFCellRange(v, s)))
     }
 
     /// ColRange variant
+    // TODO:
     pub fn col_range(v: ColRange, s: Span<'a>) -> Box<OFAst<'a>> {
         Box::new(OFAst::NodeColRange(OFColRange(v, s)))
     }
 
     /// RowRange variant
+    // TODO:
     pub fn row_range(v: RowRange, s: Span<'a>) -> Box<OFAst<'a>> {
         Box::new(OFAst::NodeRowRange(OFRowRange(v, s)))
     }
 
     /// Parens variant
-    pub fn parens(o: OFParOpen<'a>, expr: Box<OFAst<'a>>, c: OFParClose<'a>) -> Box<OFAst<'a>> {
+    pub fn parens(o: Span<'a>, expr: Box<OFAst<'a>>, c: Span<'a>) -> Box<OFAst<'a>> {
         Box::new(OFAst::NodeParens(OFParens { o, expr, c }))
     }
 
     /// FnCall variant
-    // TODO: mod parameters ...
     pub fn fn_call(
-        name: Span<'a>,
+        name: OFFnName<'a>,
         o: Span<'a>,
         arg: Vec<OFAst<'a>>,
         c: Span<'a>,
     ) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodeFnCall(OFFnCall {
-            name: OFFnName {
-                name: name.to_string(),
-                span: name,
-            },
-            o: OFParOpen { span: o },
-            arg,
-            c: OFParClose { span: c },
-        }))
+        Box::new(OFAst::NodeFnCall(OFFnCall { name, o, arg, c }))
     }
 }
 
@@ -1406,11 +1406,11 @@ impl<'a> PartialEq for OFColRange<'a> {
 #[derive(PartialEq)]
 pub struct OFParens<'a> {
     /// Open parentheses
-    pub o: OFParOpen<'a>,
+    pub o: Span<'a>,
     /// Expression
     pub expr: Box<OFAst<'a>>,
     /// Closing parentheses
-    pub c: OFParClose<'a>,
+    pub c: Span<'a>,
 }
 
 impl<'a> Node<'a> for OFParens<'a> {
@@ -1419,7 +1419,7 @@ impl<'a> Node<'a> for OFParens<'a> {
     }
 
     fn span(&self) -> Span<'a> {
-        unsafe { span_union(self.o.span(), self.c.span()) }
+        unsafe { span_union(self.o, self.c) }
     }
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -1439,54 +1439,6 @@ impl<'a> Display for OFParens<'a> {
     }
 }
 
-// OFParOpen *************************************************************
-
-/// Paren open
-#[derive(Debug, Eq, PartialEq)]
-pub struct OFParOpen<'a> {
-    /// Span
-    pub span: Span<'a>,
-}
-
-impl<'a> Node<'a> for OFParOpen<'a> {
-    fn name(&self) -> &str {
-        "("
-    }
-
-    /// Span
-    fn span(&self) -> Span<'a> {
-        self.span
-    }
-
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "(")
-    }
-}
-
-// OFParClose ************************************************************
-
-/// Paren open
-#[derive(Debug, Eq, PartialEq)]
-pub struct OFParClose<'a> {
-    /// Span
-    pub span: Span<'a>,
-}
-
-impl<'a> Node<'a> for OFParClose<'a> {
-    fn name(&self) -> &str {
-        ")"
-    }
-
-    /// Span
-    fn span(&self) -> Span<'a> {
-        self.span
-    }
-
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, ")")
-    }
-}
-
 // OFFnCall **************************************************************
 
 /// Function call
@@ -1495,11 +1447,11 @@ pub struct OFFnCall<'a> {
     /// Name
     pub name: OFFnName<'a>,
     /// Open parentheses
-    pub o: OFParOpen<'a>,
+    pub o: Span<'a>,
     /// Args
     pub arg: Vec<OFAst<'a>>,
     /// Closing parentheses
-    pub c: OFParClose<'a>,
+    pub c: Span<'a>,
 }
 
 impl<'a> Node<'a> for OFFnCall<'a> {
@@ -1508,7 +1460,7 @@ impl<'a> Node<'a> for OFFnCall<'a> {
     }
 
     fn span(&self) -> Span<'a> {
-        unsafe { span_union(self.name.span(), self.c.span()) }
+        unsafe { span_union(self.name.span(), self.c) }
     }
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {

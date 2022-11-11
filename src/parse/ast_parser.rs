@@ -13,8 +13,8 @@ use crate::error::ParseOFError;
 use crate::parse::{ParseResult, Span, Tracer};
 use crate::tokens::{dollar_dollar, dot, identifier, lah_dollar_dollar, lah_identifier, quoted};
 use crate::{
-    tokens, Node, OFAddOp, OFCellRange, OFCellRef, OFColRange, OFCompOp, OFMulOp, OFParClose,
-    OFParOpen, OFPostfixOp, OFPowOp, OFPrefixOp, OFRowRange,
+    tokens, Node, OFAddOp, OFCellRange, OFCellRef, OFColRange, OFCompOp, OFMulOp, OFPostfixOp,
+    OFPowOp, OFPrefixOp, OFRowRange,
 };
 use nom::character::complete::multispace0;
 use nom::combinator::{opt, recognize};
@@ -911,9 +911,7 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
                         //
                         match tokens::parentheses_close(eat_space(rest2)) {
                             Ok((rest3, par2)) => {
-                                let o = OFParOpen { span: par1 };
-                                let c = OFParClose { span: par2 };
-                                let ast = OFAst::parens(o, expr, c);
+                                let ast = OFAst::parens(par1, expr, par2);
                                 Ok(trace.ok(ast.span(), rest3, Some(ast)))
                             }
                             Err(e) => Err(trace.nom_err(rest1, ParseOFError::parentheses, e)),
@@ -1070,6 +1068,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                     // find a closing paren next
                     match tokens::parentheses_close(eat_space(loop_rest)) {
                         Ok((rest2, par2)) => {
+                            let fn_name = OFAst::fn_name(fn_name.to_string(), fn_name);
                             let ast = OFAst::fn_call(fn_name, par1, args, par2);
                             return Ok(trace.ok(ast.span(), rest2, Some(ast)));
                         }
