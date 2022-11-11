@@ -172,17 +172,17 @@ impl ParseOFError {
     }
 
     /// NomError variant.
-    pub fn nom_error<'s>(
-        span: Span<'s>,
-        err: &nom::Err<nom::error::Error<Span<'s>>>,
+    pub fn nom_error<'a>(
+        span: Span<'a>,
+        err: &nom::Err<nom::error::Error<Span<'a>>>,
     ) -> ParseOFError {
         ParseOFError::ErrNomError(span.into(), Self::error_kind(err))
     }
 
     /// NomFailure variant.
-    pub fn nom_failure<'s>(
-        span: Span<'s>,
-        err: &nom::Err<nom::error::Error<Span<'s>>>,
+    pub fn nom_failure<'a>(
+        span: Span<'a>,
+        err: &nom::Err<nom::error::Error<Span<'a>>>,
     ) -> ParseOFError {
         ParseOFError::ErrNomFailure(span.into(), Self::error_kind(err))
     }
