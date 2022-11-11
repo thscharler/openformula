@@ -270,6 +270,30 @@ impl ParseOFError {
 
 impl Error for ParseOFError {}
 
+/// Adds a span as location and converts the error to our own type..
+pub trait LocateError<T, E> {
+    /// Maps some error and adds the information of the span where the error occured.
+    fn locate_err(self, span: Span<'_>) -> Result<T, ParseOFError>;
+}
+
+impl<T> LocateError<T, ParseRownameError> for Result<T, ParseRownameError> {
+    fn locate_err(self, span: Span<'_>) -> Result<T, ParseOFError> {
+        match self {
+            Ok(v) => Ok(v),
+            Err(e) => Err(ParseOFError::ErrRowname(span.into(), e)),
+        }
+    }
+}
+
+impl<T> LocateError<T, ParseColnameError> for Result<T, ParseColnameError> {
+    fn locate_err(self, span: Span<'_>) -> Result<T, ParseOFError> {
+        match self {
+            Ok(v) => Ok(v),
+            Err(e) => Err(ParseOFError::ErrColname(span.into(), e)),
+        }
+    }
+}
+
 impl Display for ParseOFError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {

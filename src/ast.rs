@@ -6,7 +6,8 @@ use crate::conv::{quote_double, quote_single};
 use crate::dbg_ast;
 use crate::parse::Span;
 use nom::Offset;
-use spreadsheet_ods_cellref::{CellRange, CellRef, ColRange, RowRange};
+use spreadsheet_ods_cellref::refs_format::{fmt_abs, fmt_col_name, fmt_row_name};
+use spreadsheet_ods_cellref::{CellRange, ColRange, RowRange};
 use std::fmt::{Debug, Display, Formatter};
 use std::str::from_utf8_unchecked;
 use std::{fmt, mem, slice};
@@ -108,6 +109,16 @@ impl<'a> OFAst<'a> {
         OFSheetName { abs, name, span }
     }
 
+    /// Creates a OFRow
+    pub fn row(abs: bool, row: u32, span: Span<'a>) -> OFRow<'a> {
+        OFRow { abs, row, span }
+    }
+
+    /// Creates a OFCol
+    pub fn col(abs: bool, col: u32, span: Span<'a>) -> OFCol<'a> {
+        OFCol { abs, col, span }
+    }
+
     /// Creates a OFIdentifier
     pub fn simple_named(ident: String, span: Span<'a>) -> OFSimpleNamed<'a> {
         OFSimpleNamed { ident, span }
@@ -186,9 +197,20 @@ impl<'a> OFAst<'a> {
     }
 
     /// CellRef variant
-    // TODO:
-    pub fn cell_ref(v: CellRef, s: Span<'a>) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodeCellRef(OFCellRef(v, s)))
+    pub fn cell_ref(
+        iri: Option<OFIri<'a>>,
+        table: Option<OFSheetName<'a>>,
+        row: OFRow<'a>,
+        col: OFCol<'a>,
+        span: Span<'a>,
+    ) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeCellRef(OFCellRef {
+            iri,
+            table,
+            row,
+            col,
+            span,
+        }))
     }
 
     /// CellRange variant
@@ -1069,7 +1091,7 @@ impl<'a> Node<'a> for OFIri<'a> {
     }
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", quote_single(&self.iri))
+        write!(f, "'{}'#", quote_single(&self.iri))
     }
 }
 
@@ -1113,12 +1135,8 @@ impl<'a> Node<'a> for OFSheetName<'a> {
     }
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}'{}'.",
-            if self.abs { "$" } else { "" },
-            quote_single(&self.name)
-        )
+        fmt_abs(f, self.abs)?;
+        write!(f, "'{}'.", quote_single(&self.name))
     }
 }
 
@@ -1130,13 +1148,111 @@ impl<'a> Debug for OFSheetName<'a> {
 
 impl<'a> Display for OFSheetName<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}'{}'.", if self.abs { "$" } else { "" }, self.name)
+        fmt_abs(f, self.abs)?;
+        write!(f, "'{}'.", self.name)?;
+        Ok(())
     }
 }
 
 impl<'a> PartialEq for OFSheetName<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.abs == other.abs && self.name == other.name
+    }
+}
+
+// OFRow *****************************************************************
+
+/// Row data for any reference.
+pub struct OFRow<'a> {
+    /// Absolute flag
+    pub abs: bool,
+    /// Row
+    pub row: u32,
+    /// Span for all
+    pub span: Span<'a>,
+}
+
+impl<'a> Node<'a> for OFRow<'a> {
+    fn name(&self) -> &str {
+        "row"
+    }
+
+    fn span(&self) -> Span<'a> {
+        self.span
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        fmt_abs(f, self.abs)?;
+        fmt_row_name(f, self.row)?;
+        Ok(())
+    }
+}
+
+impl<'a> Debug for OFRow<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        dbg_ast::debug_elem(self, f)
+    }
+}
+
+impl<'a> Display for OFRow<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        fmt_abs(f, self.abs)?;
+        fmt_row_name(f, self.row)?;
+        Ok(())
+    }
+}
+
+impl<'a> PartialEq for OFRow<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.abs == other.abs && self.row == other.row
+    }
+}
+
+// OFCol *****************************************************************
+
+/// Column data for any reference.
+pub struct OFCol<'a> {
+    /// Absolute flag
+    pub abs: bool,
+    /// Col
+    pub col: u32,
+    /// Span for all
+    pub span: Span<'a>,
+}
+
+impl<'a> Node<'a> for OFCol<'a> {
+    fn name(&self) -> &str {
+        "col"
+    }
+
+    fn span(&self) -> Span<'a> {
+        self.span
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        fmt_abs(f, self.abs)?;
+        fmt_col_name(f, self.col)?;
+        Ok(())
+    }
+}
+
+impl<'a> Debug for OFCol<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        dbg_ast::debug_elem(self, f)
+    }
+}
+
+impl<'a> Display for OFCol<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        fmt_abs(f, self.abs)?;
+        fmt_col_name(f, self.col)?;
+        Ok(())
+    }
+}
+
+impl<'a> PartialEq for OFCol<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.abs == other.abs && self.col == other.col
     }
 }
 
@@ -1255,7 +1371,18 @@ impl<'a> PartialEq for OFNamed<'a> {
 // TODO: don't use CellRef etc
 
 /// CellRef
-pub struct OFCellRef<'a>(pub CellRef, pub Span<'a>);
+pub struct OFCellRef<'a> {
+    /// External source
+    pub iri: Option<OFIri<'a>>,
+    /// Sheet for reference.
+    pub table: Option<OFSheetName<'a>>,
+    /// Row
+    pub row: OFRow<'a>,
+    /// Col
+    pub col: OFCol<'a>,
+    /// Span of the complete reference.
+    pub span: Span<'a>,
+}
 
 impl<'a> Node<'a> for OFCellRef<'a> {
     fn name(&self) -> &str {
@@ -1263,11 +1390,17 @@ impl<'a> Node<'a> for OFCellRef<'a> {
     }
 
     fn span(&self) -> Span<'a> {
-        self.1
+        self.span
     }
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        if let Some(iri) = &self.iri {
+            write!(f, "{}", iri.enc())?;
+        }
+        if let Some(table) = &self.table {
+            write!(f, "{}", table.enc())?;
+        }
+        write!(f, "{}{}", self.col.enc(), self.row.enc())
     }
 }
 
@@ -1279,13 +1412,22 @@ impl<'a> Debug for OFCellRef<'a> {
 
 impl<'a> Display for OFCellRef<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        if let Some(iri) = &self.iri {
+            write!(f, "{}", iri)?;
+        }
+        if let Some(table) = &self.table {
+            write!(f, "{}", table)?;
+        }
+        write!(f, "{}{}", self.col, self.row)
     }
 }
 
 impl<'a> PartialEq for OFCellRef<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.iri == other.iri
+            && self.table == other.table
+            && self.col == other.col
+            && self.row == other.row
     }
 }
 

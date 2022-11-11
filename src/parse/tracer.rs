@@ -141,33 +141,15 @@ impl<'span> Tracer<'span> {
         match err {
             CellRefError::ErrNomError(span, e) => ParseOFError::ErrNomError(span.into(), e),
             CellRefError::ErrNomFailure(span, e) => ParseOFError::ErrNomFailure(span.into(), e),
-            CellRefError::ErrCellRef(span) => ParseOFError::ErrCellRef(span.into()),
+            //CellRefError::ErrCellRef(span) => ParseOFError::ErrCellRef(span.into()),
             CellRefError::ErrCellRange(span) => ParseOFError::ErrCellRange(span.into()),
             CellRefError::ErrColRange(span) => ParseOFError::ErrColRange(span.into()),
             CellRefError::ErrRowRange(span) => ParseOFError::ErrRowRange(span.into()),
             CellRefError::ErrRowname(span, e) => ParseOFError::ErrRowname(span.into(), e),
             CellRefError::ErrColname(span, e) => ParseOFError::ErrColname(span.into(), e),
+            _ => todo!(),
         }
     }
-
-    // /// Erring in a parser. Handles all nom errors and maps them to
-    // /// ErrNomError or ErrNomFailure depending on the err.
-    // ///
-    // /// Panic
-    // ///
-    // /// Panics if there was no call to enter() before.
-    // /// Panics if the err was a Err::Incomplete.
-    // pub fn nom_any<'s>(
-    //     &self,
-    //     span: Span<'s>,
-    //     err: nom::Err<nom::error::Error<Span<'s>>>,
-    // ) -> ParseOFError {
-    //     match err {
-    //         Err::Incomplete(_) => unreachable!(),
-    //         Err::Error(e) => self.nom_err2(span, ParseOFError::nom_error, err),
-    //         Err::Failure(e) => self.nom_err2(span, ParseOFError::nom_failure, err),
-    //     }
-    // }
 
     /// Erring in a parser. Handles all nom errors.
     ///

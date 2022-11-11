@@ -25,6 +25,7 @@ pub fn quote_single(i: &str) -> String {
 }
 
 /// Is this "$"
+// TODO: try_bool_from_abs_flag is the same. replace this.
 pub fn conv_abs(abs: Option<Span<'_>>) -> bool {
     match abs {
         None => false,
