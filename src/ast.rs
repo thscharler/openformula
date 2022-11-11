@@ -2,6 +2,7 @@
 //! AST for OpenFormula
 //!
 
+use crate::conv::{quote_double, quote_single};
 use crate::dbg_ast;
 use crate::parse::Span;
 use nom::Offset;
@@ -34,16 +35,19 @@ pub enum OFAst<'a> {
     /// String
     NodeString(OFString<'a>),
     /// Named expression
-    // TODO: check rest for a better structure.
     NodeNamed(OFNamed<'a>),
 
     /// CellRef
+    // TODO: replace CellRef
     NodeCellRef(OFCellRef<'a>),
     /// CellRange
+    // TODO: replace CellRange
     NodeCellRange(OFCellRange<'a>),
     /// ColRange
+    // TODO: replace ColRange
     NodeColRange(OFColRange<'a>),
     /// RowRange
+    // TODO: replace RowRange
     NodeRowRange(OFRowRange<'a>),
 
     /// Expression in parentheses.
@@ -53,137 +57,127 @@ pub enum OFAst<'a> {
 }
 
 impl<'a> OFAst<'a> {
-    /// Calculates the span of the complete AST tree.
-    pub fn span(&self) -> Span<'a> {
+    /// Returns the contained value as a &dyn Node.
+    pub fn node(&self) -> &dyn Node<'a> {
         match self {
-            OFAst::NodeEmpty(v) => v.span(),
-            OFAst::NodeCompare(v) => v.span(),
-            OFAst::NodeAdd(v) => v.span(),
-            OFAst::NodeMul(v) => v.span(),
-            OFAst::NodePow(v) => v.span(),
-            OFAst::NodePrefix(v) => v.span(),
-            OFAst::NodePostfix(v) => v.span(),
-            OFAst::NodeNumber(v) => v.span(),
-            OFAst::NodeString(v) => v.span(),
-            OFAst::NodeCellRef(v) => v.span(),
-            OFAst::NodeCellRange(v) => v.span(),
-            OFAst::NodeColRange(v) => v.span(),
-            OFAst::NodeRowRange(v) => v.span(),
-            OFAst::NodeParens(v) => v.span(),
-            OFAst::NodeFnCall(v) => v.span(),
-            OFAst::NodeNamed(v) => v.span(),
+            OFAst::NodeEmpty(v) => v,
+            OFAst::NodeCompare(v) => v,
+            OFAst::NodeAdd(v) => v,
+            OFAst::NodeMul(v) => v,
+            OFAst::NodePow(v) => v,
+            OFAst::NodePrefix(v) => v,
+            OFAst::NodePostfix(v) => v,
+            OFAst::NodeNumber(v) => v,
+            OFAst::NodeString(v) => v,
+            OFAst::NodeCellRef(v) => v,
+            OFAst::NodeCellRange(v) => v,
+            OFAst::NodeColRange(v) => v,
+            OFAst::NodeRowRange(v) => v,
+            OFAst::NodeParens(v) => v,
+            OFAst::NodeFnCall(v) => v,
+            OFAst::NodeNamed(v) => v,
         }
     }
+}
 
+impl<'a> Node<'a> for OFAst<'a> {
+    fn name(&self) -> &str {
+        "AST"
+    }
+
+    fn span(&self) -> Span<'a> {
+        self.node().span()
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.node().encode(f)
+    }
+}
+
+//
+// Functions that return some OFxxx
+//
+impl<'a> OFAst<'a> {
+    /// Creates a OFIri
+    pub fn iri(iri: String, span: Span<'a>) -> OFIri<'a> {
+        OFIri { iri, span }
+    }
+
+    /// Creates a OFSheetName
+    pub fn sheet_name(abs: bool, name: String, span: Span<'a>) -> OFSheetName<'a> {
+        OFSheetName { abs, name, span }
+    }
+
+    /// Creates a OFIdentifier
+    pub fn simple_named(ident: String, span: Span<'a>) -> OFSimpleNamed<'a> {
+        OFSimpleNamed { ident, span }
+    }
+}
+
+//
+// Functions that return a Box<OFAst>
+//
+impl<'a> OFAst<'a> {
     /// Empty variant
-    pub fn empty(s: Span<'a>) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodeEmpty(OFEmpty((), s)))
+    pub fn empty(span: Span<'a>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeEmpty(OFEmpty { span }))
     }
 
     /// CompareExpr variant
     pub fn compare(
-        expr0: Box<OFAst<'a>>,
+        left: Box<OFAst<'a>>,
         op: OFCompOp<'a>,
-        expr1: Box<OFAst<'a>>,
+        right: Box<OFAst<'a>>,
     ) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodeCompare(OFCompare {
-            left: expr0,
-            op,
-            right: expr1,
-        }))
+        Box::new(OFAst::NodeCompare(OFCompare { left, op, right }))
     }
 
     /// AddExpr variant
-    pub fn add(expr0: Box<OFAst<'a>>, op: OFAddOp<'a>, expr1: Box<OFAst<'a>>) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodeAdd(OFAdd {
-            left: expr0,
-            op,
-            right: expr1,
-        }))
+    pub fn add(left: Box<OFAst<'a>>, op: OFAddOp<'a>, right: Box<OFAst<'a>>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeAdd(OFAdd { left, op, right }))
     }
 
     /// MulExpr variant
-    pub fn mul(expr0: Box<OFAst<'a>>, op: OFMulOp<'a>, expr1: Box<OFAst<'a>>) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodeMul(OFMul {
-            left: expr0,
-            op,
-            right: expr1,
-        }))
+    pub fn mul(left: Box<OFAst<'a>>, op: OFMulOp<'a>, right: Box<OFAst<'a>>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeMul(OFMul { left, op, right }))
     }
 
     /// PowExpr variant
-    pub fn pow(expr0: Box<OFAst<'a>>, op: OFPowOp<'a>, expr1: Box<OFAst<'a>>) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodePow(OFPow {
-            left: expr0,
-            op,
-            right: expr1,
-        }))
+    pub fn pow(left: Box<OFAst<'a>>, op: OFPowOp<'a>, right: Box<OFAst<'a>>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodePow(OFPow { left, op, right }))
     }
 
     /// PostfixExpr variant
-    pub fn postfix(expr1: Box<OFAst<'a>>, op: OFPostfixOp<'a>) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodePostfix(OFPostfix { expr: expr1, op }))
+    pub fn postfix(expr: Box<OFAst<'a>>, op: OFPostfixOp<'a>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodePostfix(OFPostfix { expr, op }))
     }
 
     /// PrefixExpr variant
-    pub fn prefix(op: OFPrefixOp<'a>, expr1: Box<OFAst<'a>>) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodePrefix(OFPrefix { op, expr: expr1 }))
+    pub fn prefix(op: OFPrefixOp<'a>, expr: Box<OFAst<'a>>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodePrefix(OFPrefix { op, expr }))
     }
 
     /// Number variant
-    pub fn number(v: f64, s: Span<'a>) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodeNumber(OFNumber(v, s)))
+    pub fn number(num: f64, span: Span<'a>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeNumber(OFNumber { num, span }))
     }
 
     /// String variant
-    pub fn string(v: String, s: Span<'a>) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodeString(OFString(v, s)))
+    pub fn string(str: String, span: Span<'a>) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeString(OFString { str, span }))
     }
 
     /// Named variant
     pub fn named(
         iri: Option<OFIri<'a>>,
         sheet_name: Option<OFSheetName<'a>>,
-        identifier: OFIdentifier<'a>,
+        identifier: OFSimpleNamed<'a>,
     ) -> Box<OFAst<'a>> {
         Box::new(OFAst::NodeNamed(OFNamed {
             iri,
             sheet_name,
-            identifier,
+            simple: identifier,
         }))
-    }
-
-    /// Creates a OFIri
-    pub fn iri(iri: Option<Span<'a>>) -> Option<OFIri<'a>> {
-        iri.map(|v| OFIri(v.to_string(), v))
-    }
-
-    /// Creates a OFSheetName
-    pub fn sheet_name(
-        abs: Option<Span<'a>>,
-        sheet_name: Option<Span<'a>>,
-    ) -> Option<OFSheetName<'a>> {
-        if let Some(sheet_name) = sheet_name {
-            unsafe {
-                if let Some(abs) = abs {
-                    let complete_span = span_union(abs, sheet_name);
-                    Some(OFSheetName(
-                        *abs == "$",
-                        sheet_name.to_string(),
-                        complete_span,
-                    ))
-                } else {
-                    Some(OFSheetName(false, sheet_name.to_string(), sheet_name))
-                }
-            }
-        } else {
-            None
-        }
-    }
-
-    /// Creates a OFIdentifier
-    pub fn identifier(ident: Span<'a>) -> OFIdentifier<'a> {
-        OFIdentifier(ident.to_string(), ident)
     }
 
     /// CellRef variant
@@ -212,6 +206,7 @@ impl<'a> OFAst<'a> {
     }
 
     /// FnCall variant
+    // TODO: mod parameters ...
     pub fn fn_call(
         name: Span<'a>,
         o: Span<'a>,
@@ -259,6 +254,17 @@ impl<'a> Display for OFAst<'a> {
     }
 }
 
+#[allow(missing_debug_implementations)]
+/// Helper struct that implements Display an calls encode on the contained node.
+pub struct NodeEncoder<'a>(&'a dyn Node<'a>);
+
+impl<'a> Display for NodeEncoder<'a> {
+    /// Calls f with the given Formatter.
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.0.encode(f)
+    }
+}
+
 /// General Node trait.
 pub trait Node<'a> {
     /// Name for Debug.
@@ -266,6 +272,18 @@ pub trait Node<'a> {
 
     /// Returns the span of.
     fn span(&self) -> Span<'a>;
+
+    /// Writes an encoded version of the Node. This is a string, that can be parsed again.
+    /// This is mainly the string encoding with double-'
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result;
+
+    /// Recursive call for encode masked in impl Display.
+    fn enc(&'a self) -> NodeEncoder<'a>
+    where
+        Self: Sized,
+    {
+        NodeEncoder(self)
+    }
 }
 
 /// Trait for binary operation nodes.
@@ -282,11 +300,23 @@ pub trait BinaryNode<'a>: Node<'a> {
 }
 
 /// Identifies an operator node.
-pub trait Operator<'a>: Node<'a> + Display {}
+pub trait Operator<'a>: Node<'a> + Display {
+    /// Returns the operator token.
+    fn op(&self) -> &str;
+}
+
+//
+// TOKENS
+//
+
+// OFEmpty ***************************************************************
 
 #[allow(clippy::manual_non_exhaustive)]
 /// Empty
-pub struct OFEmpty<'a>((), pub Span<'a>);
+pub struct OFEmpty<'a> {
+    /// Span of nothing.
+    pub span: Span<'a>,
+}
 
 impl<'a> Node<'a> for OFEmpty<'a> {
     fn name(&self) -> &str {
@@ -294,7 +324,11 @@ impl<'a> Node<'a> for OFEmpty<'a> {
     }
 
     fn span(&self) -> Span<'a> {
-        self.1
+        self.span
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "")
     }
 }
 
@@ -316,6 +350,8 @@ impl<'a> PartialEq for OFEmpty<'a> {
     }
 }
 
+// OFCompare *************************************************************
+
 /// Comparison expression.
 #[derive(PartialEq)]
 pub struct OFCompare<'a> {
@@ -334,6 +370,16 @@ impl<'a> Node<'a> for OFCompare<'a> {
 
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.left.span(), self.right.span()) }
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            self.left.enc(),
+            self.op.enc(),
+            self.right.enc()
+        )
     }
 }
 
@@ -365,6 +411,8 @@ impl<'a> Display for OFCompare<'a> {
     }
 }
 
+// OFCompOp **************************************************************
+
 /// Comparison operators.
 #[derive(Debug)]
 pub enum OFCompOp<'a> {
@@ -388,7 +436,18 @@ impl<'a> PartialEq for OFCompOp<'a> {
     }
 }
 
-impl<'a> Operator<'a> for OFCompOp<'a> {}
+impl<'a> Operator<'a> for OFCompOp<'a> {
+    fn op(&self) -> &str {
+        match self {
+            OFCompOp::Equal(_) => "=",
+            OFCompOp::Unequal(_) => "<>",
+            OFCompOp::Less(_) => "<",
+            OFCompOp::LessEqual(_) => "<=",
+            OFCompOp::Greater(_) => ">",
+            OFCompOp::GreaterEqual(_) => ">=",
+        }
+    }
+}
 
 impl<'a> Node<'a> for OFCompOp<'a> {
     fn name(&self) -> &str {
@@ -406,20 +465,19 @@ impl<'a> Node<'a> for OFCompOp<'a> {
             OFCompOp::GreaterEqual(s) => *s,
         }
     }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.op())
+    }
 }
 
 impl<'a> Display for OFCompOp<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            OFCompOp::Equal(_) => write!(f, "="),
-            OFCompOp::Unequal(_) => write!(f, "<>"),
-            OFCompOp::Less(_) => write!(f, "<"),
-            OFCompOp::LessEqual(_) => write!(f, "<="),
-            OFCompOp::Greater(_) => write!(f, ">"),
-            OFCompOp::GreaterEqual(_) => write!(f, ">="),
-        }
+        write!(f, "{}", self.op())
     }
 }
+
+// OFAdd *****************************************************************
 
 /// Additive expression
 #[derive(PartialEq)]
@@ -439,6 +497,16 @@ impl<'a> Node<'a> for OFAdd<'a> {
 
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.left.span(), self.right.span()) }
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            self.left.enc(),
+            self.op.enc(),
+            self.right.enc()
+        )
     }
 }
 
@@ -470,6 +538,8 @@ impl<'a> Display for OFAdd<'a> {
     }
 }
 
+// OFAddOp ***************************************************************
+
 /// Additive operators.
 #[derive(Debug)]
 pub enum OFAddOp<'a> {
@@ -485,7 +555,14 @@ impl<'a> PartialEq for OFAddOp<'a> {
     }
 }
 
-impl<'a> Operator<'a> for OFAddOp<'a> {}
+impl<'a> Operator<'a> for OFAddOp<'a> {
+    fn op(&self) -> &str {
+        match self {
+            OFAddOp::Add(_) => "+",
+            OFAddOp::Subtract(_) => "-",
+        }
+    }
+}
 
 impl<'a> Node<'a> for OFAddOp<'a> {
     fn name(&self) -> &str {
@@ -499,16 +576,19 @@ impl<'a> Node<'a> for OFAddOp<'a> {
             OFAddOp::Subtract(span) => *span,
         }
     }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.op())
+    }
 }
 
 impl<'a> Display for OFAddOp<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            OFAddOp::Add(_) => write!(f, "+"),
-            OFAddOp::Subtract(_) => write!(f, "-"),
-        }
+        write!(f, "{}", self.op())
     }
 }
+
+// OFMul *****************************************************************
 
 /// Multiplication expression.
 #[derive(PartialEq)]
@@ -528,6 +608,16 @@ impl<'a> Node<'a> for OFMul<'a> {
 
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.left.span(), self.right.span()) }
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            self.left.enc(),
+            self.op.enc(),
+            self.right.enc()
+        )
     }
 }
 
@@ -559,6 +649,8 @@ impl<'a> Display for OFMul<'a> {
     }
 }
 
+// OFMulOp ***************************************************************
+
 /// Multiplicative operators.
 #[derive(Debug)]
 pub enum OFMulOp<'a> {
@@ -574,7 +666,14 @@ impl<'a> PartialEq for OFMulOp<'a> {
     }
 }
 
-impl<'a> Operator<'a> for OFMulOp<'a> {}
+impl<'a> Operator<'a> for OFMulOp<'a> {
+    fn op(&self) -> &str {
+        match self {
+            OFMulOp::Multiply(_) => "*",
+            OFMulOp::Divide(_) => "/",
+        }
+    }
+}
 
 impl<'a> Node<'a> for OFMulOp<'a> {
     fn name(&self) -> &str {
@@ -588,16 +687,19 @@ impl<'a> Node<'a> for OFMulOp<'a> {
             OFMulOp::Divide(span) => *span,
         }
     }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.op())
+    }
 }
 
 impl<'a> Display for OFMulOp<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            OFMulOp::Multiply(_) => write!(f, "*"),
-            OFMulOp::Divide(_) => write!(f, "/"),
-        }
+        write!(f, "{}", self.op())
     }
 }
+
+// OFPow *****************************************************************
 
 /// Power expression
 #[derive(PartialEq)]
@@ -617,6 +719,16 @@ impl<'a> Node<'a> for OFPow<'a> {
 
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.left.span(), self.right.span()) }
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            self.left.enc(),
+            self.op.enc(),
+            self.right.enc()
+        )
     }
 }
 
@@ -648,6 +760,8 @@ impl<'a> Display for OFPow<'a> {
     }
 }
 
+// OFPowOp ***************************************************************
+
 /// Power operator.
 #[derive(Debug)]
 pub enum OFPowOp<'a> {
@@ -661,7 +775,11 @@ impl<'a> PartialEq for OFPowOp<'a> {
     }
 }
 
-impl<'a> Operator<'a> for OFPowOp<'a> {}
+impl<'a> Operator<'a> for OFPowOp<'a> {
+    fn op(&self) -> &str {
+        "^"
+    }
+}
 
 impl<'a> Node<'a> for OFPowOp<'a> {
     fn name(&self) -> &str {
@@ -673,15 +791,19 @@ impl<'a> Node<'a> for OFPowOp<'a> {
             OFPowOp::Power(span) => *span,
         }
     }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.op())
+    }
 }
 
 impl<'a> Display for OFPowOp<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            OFPowOp::Power(_) => write!(f, "^"),
-        }
+        write!(f, "{}", self.op())
     }
 }
+
+// OFPostfix *************************************************************
 
 /// Postfix expression
 #[derive(PartialEq)]
@@ -700,6 +822,10 @@ impl<'a> Node<'a> for OFPostfix<'a> {
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.expr.span(), self.op.span()) }
     }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}", self.expr.enc(), self.op.enc())
+    }
 }
 
 impl<'a> Debug for OFPostfix<'a> {
@@ -714,6 +840,8 @@ impl<'a> Display for OFPostfix<'a> {
     }
 }
 
+// OFPostfixOp ***********************************************************
+
 /// Postfix operators.
 #[derive(Debug)]
 pub enum OFPostfixOp<'a> {
@@ -727,7 +855,11 @@ impl<'a> PartialEq for OFPostfixOp<'a> {
     }
 }
 
-impl<'a> Operator<'a> for OFPostfixOp<'a> {}
+impl<'a> Operator<'a> for OFPostfixOp<'a> {
+    fn op(&self) -> &str {
+        "%"
+    }
+}
 
 impl<'a> Node<'a> for OFPostfixOp<'a> {
     fn name(&self) -> &str {
@@ -739,15 +871,19 @@ impl<'a> Node<'a> for OFPostfixOp<'a> {
             OFPostfixOp::Percent(span) => *span,
         }
     }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.op())
+    }
 }
 
 impl<'a> Display for OFPostfixOp<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            OFPostfixOp::Percent(_) => write!(f, "%"),
-        }
+        write!(f, "{}", self.op())
     }
 }
+
+// OFPrefix **************************************************************
 
 /// Prefix expression.
 #[derive(PartialEq)]
@@ -766,6 +902,10 @@ impl<'a> Node<'a> for OFPrefix<'a> {
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.op.span(), self.expr.span()) }
     }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}", self.op.enc(), self.expr.enc())
+    }
 }
 
 impl<'a> Debug for OFPrefix<'a> {
@@ -779,6 +919,8 @@ impl<'a> Display for OFPrefix<'a> {
         write!(f, "{}{}", self.op, self.expr)
     }
 }
+
+// OFPrefixOp ************************************************************
 
 /// Prefix operators.
 #[derive(Debug)]
@@ -795,7 +937,14 @@ impl<'a> PartialEq for OFPrefixOp<'a> {
     }
 }
 
-impl<'a> Operator<'a> for OFPrefixOp<'a> {}
+impl<'a> Operator<'a> for OFPrefixOp<'a> {
+    fn op(&self) -> &str {
+        match self {
+            OFPrefixOp::Plus(_) => "+",
+            OFPrefixOp::Minus(_) => "-",
+        }
+    }
+}
 
 impl<'a> Node<'a> for OFPrefixOp<'a> {
     fn name(&self) -> &str {
@@ -808,19 +957,27 @@ impl<'a> Node<'a> for OFPrefixOp<'a> {
             OFPrefixOp::Minus(span) => *span,
         }
     }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.op())
+    }
 }
 
 impl<'a> Display for OFPrefixOp<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            OFPrefixOp::Plus(_) => write!(f, "+"),
-            OFPrefixOp::Minus(_) => write!(f, "-"),
-        }
+        write!(f, "{}", self.op())
     }
 }
 
+// OFNumber **************************************************************
+
 /// Number
-pub struct OFNumber<'a>(pub f64, pub Span<'a>);
+pub struct OFNumber<'a> {
+    /// Number
+    pub num: f64,
+    /// Span
+    pub span: Span<'a>,
+}
 
 impl<'a> Node<'a> for OFNumber<'a> {
     fn name(&self) -> &str {
@@ -828,7 +985,11 @@ impl<'a> Node<'a> for OFNumber<'a> {
     }
 
     fn span(&self) -> Span<'a> {
-        self.1
+        self.span
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.num)
     }
 }
 
@@ -840,18 +1001,23 @@ impl<'a> Debug for OFNumber<'a> {
 
 impl<'a> Display for OFNumber<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.num)
     }
 }
 
 impl<'a> PartialEq for OFNumber<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.num == other.num
     }
 }
 
+// OFString **************************************************************
+
 /// String
-pub struct OFString<'a>(pub String, pub Span<'a>);
+pub struct OFString<'a> {
+    str: String,
+    span: Span<'a>,
+}
 
 impl<'a> Node<'a> for OFString<'a> {
     fn name(&self) -> &str {
@@ -859,7 +1025,11 @@ impl<'a> Node<'a> for OFString<'a> {
     }
 
     fn span(&self) -> Span<'a> {
-        self.1
+        self.span
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "\"{}\"", quote_double(&self.str))
     }
 }
 
@@ -871,18 +1041,23 @@ impl<'a> Debug for OFString<'a> {
 
 impl<'a> Display for OFString<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.str)
     }
 }
 
 impl<'a> PartialEq for OFString<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.str == other.str
     }
 }
 
+// OFIri *****************************************************************
+
 /// Represents an external source reference.
-pub struct OFIri<'a>(String, Span<'a>);
+pub struct OFIri<'a> {
+    iri: String,
+    span: Span<'a>,
+}
 
 impl<'a> Node<'a> for OFIri<'a> {
     fn name(&self) -> &str {
@@ -890,7 +1065,11 @@ impl<'a> Node<'a> for OFIri<'a> {
     }
 
     fn span(&self) -> Span<'a> {
-        self.1
+        self.span
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", quote_single(&self.iri))
     }
 }
 
@@ -902,18 +1081,27 @@ impl<'a> Debug for OFIri<'a> {
 
 impl<'a> Display for OFIri<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.iri)
     }
 }
 
 impl<'a> PartialEq for OFIri<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.iri == other.iri
     }
 }
 
+// OFSheetName ***********************************************************
+
 /// Sheet name.
-pub struct OFSheetName<'a>(bool, String, Span<'a>);
+pub struct OFSheetName<'a> {
+    /// Absolute reference.
+    pub abs: bool,
+    /// Sheet name.
+    pub name: String,
+    /// Span.
+    pub span: Span<'a>,
+}
 
 impl<'a> Node<'a> for OFSheetName<'a> {
     fn name(&self) -> &str {
@@ -921,7 +1109,16 @@ impl<'a> Node<'a> for OFSheetName<'a> {
     }
 
     fn span(&self) -> Span<'a> {
-        self.2
+        self.span
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}'{}'.",
+            if self.abs { "$" } else { "" },
+            quote_single(&self.name)
+        )
     }
 }
 
@@ -933,46 +1130,63 @@ impl<'a> Debug for OFSheetName<'a> {
 
 impl<'a> Display for OFSheetName<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}'{}'.", if self.0 { "$" } else { "" }, self.1)
+        write!(f, "{}'{}'.", if self.abs { "$" } else { "" }, self.name)
     }
 }
 
 impl<'a> PartialEq for OFSheetName<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0 && self.1 == other.1
+        self.abs == other.abs && self.name == other.name
     }
 }
 
-/// Identifier.
-pub struct OFIdentifier<'a>(String, Span<'a>);
+// OFIdentifier **********************************************************
 
-impl<'a> Node<'a> for OFIdentifier<'a> {
+/// Identifier.
+pub struct OFSimpleNamed<'a> {
+    /// Name
+    pub ident: String,
+    /// Span
+    pub span: Span<'a>,
+}
+
+impl<'a> Node<'a> for OFSimpleNamed<'a> {
     fn name(&self) -> &str {
-        "identifier"
+        "simple_named"
     }
 
     fn span(&self) -> Span<'a> {
-        self.1
+        self.span
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if self.ident.contains('\'') {
+            write!(f, "$$'{}'", quote_single(&self.ident))
+        } else {
+            write!(f, "{}", self.ident)
+        }
     }
 }
 
-impl<'a> Debug for OFIdentifier<'a> {
+impl<'a> Debug for OFSimpleNamed<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         dbg_ast::debug_elem(self, f)
     }
 }
 
-impl<'a> Display for OFIdentifier<'a> {
+impl<'a> Display for OFSimpleNamed<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.ident)
     }
 }
 
-impl<'a> PartialEq for OFIdentifier<'a> {
+impl<'a> PartialEq for OFSimpleNamed<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.ident == other.ident
     }
 }
+
+// OFNamed ***************************************************************
 
 /// A named expression.
 pub struct OFNamed<'a> {
@@ -981,7 +1195,7 @@ pub struct OFNamed<'a> {
     /// Sheet name
     pub sheet_name: Option<OFSheetName<'a>>,
     /// Identifier
-    pub identifier: OFIdentifier<'a>,
+    pub simple: OFSimpleNamed<'a>,
 }
 
 impl<'a> Node<'a> for OFNamed<'a> {
@@ -991,12 +1205,23 @@ impl<'a> Node<'a> for OFNamed<'a> {
 
     fn span(&self) -> Span<'a> {
         if let Some(iri) = &self.iri {
-            unsafe { span_union(iri.span(), self.identifier.span()) }
+            unsafe { span_union(iri.span(), self.simple.span()) }
         } else if let Some(sheet_name) = &self.sheet_name {
-            unsafe { span_union(sheet_name.span(), self.identifier.span()) }
+            unsafe { span_union(sheet_name.span(), self.simple.span()) }
         } else {
-            self.identifier.1
+            self.simple.span()
         }
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if let Some(iri) = &self.iri {
+            write!(f, "{}", iri)?;
+        }
+        if let Some(sheet_name) = &self.sheet_name {
+            write!(f, "{}", sheet_name)?;
+        }
+        write!(f, "{}", self.simple)?;
+        Ok(())
     }
 }
 
@@ -1014,18 +1239,20 @@ impl<'a> Display for OFNamed<'a> {
         if let Some(sheet_name) = &self.sheet_name {
             write!(f, "{}", sheet_name)?;
         }
-        write!(f, "{}", self.identifier)?;
+        write!(f, "{}", self.simple)?;
         Ok(())
     }
 }
 
 impl<'a> PartialEq for OFNamed<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.iri == other.iri
-            && self.sheet_name == other.sheet_name
-            && self.identifier == other.identifier
+        self.iri == other.iri && self.sheet_name == other.sheet_name && self.simple == other.simple
     }
 }
+
+// OFCellRef *************************************************************
+
+// TODO: don't use CellRef etc
 
 /// CellRef
 pub struct OFCellRef<'a>(pub CellRef, pub Span<'a>);
@@ -1037,6 +1264,10 @@ impl<'a> Node<'a> for OFCellRef<'a> {
 
     fn span(&self) -> Span<'a> {
         self.1
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -1058,6 +1289,8 @@ impl<'a> PartialEq for OFCellRef<'a> {
     }
 }
 
+// OFCellRange **********************************************************
+
 /// CellRange
 pub struct OFCellRange<'a>(pub CellRange, pub Span<'a>);
 
@@ -1068,6 +1301,10 @@ impl<'a> Node<'a> for OFCellRange<'a> {
 
     fn span(&self) -> Span<'a> {
         self.1
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -1089,6 +1326,8 @@ impl<'a> PartialEq for OFCellRange<'a> {
     }
 }
 
+// OFRowRange ************************************************************
+
 /// RowRange
 pub struct OFRowRange<'a>(pub RowRange, pub Span<'a>);
 
@@ -1099,6 +1338,10 @@ impl<'a> Node<'a> for OFRowRange<'a> {
 
     fn span(&self) -> Span<'a> {
         self.1
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -1120,6 +1363,8 @@ impl<'a> PartialEq for OFRowRange<'a> {
     }
 }
 
+// ColRange **************************************************************
+
 /// ColRange
 pub struct OFColRange<'a>(pub ColRange, pub Span<'a>);
 
@@ -1130,6 +1375,10 @@ impl<'a> Node<'a> for OFColRange<'a> {
 
     fn span(&self) -> Span<'a> {
         self.1
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -1151,6 +1400,8 @@ impl<'a> PartialEq for OFColRange<'a> {
     }
 }
 
+// OFParens **************************************************************
+
 /// Expression in parentheses.
 #[derive(PartialEq)]
 pub struct OFParens<'a> {
@@ -1170,6 +1421,10 @@ impl<'a> Node<'a> for OFParens<'a> {
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.o.span(), self.c.span()) }
     }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "({})", self.expr.enc())
+    }
 }
 
 impl<'a> Debug for OFParens<'a> {
@@ -1183,6 +1438,8 @@ impl<'a> Display for OFParens<'a> {
         write!(f, "({})", self.expr)
     }
 }
+
+// OFParOpen *************************************************************
 
 /// Paren open
 #[derive(Debug, Eq, PartialEq)]
@@ -1200,7 +1457,13 @@ impl<'a> Node<'a> for OFParOpen<'a> {
     fn span(&self) -> Span<'a> {
         self.span
     }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "(")
+    }
 }
+
+// OFParClose ************************************************************
 
 /// Paren open
 #[derive(Debug, Eq, PartialEq)]
@@ -1218,7 +1481,13 @@ impl<'a> Node<'a> for OFParClose<'a> {
     fn span(&self) -> Span<'a> {
         self.span
     }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, ")")
+    }
 }
+
+// OFFnCall **************************************************************
 
 /// Function call
 #[derive(PartialEq)]
@@ -1240,6 +1509,18 @@ impl<'a> Node<'a> for OFFnCall<'a> {
 
     fn span(&self) -> Span<'a> {
         unsafe { span_union(self.name.span(), self.c.span()) }
+    }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}(", self.name.enc())?;
+        for (i, expr) in self.arg.iter().enumerate() {
+            if i > 0 {
+                write!(f, ";")?;
+            }
+            write!(f, "{}", expr.enc())?;
+        }
+        write!(f, ")")?;
+        Ok(())
     }
 }
 
@@ -1263,6 +1544,8 @@ impl<'a> Display for OFFnCall<'a> {
     }
 }
 
+// OFFnName **************************************************************
+
 /// Function name.
 #[derive(Debug, Eq, PartialEq)]
 pub struct OFFnName<'a> {
@@ -1281,11 +1564,25 @@ impl<'a> Node<'a> for OFFnName<'a> {
     fn span(&self) -> Span<'a> {
         self.span
     }
+
+    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
 }
 
 impl<'a> Display for OFFnName<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
+    }
+}
+
+// See span_union for details.
+pub(crate) unsafe fn span_union_opt<'a>(span0: Option<Span<'a>>, span1: Span<'a>) -> Span<'a> {
+    unsafe {
+        match span0 {
+            None => span1,
+            Some(span0) => span_union(span0, span1),
+        }
     }
 }
 
@@ -1298,7 +1595,7 @@ impl<'a> Display for OFFnName<'a> {
 //      Should be guaranteed if both were obtained from on parse run.
 // * The distance between the pointers, in bytes, cannot overflow an isize.
 // * The distance being in bounds cannot rely on “wrapping around” the address space.
-unsafe fn span_union<'a>(span0: Span<'a>, span1: Span<'a>) -> Span<'a> {
+pub(crate) unsafe fn span_union<'a>(span0: Span<'a>, span1: Span<'a>) -> Span<'a> {
     let ptr = span0.as_ptr();
     // offset to the start of span1 and add the length of span1.
     let size = span0.offset(&span1) + span1.len();

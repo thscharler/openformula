@@ -150,6 +150,25 @@ impl<'span> Tracer<'span> {
         }
     }
 
+    // /// Erring in a parser. Handles all nom errors and maps them to
+    // /// ErrNomError or ErrNomFailure depending on the err.
+    // ///
+    // /// Panic
+    // ///
+    // /// Panics if there was no call to enter() before.
+    // /// Panics if the err was a Err::Incomplete.
+    // pub fn nom_any<'s>(
+    //     &self,
+    //     span: Span<'s>,
+    //     err: nom::Err<nom::error::Error<Span<'s>>>,
+    // ) -> ParseOFError {
+    //     match err {
+    //         Err::Incomplete(_) => unreachable!(),
+    //         Err::Error(e) => self.nom_err2(span, ParseOFError::nom_error, err),
+    //         Err::Failure(e) => self.nom_err2(span, ParseOFError::nom_failure, err),
+    //     }
+    // }
+
     /// Erring in a parser. Handles all nom errors.
     ///
     /// Panic

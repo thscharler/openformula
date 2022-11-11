@@ -7,7 +7,8 @@
 //!
 //! The look-ahead functions are called internally at certain branching points.
 
-use crate::ast::OFAst;
+use crate::ast::{span_union_opt, OFAst};
+use crate::conv::{conv_abs, unquote_double, unquote_single};
 use crate::error::ParseOFError;
 use crate::parse::{ParseResult, Span, Tracer};
 use crate::tokens::{dollar_dollar, dot, identifier, lah_dollar_dollar, lah_identifier, quoted};
@@ -570,7 +571,7 @@ impl<'s> GeneralExpr<'s> for NumberExpr {
     ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
-        match opt(super::tokens::number)(i) {
+        match opt(tokens::number)(i) {
             Ok((rest, Some(tok))) => match (*tok).parse::<f64>() {
                 Ok(val) => {
                     let ast = OFAst::number(val, tok);
@@ -603,9 +604,9 @@ impl<'s> GeneralExpr<'s> for StringExpr {
     ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
-        match opt(super::tokens::string)(i) {
+        match opt(tokens::string)(i) {
             Ok((rest, Some(tok))) => {
-                let ast = OFAst::string(tok.to_string(), tok);
+                let ast = OFAst::string(unquote_double(tok), tok);
                 Ok(trace.ok(ast.span(), rest, Some(ast)))
             }
             Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
@@ -903,12 +904,12 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
     ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
-        match super::tokens::parentheses_open(i) {
+        match tokens::parentheses_open(i) {
             Ok((rest1, par1)) => {
                 match Expr::parse(trace, eat_space(rest1)) {
                     Ok((rest2, Some(expr))) => {
                         //
-                        match super::tokens::parentheses_close(eat_space(rest2)) {
+                        match tokens::parentheses_close(eat_space(rest2)) {
                             Ok((rest3, par2)) => {
                                 let o = OFParOpen { span: par1 };
                                 let c = OFParClose { span: par2 };
@@ -959,6 +960,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
     ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
         trace.enter(Self::name(), i);
 
+        // TODO: simplify error handling
         let (rest1, fn_name) = match recognize(tokens::fn_name)(i) {
             Ok((rest, tok)) => (eat_space(rest), tok),
             Err(nom::Err::Error(_)) => return Ok(trace.ok(Span::new(""), i, None)),
@@ -1125,23 +1127,30 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
         let (span, iri) = match iri(span) {
             Ok((span, iri)) => {
                 //
-                (span, OFAst::iri(Some(iri)))
+                (span, Some(OFAst::iri(unquote_single(iri), iri)))
             }
             Err(nom::Err::Error(_)) => {
                 //
-                (span, OFAst::iri(None))
+                (span, None)
             }
             Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
         };
 
         let (span, sheet_name) = match tuple((sheet_name, dot))(span) {
-            Ok((span, ((abs, sheet_name), _dot))) => {
+            Ok((span, ((abs, sheet_name), _dot))) => unsafe {
                 //
-                (span, OFAst::sheet_name(abs, Some(sheet_name)))
-            }
+                (
+                    span,
+                    Some(OFAst::sheet_name(
+                        conv_abs(abs),
+                        unquote_single(sheet_name),
+                        span_union_opt(abs, sheet_name),
+                    )),
+                )
+            },
             Err(nom::Err::Error(_)) => {
                 //
-                (span, OFAst::sheet_name(None, None))
+                (span, None)
             }
             Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
         };
@@ -1149,18 +1158,18 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
         let (span, ident) = match identifier(span) {
             Ok((span, ident)) => {
                 //
-                (span, OFAst::identifier(ident))
+                (span, OFAst::simple_named(ident.to_string(), ident))
             }
             Err(nom::Err::Error(_)) => match dollar_dollar(span) {
                 Ok((span, _tag)) => match identifier(span) {
                     Ok((span, ident)) => {
                         //
-                        (span, OFAst::identifier(ident))
+                        (span, OFAst::simple_named(ident.to_string(), ident))
                     }
                     Err(nom::Err::Error(_)) => match quoted('\'')(span) {
                         Ok((span, ident)) => {
                             //
-                            (span, OFAst::identifier(ident))
+                            (span, OFAst::simple_named(unquote_single(ident), ident))
                         }
                         Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
                     },
