@@ -1060,7 +1060,7 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                 (
                     rest1,
                     Some(OFAst::sheet_name(
-                        conv::conv_abs(abs),
+                        refs_parser::try_bool_from_abs_flag(abs),
                         conv::unquote_single(sheet_name),
                         span_union_opt(abs, sheet_name),
                     )),

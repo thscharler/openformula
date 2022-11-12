@@ -23,12 +23,3 @@ pub fn unquote_single(i: Span<'_>) -> String {
 pub fn quote_single(i: &str) -> String {
     (*i).replace("'", "''")
 }
-
-/// Is this "$"
-// TODO: try_bool_from_abs_flag is the same. replace this.
-pub fn conv_abs(abs: Option<Span<'_>>) -> bool {
-    match abs {
-        None => false,
-        Some(s) => *s == "$",
-    }
-}
