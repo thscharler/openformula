@@ -11,7 +11,7 @@
 #![warn(meta_variable_misuse)]
 #![warn(missing_abi)]
 // NOT_ACCURATE #![warn(missing_copy_implementations)]
-#![warn(missing_debug_implementations)]
+// #![warn(missing_debug_implementations)]
 #![warn(missing_docs)]
 #![warn(non_ascii_idents)]
 #![warn(noop_method_call)]
@@ -38,7 +38,6 @@
 mod ast;
 mod dbg_ast;
 mod error;
-mod error2;
 mod parse;
 mod refs;
 

@@ -11,23 +11,18 @@ use crate::ast::{span_union_opt, OFAst};
 use crate::conv::{conv_abs, unquote_double, unquote_single};
 use crate::error::ParseOFError;
 use crate::parse::{ParseResult, Span, Tracer};
-use crate::tokens::{dollar_dollar, dot, identifier, lah_dollar_dollar, lah_identifier, quoted};
+use crate::tokens;
 use crate::{
-    tokens, LocateError, Node, OFAddOp, OFCellRange, OFCellRef, OFColRange, OFCompOp, OFMulOp,
-    OFPostfixOp, OFPowOp, OFPrefixOp, OFRowRange,
+    LocateError, Node, OFAddOp, OFCellRange, OFCellRef, OFColRange, OFCompOp, OFMulOp, OFPostfixOp,
+    OFPowOp, OFPrefixOp, OFRowRange,
 };
 use nom::character::complete::multispace0;
-use nom::combinator::{opt, recognize};
+use nom::combinator::recognize;
 use nom::sequence::tuple;
 use nom::InputTake;
-use spreadsheet_ods_cellref::parser::{
-    parse_cell_range, parse_col_range, parse_row_range, try_bool_from_abs_flag,
-    try_u32_from_colname, try_u32_from_rowname,
-};
-use spreadsheet_ods_cellref::tokens::{iri, lah_iri, lah_sheet_name, sheet_name};
-use spreadsheet_ods_cellref::{
-    parser as refs_parser, tokens as refs_tokens, CellRange, CellRefError, ColRange, RowRange,
-};
+use spreadsheet_ods_cellref::parser as refs_parser;
+use spreadsheet_ods_cellref::tokens as refs_tokens;
+use spreadsheet_ods_cellref::{CellRange, ColRange, RowRange};
 
 // Expression ::=
 // Whitespace* (
@@ -97,93 +92,56 @@ pub trait GeneralExpr<'s> {
     fn lah(i: Span<'s>) -> bool;
 
     /// Parses the expression.
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>)
-        -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>>;
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>>;
 }
-
-/// Conversion function for a binary expression into an AstTree
-type AstTreeFn<'a, T> = fn(expr0: Box<OFAst<'a>>, op: T, expr1: Box<OFAst<'a>>) -> Box<OFAst<'a>>;
-
-/// Conversion function into a ParseExprError
-type ParseExprErrorFn = for<'a> fn(span: Span<'a>) -> ParseOFError;
 
 /// Special trait for binary expressions.
 pub trait BinaryExpr<'s> {
     /// Operator type.
     type Operator;
-    /// Operand type.
-    type Operand: GeneralExpr<'s>;
-
-    /// Conversion function into an AstTree
-    const AST_NODE: AstTreeFn<'s, Self::Operator>;
-    /// Conversion function into and ParseExprError
-    const AST_ERR: ParseExprErrorFn;
 
     /// Get a name for debug.
     fn name() -> &'static str;
 
     /// Run a look-ahead.
-    fn lah(i: Span<'s>) -> bool {
-        Self::Operand::lah(i)
-    }
+    fn lah(i: Span<'s>) -> bool;
 
     /// Parses all the binary expressions.
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         match Self::operand(trace, i) {
-            Ok((mut loop_rest, Some(mut expr1))) => {
+            Ok((mut loop_rest, mut expr1)) => {
                 //
                 loop {
                     match Self::operator(trace, eat_space(loop_rest)) {
-                        Ok((rest2, Some(op))) => {
+                        Ok((rest2, op)) => {
                             //
                             match Self::operand(trace, eat_space(rest2)) {
-                                Ok((rest3, Some(expr2))) => {
+                                Ok((rest3, expr2)) => {
                                     loop_rest = rest3;
                                     expr1 = Self::ast(expr1, op, expr2);
                                 }
-                                Ok((rest3, None)) => break Err(trace.ast_err(rest3, Self::ast_err)),
-                                Err(e) => break Err(trace.parse_err(e)),
+                                Err(e) => break Err(trace.parse(e)),
                             }
                         }
-                        Ok((rest2, None)) => break Ok(trace.ok(expr1.span(), rest2, Some(expr1))),
-                        Err(e) => break Err(trace.parse_err(e)),
+                        Err(e) => break Err(trace.parse(e)),
                     }
                 }
             }
-            Ok((rest1, None)) => Ok(trace.ok(Span::new(""), rest1, None)),
-            Err(e) => Err(trace.parse_err(e)),
+            Err(e) => Err(trace.parse(e)),
         }
     }
 
     /// Parse the sub expression.
-    fn operand<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
-        Self::Operand::parse(trace, i)
-    }
+    fn operand<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>>;
 
     /// Parse the operator.
     /// Parses and maps the Span to an OFCompOp
-    fn operator<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Self::Operator>>;
+    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Self::Operator>;
 
     /// Creates an AST node.
-    fn ast(expr0: Box<OFAst<'s>>, op: Self::Operator, expr1: Box<OFAst<'s>>) -> Box<OFAst<'s>> {
-        Self::AST_NODE(expr0, op, expr1)
-    }
-
-    /// Creates an ParseExprError
-    fn ast_err(span: Span<'s>) -> ParseOFError {
-        Self::AST_ERR(span)
-    }
+    fn ast(left: Box<OFAst<'s>>, op: Self::Operator, right: Box<OFAst<'s>>) -> Box<OFAst<'s>>;
 }
 
 /// GeneralExpr can be expressed in terms of BinaryExpr.
@@ -199,16 +157,12 @@ where
         <Self as BinaryExpr>::lah(i)
     }
 
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         <Self as BinaryExpr>::parse(trace, i)
     }
 }
 
 /// Any expression.
-#[derive(Debug)]
 pub struct Expr;
 
 impl<'s> GeneralExpr<'s> for Expr {
@@ -220,16 +174,14 @@ impl<'s> GeneralExpr<'s> for Expr {
         <CompareExpr as BinaryExpr>::lah(i)
     }
 
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
-
         match <CompareExpr as BinaryExpr>::parse(trace, i) {
-            Ok((rest, Some(expr))) => Ok(trace.ok(expr.span(), rest, Some(expr))),
-            Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
-            Err(e) => Err(trace.parse_err(e)),
+            Ok((rest, expr)) => {
+                //
+                Ok(trace.ok(expr.span(), rest, expr))
+            }
+            Err(e) => Err(trace.parse(e)),
         }
     }
 }
@@ -238,34 +190,38 @@ struct CompareExpr;
 
 impl<'s> BinaryExpr<'s> for CompareExpr {
     type Operator = OFCompOp<'s>;
-    type Operand = AddExpr;
-    const AST_NODE: AstTreeFn<'s, Self::Operator> = OFAst::compare;
-    const AST_ERR: ParseExprErrorFn = ParseOFError::compare;
 
     fn name() -> &'static str {
         "compare"
     }
 
-    fn operator<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<OFCompOp<'s>>> {
+    fn lah(i: Span<'s>) -> bool {
+        <AddExpr as BinaryExpr>::lah(i)
+    }
+
+    fn operand<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        <AddExpr as BinaryExpr>::parse(trace, i)
+    }
+
+    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, OFCompOp<'s>> {
         trace.enter("operator", i);
         match tokens::comparison_op(i) {
             Ok((rest, tok)) => match *tok {
-                "=" => Ok(trace.ok(tok, rest, Some(OFCompOp::Equal(tok)))),
-                "<>" => Ok(trace.ok(tok, rest, Some(OFCompOp::Unequal(tok)))),
-                "<" => Ok(trace.ok(tok, rest, Some(OFCompOp::Less(tok)))),
-                ">" => Ok(trace.ok(tok, rest, Some(OFCompOp::Greater(tok)))),
-                "<=" => Ok(trace.ok(tok, rest, Some(OFCompOp::LessEqual(tok)))),
-                ">=" => Ok(trace.ok(tok, rest, Some(OFCompOp::GreaterEqual(tok)))),
+                "=" => Ok(trace.ok(tok, rest, OFCompOp::Equal(tok))),
+                "<>" => Ok(trace.ok(tok, rest, OFCompOp::Unequal(tok))),
+                "<" => Ok(trace.ok(tok, rest, OFCompOp::Less(tok))),
+                ">" => Ok(trace.ok(tok, rest, OFCompOp::Greater(tok))),
+                "<=" => Ok(trace.ok(tok, rest, OFCompOp::LessEqual(tok))),
+                ">=" => Ok(trace.ok(tok, rest, OFCompOp::GreaterEqual(tok))),
                 _ => unreachable!(),
             },
 
-            Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err2(i, ParseOFError::nom_failure, e)),
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(e) => Err(trace.nom(i, e)),
         }
+    }
+
+    fn ast(left: Box<OFAst<'s>>, op: Self::Operator, right: Box<OFAst<'s>>) -> Box<OFAst<'s>> {
+        OFAst::compare(left, op, right)
     }
 }
 
@@ -273,31 +229,34 @@ struct AddExpr;
 
 impl<'s> BinaryExpr<'s> for AddExpr {
     type Operator = OFAddOp<'s>;
-    type Operand = MulExpr;
-    const AST_NODE: AstTreeFn<'s, Self::Operator> = OFAst::add;
-    const AST_ERR: ParseExprErrorFn = ParseOFError::add;
 
     fn name() -> &'static str {
         "add"
     }
 
-    fn operator<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Self::Operator>> {
+    fn lah(i: Span<'s>) -> bool {
+        <MulExpr as BinaryExpr>::lah(i)
+    }
+
+    fn operand<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        <MulExpr as BinaryExpr>::parse(trace, i)
+    }
+
+    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Self::Operator> {
         trace.enter("operator", i);
         match tokens::add_op(i) {
-            Ok((rest, Some(tok))) => match *tok {
-                "+" => Ok(trace.ok(tok, rest, Some(OFAddOp::Add(tok)))),
-                "-" => Ok(trace.ok(tok, rest, Some(OFAddOp::Subtract(tok)))),
+            Ok((rest, tok)) => match *tok {
+                "+" => Ok(trace.ok(tok, rest, OFAddOp::Add(tok))),
+                "-" => Ok(trace.ok(tok, rest, OFAddOp::Subtract(tok))),
                 _ => unreachable!(),
             },
-            Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
 
-            Err(e @ nom::Err::Error(_)) => Err(trace.nom_err2(i, ParseOFError::nom_error, e)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err2(i, ParseOFError::nom_failure, e)),
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(e) => Err(trace.nom(i, e)),
         }
+    }
+
+    fn ast(left: Box<OFAst<'s>>, op: Self::Operator, right: Box<OFAst<'s>>) -> Box<OFAst<'s>> {
+        OFAst::add(left, op, right)
     }
 }
 
@@ -305,32 +264,33 @@ struct MulExpr;
 
 impl<'s> BinaryExpr<'s> for MulExpr {
     type Operator = OFMulOp<'s>;
-    type Operand = PowExpr;
-
-    const AST_NODE: AstTreeFn<'s, Self::Operator> = OFAst::mul;
-    const AST_ERR: ParseExprErrorFn = ParseOFError::mul;
 
     fn name() -> &'static str {
         "mul"
     }
 
-    fn operator<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Self::Operator>> {
+    fn lah(i: Span<'s>) -> bool {
+        PostFixExpr::lah(i)
+    }
+
+    fn operand<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        PostFixExpr::parse(trace, i)
+    }
+
+    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Self::Operator> {
         trace.enter("operator", i);
         match tokens::mul_op(i) {
-            Ok((rest, Some(tok))) => match *tok {
-                "*" => Ok(trace.ok(tok, rest, Some(OFMulOp::Multiply(tok)))),
-                "/" => Ok(trace.ok(tok, rest, Some(OFMulOp::Divide(tok)))),
+            Ok((rest, tok)) => match *tok {
+                "*" => Ok(trace.ok(tok, rest, OFMulOp::Multiply(tok))),
+                "/" => Ok(trace.ok(tok, rest, OFMulOp::Divide(tok))),
                 _ => unreachable!(),
             },
-            Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
-
-            Err(e @ nom::Err::Error(_)) => Err(trace.nom_err2(i, ParseOFError::nom_error, e)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err2(i, ParseOFError::nom_failure, e)),
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(e) => Err(trace.nom(i, e)),
         }
+    }
+
+    fn ast(left: Box<OFAst<'s>>, op: Self::Operator, right: Box<OFAst<'s>>) -> Box<OFAst<'s>> {
+        OFAst::mul(left, op, right)
     }
 }
 
@@ -338,30 +298,32 @@ struct PowExpr;
 
 impl<'s> BinaryExpr<'s> for PowExpr {
     type Operator = OFPowOp<'s>;
-    type Operand = PostFixExpr;
-    const AST_NODE: AstTreeFn<'s, Self::Operator> = OFAst::pow;
-    const AST_ERR: ParseExprErrorFn = ParseOFError::pow;
 
     fn name() -> &'static str {
         "pow"
     }
 
-    fn operator<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Self::Operator>> {
+    fn lah(i: Span<'s>) -> bool {
+        PostFixExpr::lah(i)
+    }
+
+    fn operand<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        PostFixExpr::parse(trace, i)
+    }
+
+    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Self::Operator> {
         trace.enter("operator", i);
         match tokens::pow_op(i) {
-            Ok((rest, Some(tok))) => match *tok {
-                "^" => Ok(trace.ok(tok, rest, Some(OFPowOp::Power(tok)))),
+            Ok((rest, tok)) => match *tok {
+                "^" => Ok(trace.ok(tok, rest, OFPowOp::Power(tok))),
                 _ => unreachable!(),
             },
-            Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
-
-            Err(e @ nom::Err::Error(_)) => Err(trace.nom_err2(i, ParseOFError::nom_error, e)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err2(i, ParseOFError::nom_failure, e)),
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(e) => Err(trace.nom(i, e)),
         }
+    }
+
+    fn ast(left: Box<OFAst<'s>>, op: Self::Operator, right: Box<OFAst<'s>>) -> Box<OFAst<'s>> {
+        OFAst::pow(left, op, right)
     }
 }
 
@@ -372,18 +334,14 @@ impl PostFixExpr {
     pub fn operator<'s, 't>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<OFPostfixOp<'s>>> {
+    ) -> ParseResult<'s, 't, OFPostfixOp<'s>> {
         trace.enter("operator", i);
         match tokens::postfix_op(i) {
-            Ok((rest, Some(tok))) => match *tok {
-                "%" => Ok(trace.ok(tok, rest, Some(OFPostfixOp::Percent(tok)))),
+            Ok((rest, tok)) => match *tok {
+                "%" => Ok(trace.ok(tok, rest, OFPostfixOp::Percent(tok))),
                 _ => unreachable!(),
             },
-            Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
-
-            Err(e @ nom::Err::Error(_)) => Err(trace.nom_err2(i, ParseOFError::nom_error, e)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err2(i, ParseOFError::nom_failure, e)),
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(e) => Err(trace.nom(i, e)),
         }
     }
 }
@@ -397,29 +355,24 @@ impl<'s> GeneralExpr<'s> for PostFixExpr {
         PrefixExpr::lah(i)
     }
 
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         match PrefixExpr::parse(trace, i) {
-            Ok((mut loop_rest, Some(mut expr))) => {
+            Ok((mut loop_rest, mut expr)) => {
                 //
                 loop {
                     match Self::operator(trace, eat_space(loop_rest)) {
-                        Ok((rest1, Some(tok))) => {
+                        Ok((rest1, tok)) => {
                             trace.step("op", tok.span());
                             loop_rest = rest1;
                             expr = OFAst::postfix(expr, tok);
                         }
-                        Ok((i2, None)) => break Ok(trace.ok(expr.span(), i2, Some(expr))),
-                        Err(e) => break Err(trace.parse_err(e)),
+                        Err(e) => break Err(trace.parse(e)),
                     }
                 }
             }
-            Ok((rest1, None)) => Ok(trace.ok(Span::new(""), rest1, None)),
-            Err(e) => Err(trace.parse_err(e)),
+            Err(e) => Err(trace.parse(e)),
         }
     }
 }
@@ -431,19 +384,15 @@ impl PrefixExpr {
     pub fn operator<'s, 't>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<OFPrefixOp<'s>>> {
+    ) -> ParseResult<'s, 't, OFPrefixOp<'s>> {
         trace.enter("operator", i);
         match tokens::prefix_op(i) {
-            Ok((rest, Some(tok))) => match *tok {
-                "+" => Ok(trace.ok(tok, rest, Some(OFPrefixOp::Plus(tok)))),
-                "-" => Ok(trace.ok(tok, rest, Some(OFPrefixOp::Minus(tok)))),
+            Ok((rest, tok)) => match *tok {
+                "+" => Ok(trace.ok(tok, rest, OFPrefixOp::Plus(tok))),
+                "-" => Ok(trace.ok(tok, rest, OFPrefixOp::Minus(tok))),
                 _ => unreachable!(),
             },
-            Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
-
-            Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err2(i, ParseOFError::nom_failure, e)),
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(e) => Err(trace.nom(i, e)),
         }
     }
 }
@@ -457,39 +406,33 @@ impl<'s> GeneralExpr<'s> for PrefixExpr {
         tokens::lah_prefix_op(i) || ElementaryExpr::lah(i)
     }
 
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
-        match Self::operator(trace, i) {
-            Ok((rest1, Some(tok))) => {
+        match Self::operator(trace, rest) {
+            Ok((rest1, tok)) => {
                 //
                 match PrefixExpr::parse(trace, eat_space(rest1)) {
-                    Ok((rest2, Some(expr))) => {
+                    Ok((rest2, expr)) => {
                         let ast = OFAst::prefix(tok, expr);
-                        Ok(trace.ok(ast.span(), rest2, Some(ast)))
+                        Ok(trace.ok(ast.span(), rest2, ast))
                     }
-                    Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseOFError::prefix)),
-                    Err(e) => Err(trace.parse_err(e)),
+                    Err(e) => Err(trace.parse(e)),
                 }
             }
-            Ok((rest1, None)) => {
+            Err(ParseOFError::ErrNomError(_, _)) => {
                 //
-                match ElementaryExpr::parse(trace, eat_space(rest1)) {
-                    Ok((rest2, Some(expr))) => Ok(trace.ok(expr.span(), rest2, Some(expr))),
-                    Ok((rest2, None)) => Ok(trace.ok(Span::new(""), rest2, None)),
-                    Err(e) => Err(trace.parse_err(e)),
+                match ElementaryExpr::parse(trace, eat_space(rest)) {
+                    Ok((rest2, expr)) => Ok(trace.ok(expr.span(), rest2, expr)),
+                    Err(e) => Err(trace.parse(e)),
                 }
             }
-            Err(e) => Err(trace.parse_err(e)),
+            Err(e) => Err(trace.parse(e)),
         }
     }
 }
 
 /// Parser for the lowest expression level.
-#[derive(Debug)]
 struct ElementaryExpr;
 
 impl<'s> GeneralExpr<'s> for ElementaryExpr {
@@ -505,58 +448,64 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
             || FnCallExpr::lah(i)
     }
 
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         if NumberExpr::lah(i) {
             match NumberExpr::parse(trace, i) {
-                Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
-                Ok((_rest, None)) => { /* skip */ }
-                Err(e) => return Err(trace.parse_err(e)),
+                Ok((rest, expr)) => {
+                    return Ok(trace.ok(expr.span(), rest, expr));
+                }
+                Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+                Err(e) => return Err(trace.parse(e)),
             }
         }
 
         if StringExpr::lah(i) {
             match StringExpr::parse(trace, i) {
-                Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
-                Ok((_rest, None)) => { /* skip */ }
-                Err(e) => return Err(trace.parse_err(e)),
+                Ok((rest, expr)) => {
+                    return Ok(trace.ok(expr.span(), rest, expr));
+                }
+                Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+                Err(e) => return Err(trace.parse(e)),
             }
         }
 
         if ParenthesisExpr::lah(i) {
             match ParenthesisExpr::parse(trace, i) {
-                Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
-                Ok((_, None)) => { /* skip */ }
-                Err(e) => return Err(trace.parse_err(e)),
+                Ok((rest, expr)) => {
+                    return Ok(trace.ok(expr.span(), rest, expr));
+                }
+                Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+                Err(e) => return Err(trace.parse(e)),
             }
         }
 
         if ReferenceExpr::lah(i) {
             match ReferenceExpr::parse(trace, i) {
-                Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
-                Ok((_, None)) => { /* skip */ }
-                Err(e) => return Err(trace.parse_err(e)),
+                Ok((rest, expr)) => {
+                    return Ok(trace.ok(expr.span(), rest, expr));
+                }
+                Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+                Err(e) => return Err(trace.parse(e)),
             }
         }
 
         if FnCallExpr::lah(i) {
             match FnCallExpr::parse(trace, i) {
-                Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
-                Ok((_, None)) => { /* skip */ }
-                Err(e) => return Err(trace.parse_err(e)),
+                Ok((rest, expr)) => {
+                    return Ok(trace.ok(expr.span(), rest, expr));
+                }
+                Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+                Err(e) => return Err(trace.parse(e)),
             }
         }
 
-        Ok(trace.ok(Span::new(""), i, None))
+        Err(trace.parse(ParseOFError::elementary(i)))
     }
 }
 
 /// Parser for number.
-#[derive(Debug)]
 struct NumberExpr;
 
 impl<'s> GeneralExpr<'s> for NumberExpr {
@@ -568,28 +517,26 @@ impl<'s> GeneralExpr<'s> for NumberExpr {
         tokens::lah_number(i)
     }
 
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
-        match opt(tokens::number)(i) {
-            Ok((rest, Some(tok))) => match (*tok).parse::<f64>() {
-                Ok(val) => {
-                    let ast = OFAst::number(val, tok);
-                    Ok(trace.ok(ast.span(), rest, Some(ast)))
+        match tokens::number(rest) {
+            Ok((rest2, number)) => {
+                //
+                match (*number).parse::<f64>() {
+                    Ok(val) => {
+                        let ast = OFAst::number(val, number);
+                        Ok(trace.ok(ast.span(), rest2, ast))
+                    }
+                    Err(_) => unreachable!(),
                 }
-                Err(_) => unreachable!(),
-            },
-            Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
-            Err(e) => Err(trace.nom_err(i, ParseOFError::number, e)),
+            }
+            Err(e) => Err(trace.nom(rest, e)),
         }
     }
 }
 
 /// Parser for strings.
-#[derive(Debug)]
 struct StringExpr;
 
 impl<'s> GeneralExpr<'s> for StringExpr {
@@ -601,19 +548,15 @@ impl<'s> GeneralExpr<'s> for StringExpr {
         tokens::lah_string(i)
     }
 
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
-        match opt(tokens::string)(i) {
-            Ok((rest, Some(tok))) => {
+        match tokens::string(rest) {
+            Ok((rest2, tok)) => {
                 let ast = OFAst::string(unquote_double(tok), tok);
-                Ok(trace.ok(ast.span(), rest, Some(ast)))
+                Ok(trace.ok(ast.span(), rest2, ast))
             }
-            Ok((rest, None)) => Ok(trace.ok(Span::new(""), rest, None)),
-            Err(e) => Err(trace.nom_err(i, ParseOFError::string, e)),
+            Err(e) => Err(trace.nom(rest, e)),
         }
     }
 }
@@ -638,7 +581,6 @@ impl<'s> GeneralExpr<'s> for StringExpr {
 // Source ::= "'" IRI "'" "#"
 // CellAddress ::= SheetLocatorOrEmpty '.' Column Row /* Not used directly */
 /// Parses any cell reference.
-#[derive(Debug)]
 pub struct ReferenceExpr;
 
 impl<'s> GeneralExpr<'s> for ReferenceExpr {
@@ -652,39 +594,43 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
 
     /// Tries to parse a cell reference.
     #[allow(clippy::manual_map)]
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         match CellRangeExpr::parse(trace, i) {
-            Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
-            Ok((_rest, None)) => { /* skip */ }
-            Err(e) => return Err(trace.parse_err(e)),
+            Ok((rest, expr)) => {
+                return Ok(trace.ok(expr.span(), rest, expr));
+            }
+            Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+            Err(e) => return Err(trace.parse(e)),
         }
         match CellRefExpr::parse(trace, i) {
-            Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
-            Ok((_rest, None)) => { /* skip */ }
-            Err(e) => return Err(trace.parse_err(e)),
+            Ok((rest, expr)) => {
+                return Ok(trace.ok(expr.span(), rest, expr));
+            }
+            Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+            Err(e) => return Err(trace.parse(e)),
         }
         match ColRangeExpr::parse(trace, i) {
-            Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
-            Ok((_rest, None)) => { /* skip */ }
-            Err(e) => return Err(trace.parse_err(e)),
+            Ok((rest, expr)) => {
+                return Ok(trace.ok(expr.span(), rest, expr));
+            }
+            Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+            Err(e) => return Err(trace.parse(e)),
         }
         match RowRangeExpr::parse(trace, i) {
-            Ok((rest, Some(expr))) => return Ok(trace.ok(expr.span(), rest, Some(expr))),
-            Ok((_rest, None)) => { /* skip */ }
-            Err(e) => return Err(trace.parse_err(e)),
+            Ok((rest, expr)) => {
+                return Ok(trace.ok(expr.span(), rest, expr));
+            }
+            Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+            Err(e) => return Err(trace.parse(e)),
         }
 
-        Ok(trace.ok(Span::new(""), i, None))
+        Err(trace.parse(ParseOFError::reference(i)))
     }
 }
 
 /// Parses a simple cell reference.
-#[derive(Debug)]
 pub struct CellRefExpr;
 
 impl CellRefExpr {
@@ -696,15 +642,14 @@ impl CellRefExpr {
         trace.enter(Self::name(), i);
 
         match CellRefExpr::parse(trace, i) {
-            Ok((rest, Some(expr))) => {
-                check_eof(rest, ParseOFError::cell_ref)?;
+            Ok((rest, expr)) => {
+                check_eof(rest, ParseOFError::parse_incomplete)?;
                 let OFAst::NodeCellRef(cell_ref) = *expr else {
-                    panic!("Expected a CellRef"); 
+                    panic!("Expected a CellRef");
                 };
                 Ok(trace.ok(cell_ref.span, rest, cell_ref))
             }
-            Ok((rest, None)) => Err(trace.ast_err(rest, ParseOFError::cell_ref)),
-            Err(e) => Err(trace.parse_err(e)),
+            Err(e) => Err(trace.parse(e)),
         }
     }
 }
@@ -719,10 +664,7 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
     }
 
     #[allow(clippy::manual_map)]
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         match refs_parser::parse_cell_ref_raw(i) {
@@ -730,34 +672,31 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
                 let iri = cell_ref.iri.map(|v| OFAst::iri(unquote_single(v), v));
                 let table = cell_ref.table.map(|v| {
                     OFAst::sheet_name(
-                        try_bool_from_abs_flag(cell_ref.abs_table),
+                        refs_parser::try_bool_from_abs_flag(cell_ref.abs_table),
                         unquote_single(v),
                         v,
                     )
                 });
                 let row = OFAst::row(
-                    try_bool_from_abs_flag(cell_ref.abs_row),
-                    try_u32_from_rowname(cell_ref.row).locate_err(i)?,
+                    refs_parser::try_bool_from_abs_flag(cell_ref.abs_row),
+                    refs_parser::try_u32_from_rowname(cell_ref.row).locate_err(i)?,
                     cell_ref.row,
                 );
                 let col = OFAst::col(
-                    try_bool_from_abs_flag(cell_ref.abs_col),
-                    try_u32_from_colname(cell_ref.col).locate_err(i)?,
+                    refs_parser::try_bool_from_abs_flag(cell_ref.abs_col),
+                    refs_parser::try_u32_from_colname(cell_ref.col).locate_err(i)?,
                     cell_ref.col,
                 );
 
                 let ast = OFAst::cell_ref(iri, table, row, col, cell_ref.token);
-                Ok(trace.ok(cell_ref.token, rest, Some(ast)))
+                Ok(trace.ok(cell_ref.token, rest, ast))
             }
-
-            Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e) => Err(trace.nom_err(i, ParseOFError::cell_ref, e)),
+            Err(e) => Err(trace.nom(i, e)),
         }
     }
 }
 
 /// Parses a cell range.
-#[derive(Debug)]
 pub struct CellRangeExpr;
 
 impl CellRangeExpr {
@@ -769,15 +708,14 @@ impl CellRangeExpr {
         trace.enter(Self::name(), i);
 
         match CellRangeExpr::parse(trace, i) {
-            Ok((rest, Some(expr))) => {
+            Ok((rest, expr)) => {
                 check_eof(rest, ParseOFError::cell_range)?;
                 let OFAst::NodeCellRange(OFCellRange(cell_range, span)) = *expr else {
-                        panic!("Expected a CellRange");
-                    };
+                    panic!("Expected a CellRange");
+                };
                 Ok(trace.ok(span, rest, cell_range))
             }
-            Ok((rest, None)) => Err(trace.ast_err(rest, ParseOFError::cell_range)),
-            Err(e) => Err(trace.parse_err(e)),
+            Err(e) => Err(trace.parse(e)),
         }
     }
 }
@@ -792,26 +730,20 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
     }
 
     #[allow(clippy::manual_map)]
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
-        match parse_cell_range(i) {
+        match refs_parser::parse_cell_range(i) {
             Ok((rest, (cell_range, tok))) => {
                 let ast = OFAst::cell_range(cell_range, tok);
-                Ok(trace.ok(tok, rest, Some(ast)))
+                Ok(trace.ok(tok, rest, ast))
             }
-
-            Err(CellRefError::ErrNomError(_, _)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e) => Err(trace.ref_err(e)),
+            Err(e) => Err(trace.reference(e)),
         }
     }
 }
 
 /// Parses a column range.
-#[derive(Debug)]
 pub struct ColRangeExpr;
 
 impl ColRangeExpr {
@@ -820,15 +752,14 @@ impl ColRangeExpr {
         trace.enter("parse_colrange", i);
 
         match Self::parse(trace, i) {
-            Ok((rest, Some(expr))) => {
+            Ok((rest, expr)) => {
                 check_eof(rest, ParseOFError::col_range)?;
                 let OFAst::NodeColRange(OFColRange(col_range, span)) = *expr else {
-                        panic!("Expected a ColRange");
-                    };
+                    panic!("Expected a ColRange");
+                };
                 Ok(trace.ok(span, rest, col_range))
             }
-            Ok((rest, None)) => Err(trace.ast_err(rest, ParseOFError::col_range)),
-            Err(e) => Err(trace.parse_err(e)),
+            Err(e) => Err(trace.parse(e)),
         }
     }
 }
@@ -843,26 +774,19 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
     }
 
     #[allow(clippy::manual_map)]
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
-
-        match parse_col_range(i) {
+        match refs_parser::parse_col_range(i) {
             Ok((rest, (col_range, tok))) => {
                 let ast = OFAst::col_range(col_range, tok);
-                Ok(trace.ok(tok, rest, Some(ast)))
+                Ok(trace.ok(tok, rest, ast))
             }
-
-            Err(CellRefError::ErrNomError(_, _)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e) => Err(trace.ref_err(e)),
+            Err(e) => Err(trace.reference(e)),
         }
     }
 }
 
 /// Parses a row range.
-#[derive(Debug)]
 pub struct RowRangeExpr;
 
 impl RowRangeExpr {
@@ -871,15 +795,14 @@ impl RowRangeExpr {
         trace.enter(Self::name(), i);
 
         match Self::parse(trace, i) {
-            Ok((rest, Some(expr))) => {
+            Ok((rest, expr)) => {
                 check_eof(rest, ParseOFError::row_range)?;
                 let OFAst::NodeRowRange(OFRowRange(row_range, span)) = *expr else {
-                        panic!("Expected a RowRange");
-                    };
+                    panic!("Expected a RowRange");
+                };
                 Ok(trace.ok(span, rest, row_range))
             }
-            Ok((rest, None)) => Err(trace.ast_err(rest, ParseOFError::row_range)),
-            Err(e) => Err(trace.parse_err(e)),
+            Err(e) => Err(trace.parse(e)),
         }
     }
 }
@@ -894,20 +817,15 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
     }
 
     #[allow(clippy::manual_map)]
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
-        match parse_row_range(i) {
+        match refs_parser::parse_row_range(i) {
             Ok((rest, (row_range, tok))) => {
                 let ast = OFAst::row_range(row_range, tok);
-                Ok(trace.ok(tok, rest, Some(ast)))
+                Ok(trace.ok(tok, rest, ast))
             }
-
-            Err(CellRefError::ErrNomError(_, _)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e) => Err(trace.ref_err(e)),
+            Err(e) => Err(trace.reference(e)),
         }
     }
 }
@@ -923,32 +841,26 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
         tokens::lah_parentheses_open(i)
     }
 
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         match tokens::parentheses_open(i) {
             Ok((rest1, par1)) => {
                 match Expr::parse(trace, eat_space(rest1)) {
-                    Ok((rest2, Some(expr))) => {
+                    Ok((rest2, expr)) => {
                         //
                         match tokens::parentheses_close(eat_space(rest2)) {
                             Ok((rest3, par2)) => {
                                 let ast = OFAst::parens(par1, expr, par2);
-                                Ok(trace.ok(ast.span(), rest3, Some(ast)))
+                                Ok(trace.ok(ast.span(), rest3, ast))
                             }
-                            Err(e) => Err(trace.nom_err(rest1, ParseOFError::parentheses, e)),
+                            Err(e) => Err(trace.nom(rest1, e)),
                         }
                     }
-                    Ok((rest2, None)) => Err(trace.ast_err(rest2, ParseOFError::parentheses)),
-                    Err(e) => Err(trace.parse_err(e)),
+                    Err(e) => Err(trace.parse(e)),
                 }
             }
-            Err(nom::Err::Error(_)) => Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => Err(trace.nom_err(i, ParseOFError::parentheses, e)),
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(e) => Err(trace.nom(i, e)),
         }
     }
 }
@@ -977,20 +889,16 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
 
     #[allow(clippy::collapsible_else_if)]
     #[allow(clippy::needless_return)]
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         // TODO: simplify error handling
         let (rest1, fn_name) = match recognize(tokens::fn_name)(i) {
-            Ok((rest, tok)) => (eat_space(rest), tok),
-            Err(nom::Err::Error(_)) => return Ok(trace.ok(Span::new(""), i, None)),
-            Err(e @ nom::Err::Failure(_)) => {
-                return Err(trace.nom_err(i, ParseOFError::fn_call, e))
+            Ok((rest, tok)) => {
+                //
+                (eat_space(rest), tok)
             }
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(e) => return Err(trace.nom(i, e)),
         };
 
         trace.step("name", fn_name);
@@ -1000,28 +908,21 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
         match tokens::parentheses_open(eat_space(rest1)) {
             Ok((mut loop_rest, par1)) => {
                 // First separator is checked before the arguments as arguments can be empty.
-                let sep1 = match tokens::separator(eat_space(loop_rest)) {
+                match tokens::separator(eat_space(loop_rest)) {
                     Ok((rest2, sep1)) => {
                         loop_rest = rest2;
                         trace.step("initial arg", Span::new(""));
                         trace.step("initial separator", sep1);
-                        Some(sep1)
+
+                        let ast = OFAst::empty(sep1.take(0));
+                        args.push(*ast);
                     }
                     Err(nom::Err::Error(_)) => {
-                        // Not necessary
-                        None
+                        // Optional
                     }
-                    Err(e @ nom::Err::Failure(_)) => {
-                        return Err(trace.nom_err(i, ParseOFError::fn_call, e));
+                    Err(e) => {
+                        return Err(trace.nom(i, e));
                     }
-                    Err(nom::Err::Incomplete(_)) => unreachable!(),
-                };
-
-                // Collecting args.
-                if let Some(sep1) = sep1 {
-                    trace.step2("expr+sep");
-                    let ast = OFAst::empty(sep1.take(0));
-                    args.push(*ast);
                 }
 
                 // Loops and eats from loop_rest.
@@ -1030,17 +931,17 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                     loop_rest = eat_space(loop_rest);
                     let expr = if Expr::lah(loop_rest) {
                         match Expr::parse(trace, loop_rest) {
-                            Ok((rest2, Some(expr))) => {
+                            Ok((rest2, expr)) => {
                                 loop_rest = rest2;
                                 trace.step("arg", expr.span());
                                 Some(expr)
                             }
-                            Ok((rest2, None)) => {
-                                loop_rest = rest2;
+                            Err(ParseOFError::ErrNomError(_, _)) => {
+                                // Optional
                                 trace.step("arg", Span::new(""));
                                 None
                             }
-                            Err(e) => return Err(trace.parse_err(e)),
+                            Err(e) => return Err(trace.parse(e)),
                         }
                     } else {
                         None
@@ -1053,11 +954,13 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                             trace.step("separator", sep1);
                             Some(sep1)
                         }
-                        Err(nom::Err::Error(_)) => None,
-                        Err(e @ nom::Err::Failure(_)) => {
-                            return Err(trace.nom_err(i, ParseOFError::fn_call, e));
+                        Err(nom::Err::Error(_)) => {
+                            // Optional
+                            None
                         }
-                        Err(nom::Err::Incomplete(_)) => unreachable!(),
+                        Err(e) => {
+                            return Err(trace.nom(i, e));
+                        }
                     };
 
                     #[derive(PartialEq)]
@@ -1095,25 +998,19 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         Ok((rest2, par2)) => {
                             let fn_name = OFAst::fn_name(fn_name.to_string(), fn_name);
                             let ast = OFAst::fn_call(fn_name, par1, args, par2);
-                            return Ok(trace.ok(ast.span(), rest2, Some(ast)));
+                            return Ok(trace.ok(ast.span(), rest2, ast));
                         }
                         Err(e @ nom::Err::Error(_)) => {
+                            // Fail if closing parentheses are required.
                             if parens == Parens::Needed {
-                                return Err(trace.nom_err(i, ParseOFError::fn_call, e));
+                                return Err(trace.nom(i, e));
                             }
                         }
-                        Err(e @ nom::Err::Failure(_)) => {
-                            return Err(trace.nom_err(i, ParseOFError::fn_call, e))
-                        }
-                        Err(nom::Err::Incomplete(_)) => unreachable!(),
+                        Err(e) => return Err(trace.nom(i, e)),
                     }
                 }
             }
-            Err(e @ nom::Err::Error(_)) => return Err(trace.nom_err(i, ParseOFError::fn_call, e)),
-            Err(e @ nom::Err::Failure(_)) => {
-                return Err(trace.nom_err(i, ParseOFError::fn_call, e))
-            }
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(e) => return Err(trace.nom(i, e)),
         };
     }
 }
@@ -1127,7 +1024,6 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
 //                      - ( [A-Za-z]+[0-9]+ )  # means no cell reference
 //                      - ([Tt][Rr][Uu][Ee]) - ([Ff][Aa][Ll][Ss][Ee]) # true or false
 
-#[derive(Debug)]
 struct NamedExpr;
 
 impl<'s> GeneralExpr<'s> for NamedExpr {
@@ -1136,35 +1032,37 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
     }
 
     fn lah(i: Span<'s>) -> bool {
-        lah_iri(i) || lah_sheet_name(i) || lah_dollar_dollar(i) || lah_identifier(i)
+        refs_tokens::lah_iri(i)
+            || refs_tokens::lah_sheet_name(i)
+            || tokens::lah_dollar_dollar(i)
+            || tokens::lah_identifier(i)
     }
 
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        span: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         // NamedExpression := IRI?
         //                      (QuotedSheetName '.')?
         //                      (Identifier | '$$' (Identifier | SingleQuoted)
         //
 
-        let (span, iri) = match iri(span) {
-            Ok((span, iri)) => {
+        // IRI?
+        let (rest, iri) = match refs_tokens::iri(rest) {
+            Ok((rest1, iri)) => {
                 //
-                (span, Some(OFAst::iri(unquote_single(iri), iri)))
+                (rest1, Some(OFAst::iri(unquote_single(iri), iri)))
             }
             Err(nom::Err::Error(_)) => {
                 //
-                (span, None)
+                (rest, None)
             }
-            Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
+            Err(e) => return Err(trace.nom(rest, e)),
         };
 
-        let (span, sheet_name) = match tuple((sheet_name, dot))(span) {
-            Ok((span, ((abs, sheet_name), _dot))) => unsafe {
+        // (QuotedSheetName '.')?
+        let (rest, sheet_name) = match tuple((refs_tokens::sheet_name, tokens::dot))(rest) {
+            Ok((rest1, ((abs, sheet_name), _dot))) => unsafe {
                 //
                 (
-                    span,
+                    rest1,
                     Some(OFAst::sheet_name(
                         conv_abs(abs),
                         unquote_single(sheet_name),
@@ -1174,38 +1072,55 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
             },
             Err(nom::Err::Error(_)) => {
                 //
-                (span, None)
+                (rest, None)
             }
-            Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
+            Err(e) => return Err(trace.nom(rest, e)),
         };
 
-        let (span, ident) = match identifier(span) {
-            Ok((span, ident)) => {
-                //
-                (span, OFAst::simple_named(ident.to_string(), ident))
-            }
-            Err(nom::Err::Error(_)) => match dollar_dollar(span) {
-                Ok((span, _tag)) => match identifier(span) {
-                    Ok((span, ident)) => {
-                        //
-                        (span, OFAst::simple_named(ident.to_string(), ident))
-                    }
-                    Err(nom::Err::Error(_)) => match quoted('\'')(span) {
-                        Ok((span, ident)) => {
-                            //
-                            (span, OFAst::simple_named(unquote_single(ident), ident))
+        // TODO. do better ...
+        // (Identifier | '$$' (Identifier | SingleQuoted)
+        let (rest, ident) = {
+            //
+            match tokens::identifier(rest) {
+                Ok((rest1, ident)) => {
+                    // Identifier
+                    (rest1, OFAst::simple_named(ident.to_string(), ident))
+                }
+                Err(nom::Err::Error(_)) => {
+                    // '$$' (Identifier | SingleQuoted)
+                    match tokens::dollar_dollar(rest) {
+                        Ok((rest1, _tag)) => {
+                            // Identifier
+                            match tokens::identifier(rest1) {
+                                Ok((rest2, ident)) => {
+                                    //
+                                    (rest2, OFAst::simple_named(ident.to_string(), ident))
+                                }
+                                Err(nom::Err::Error(_)) => {
+                                    // SingleQuoted
+                                    match tokens::quoted('\'')(rest1) {
+                                        Ok((rest3, ident)) => {
+                                            //
+                                            (
+                                                rest3,
+                                                OFAst::simple_named(unquote_single(ident), ident),
+                                            )
+                                        }
+                                        Err(e) => return Err(trace.nom(rest1, e)),
+                                    }
+                                }
+                                Err(e) => return Err(trace.nom(rest1, e)),
+                            }
                         }
-                        Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
-                    },
-                    Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
-                },
-                Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
-            },
-            Err(e) => return Err(trace.nom_err(span, ParseOFError::named, e)),
+                        Err(e) => return Err(trace.nom(rest, e)),
+                    }
+                }
+                Err(e) => return Err(trace.nom(rest, e)),
+            }
         };
 
         let ast = OFAst::named(iri, sheet_name, ident);
-        Ok(trace.ok(ast.span(), span, Some(ast)))
+        Ok(trace.ok(ast.span(), rest, ast))
     }
 }
 
@@ -1234,25 +1149,23 @@ pub fn check_eof<'a>(
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
-    use crate::ast_parser::{ElementaryExpr, Expr, GeneralExpr, NumberExpr};
-    use crate::parse::tracer::Tracer;
-    use crate::parse::Span;
-    use crate::{OFAst, ParseResult};
+    use crate::ast_parser::{ElementaryExpr, Expr};
+    use crate::parse::ast_parser::GeneralExpr;
+    use crate::parse::ast_parser::NumberExpr;
+    use crate::tracer::Tracer;
+    use crate::{OFAst, ParseResult, Span};
 
     fn run_test2<'s>(
         str: &'s str,
-        testfn: for<'t> fn(&'t Tracer<'s>, Span<'s>) -> ParseResult<'s, 't, Option<Box<OFAst<'s>>>>,
+        testfn: for<'t> fn(&'t Tracer<'s>, Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>>,
     ) {
         let tracer = Tracer::new();
         {
             println!();
             println!("{}", str);
             match testfn(&tracer, Span::new(str)) {
-                Ok((rest, Some(tok))) => {
+                Ok((rest, tok)) => {
                     println!("{:?} | {}", tok, rest);
-                }
-                Ok((rest, None)) => {
-                    println!(" | {}", rest);
                 }
                 Err(e) => {
                     println!("{:?}", e);
