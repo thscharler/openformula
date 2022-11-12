@@ -1,4 +1,6 @@
-use crate::{BinaryNode, Node, OFAst, OFFnCall, OFParens, OFPostfix, OFPrefix, Operator, Span};
+use crate::ast::{
+    BinaryNode, Node, OFAst, OFFnCall, OFParens, OFPostfix, OFPrefix, Operator, Span,
+};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 

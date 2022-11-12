@@ -38,16 +38,4 @@
 mod ast;
 mod dbg_ast;
 mod error;
-mod parse;
 mod refs;
-
-pub use ast::*;
-pub use error::*;
-pub use parse::*;
-pub use refs::*;
-
-/// Converts into a format that can be used in a formula.
-pub trait ToFormula {
-    /// Converts into a format that can be used in a formula.
-    fn to_formula(&self) -> Result<String, std::fmt::Error>;
-}

@@ -2,7 +2,7 @@
 //! Low level conversions from a Span<'a> to ...
 //!
 
-use crate::Span;
+use crate::ast::Span;
 
 /// Replaces two quotes (") with a single one.
 pub fn unquote_double(i: Span<'_>) -> String {

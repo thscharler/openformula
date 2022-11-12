@@ -7,15 +7,11 @@
 //!
 //! The look-ahead functions are called internally at certain branching points.
 
-use crate::ast::{span_union_opt, OFAst};
-use crate::conv::{conv_abs, unquote_double, unquote_single};
-use crate::error::ParseOFError;
-use crate::parse::{ParseResult, Span, Tracer};
-use crate::tokens;
-use crate::{
-    LocateError, Node, OFAddOp, OFCellRange, OFCellRef, OFColRange, OFCompOp, OFMulOp, OFPostfixOp,
-    OFPowOp, OFPrefixOp, OFRowRange,
+use crate::ast::{
+    conv, span_union_opt, tokens, tracer::Tracer, Node, OFAddOp, OFAst, OFCellRange, OFCellRef,
+    OFColRange, OFCompOp, OFMulOp, OFPostfixOp, OFPowOp, OFPrefixOp, OFRowRange, ParseResult, Span,
 };
+use crate::error::{LocateError, ParseOFError};
 use nom::character::complete::multispace0;
 use nom::combinator::recognize;
 use nom::sequence::tuple;
@@ -553,7 +549,7 @@ impl<'s> GeneralExpr<'s> for StringExpr {
 
         match tokens::string(rest) {
             Ok((rest2, tok)) => {
-                let ast = OFAst::string(unquote_double(tok), tok);
+                let ast = OFAst::string(conv::unquote_double(tok), tok);
                 Ok(trace.ok(ast.span(), rest2, ast))
             }
             Err(e) => Err(trace.nom(rest, e)),
@@ -592,7 +588,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
         CellRefExpr::lah(i)
     }
 
-    /// Tries to parse a cell reference.
+    /// Tries to ast a cell reference.
     #[allow(clippy::manual_map)]
     fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
@@ -669,11 +665,11 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
 
         match refs_parser::parse_cell_ref_raw(i) {
             Ok((rest, cell_ref)) => {
-                let iri = cell_ref.iri.map(|v| OFAst::iri(unquote_single(v), v));
+                let iri = cell_ref.iri.map(|v| OFAst::iri(conv::unquote_single(v), v));
                 let table = cell_ref.table.map(|v| {
                     OFAst::sheet_name(
                         refs_parser::try_bool_from_abs_flag(cell_ref.abs_table),
-                        unquote_single(v),
+                        conv::unquote_single(v),
                         v,
                     )
                 });
@@ -1048,7 +1044,7 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
         let (rest, iri) = match refs_tokens::iri(rest) {
             Ok((rest1, iri)) => {
                 //
-                (rest1, Some(OFAst::iri(unquote_single(iri), iri)))
+                (rest1, Some(OFAst::iri(conv::unquote_single(iri), iri)))
             }
             Err(nom::Err::Error(_)) => {
                 //
@@ -1064,8 +1060,8 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                 (
                     rest1,
                     Some(OFAst::sheet_name(
-                        conv_abs(abs),
-                        unquote_single(sheet_name),
+                        conv::conv_abs(abs),
+                        conv::unquote_single(sheet_name),
                         span_union_opt(abs, sheet_name),
                     )),
                 )
@@ -1103,7 +1099,10 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                                             //
                                             (
                                                 rest3,
-                                                OFAst::simple_named(unquote_single(ident), ident),
+                                                OFAst::simple_named(
+                                                    conv::unquote_single(ident),
+                                                    ident,
+                                                ),
                                             )
                                         }
                                         Err(e) => return Err(trace.nom(rest1, e)),
@@ -1149,11 +1148,11 @@ pub fn check_eof<'a>(
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
-    use crate::ast_parser::{ElementaryExpr, Expr};
-    use crate::parse::ast_parser::GeneralExpr;
-    use crate::parse::ast_parser::NumberExpr;
-    use crate::tracer::Tracer;
-    use crate::{OFAst, ParseResult, Span};
+    use crate::ast::parser::GeneralExpr;
+    use crate::ast::parser::NumberExpr;
+    use crate::ast::parser::{ElementaryExpr, Expr};
+    use crate::ast::tracer::Tracer;
+    use crate::ast::{OFAst, ParseResult, Span};
 
     fn run_test2<'s>(
         str: &'s str,
@@ -1222,7 +1221,7 @@ mod tests {
     //     let trace = Tracer::new();
     //     unsafe {
     //         assert_eq!(
-    //             CellRefExpr::parse(&trace, Span::new(".A21"))?,
+    //             CellRefExpr::ast(&trace, Span::new(".A21"))?,
     //             (
     //                 Span::new_from_raw_offset(4, 1, "", ()),
     //                 Some(Box::new(OFAst::NodeCellRef(OFCellRef(
@@ -1239,23 +1238,23 @@ mod tests {
     // #[allow(unused_must_use)]
     // fn test_cellref3() -> Result<(), OFError> {
     //     let trace = Tracer::new();
-    //     dbg!(ReferenceExpr::parse(&trace, Span::new(".A1")));
+    //     dbg!(ReferenceExpr::ast(&trace, Span::new(".A1")));
     //     dbg!(&trace);
     //
     //     let trace = Tracer::new();
-    //     dbg!(ReferenceExpr::parse(&trace, Span::new(".A0")));
+    //     dbg!(ReferenceExpr::ast(&trace, Span::new(".A0")));
     //     dbg!(&trace);
     //
     //     let trace = Tracer::new();
-    //     dbg!(ReferenceExpr::parse(&trace, Span::new(".A1:.C4")));
+    //     dbg!(ReferenceExpr::ast(&trace, Span::new(".A1:.C4")));
     //     dbg!(&trace);
     //
     //     let trace = Tracer::new();
-    //     dbg!(ReferenceExpr::parse(&trace, Span::new(".A:.C")));
+    //     dbg!(ReferenceExpr::ast(&trace, Span::new(".A:.C")));
     //     dbg!(&trace);
     //
     //     let trace = Tracer::new();
-    //     dbg!(ReferenceExpr::parse(&trace, Span::new(".34:.37")));
+    //     dbg!(ReferenceExpr::ast(&trace, Span::new(".34:.37")));
     //     dbg!(&trace);
     //
     //     Ok(())

@@ -1,15 +1,15 @@
-use crate::Span;
+use crate::ast::Span;
 use spreadsheet_ods_cellref::parser::{ParseColnameError, ParseRownameError};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug)]
 pub enum ParseOFError {
-    /// Nom parse error.
+    /// Nom ast error.
     ErrNomError(ErrSpan, nom::error::ErrorKind),
     /// Nom failure.
     ErrNomFailure(ErrSpan, nom::error::ErrorKind),
-    /// Parsing didn't parse all of the string.
+    /// Parsing didn't ast all of the string.
     ErrParseIncomplete(ErrSpan),
 
     /// Elementary expression fails.

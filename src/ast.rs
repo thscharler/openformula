@@ -2,15 +2,27 @@
 //! AST for OpenFormula
 //!
 
-use crate::conv::{quote_double, quote_single};
 use crate::dbg_ast;
-use crate::parse::Span;
+use crate::error::ParseOFError;
 use nom::Offset;
+use nom_locate::LocatedSpan;
 use spreadsheet_ods_cellref::format::{fmt_abs, fmt_col_name, fmt_row_name};
 use spreadsheet_ods_cellref::{CellRange, ColRange, RowRange};
 use std::fmt::{Debug, Display, Formatter};
 use std::str::from_utf8_unchecked;
 use std::{fmt, mem, slice};
+
+pub mod conv;
+pub mod format;
+pub mod parser;
+pub mod tokens;
+pub mod tracer;
+
+/// Input type.
+pub type Span<'a> = LocatedSpan<&'a str>;
+
+/// Result type.
+pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseOFError>;
 
 /// Defines the AST tree.
 #[derive(PartialEq)]
@@ -1050,7 +1062,7 @@ impl<'a> Node<'a> for OFString<'a> {
     }
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "\"{}\"", quote_double(&self.str))
+        write!(f, "\"{}\"", conv::quote_double(&self.str))
     }
 }
 
@@ -1090,7 +1102,7 @@ impl<'a> Node<'a> for OFIri<'a> {
     }
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "'{}'#", quote_single(&self.iri))
+        write!(f, "'{}'#", conv::quote_single(&self.iri))
     }
 }
 
@@ -1135,7 +1147,7 @@ impl<'a> Node<'a> for OFSheetName<'a> {
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
         fmt_abs(f, self.abs)?;
-        write!(f, "'{}'.", quote_single(&self.name))
+        write!(f, "'{}'.", conv::quote_single(&self.name))
     }
 }
 
@@ -1276,7 +1288,7 @@ impl<'a> Node<'a> for OFSimpleNamed<'a> {
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if self.ident.contains('\'') {
-            write!(f, "$$'{}'", quote_single(&self.ident))
+            write!(f, "$$'{}'", conv::quote_single(&self.ident))
         } else {
             write!(f, "{}", self.ident)
         }
@@ -1683,9 +1695,9 @@ pub(crate) unsafe fn span_union_opt<'a>(span0: Option<Span<'a>>, span1: Span<'a>
 //
 // If any of the following conditions are violated, the result is Undefined Behavior:
 // * Both the starting and other pointer must be either in bounds or one byte past the end of the same allocated object.
-//      Should be guaranteed if both were obtained from on parse run.
+//      Should be guaranteed if both were obtained from on ast run.
 // * Both pointers must be derived from a pointer to the same object.
-//      Should be guaranteed if both were obtained from on parse run.
+//      Should be guaranteed if both were obtained from on ast run.
 // * The distance between the pointers, in bytes, cannot overflow an isize.
 // * The distance being in bounds cannot rely on “wrapping around” the address space.
 pub(crate) unsafe fn span_union<'a>(span0: Span<'a>, span1: Span<'a>) -> Span<'a> {
@@ -1695,7 +1707,7 @@ pub(crate) unsafe fn span_union<'a>(span0: Span<'a>, span1: Span<'a>) -> Span<'a
 
     unsafe {
         // The size should be within the original allocation, if both spans are from
-        // the same parse run. We must ensure that the parse run doesn't generate
+        // the same ast run. We must ensure that the ast run doesn't generate
         // Spans out of nothing that end in the ast.
         let slice = slice::from_raw_parts(ptr, size);
         // This is all from a str originally and we never got down to bytes.

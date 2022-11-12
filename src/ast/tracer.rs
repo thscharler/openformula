@@ -4,8 +4,8 @@
 //! Doesn't copy any strings, just tracks all function calls in the parser.
 //!
 
+use crate::ast::Span;
 use crate::error::ParseOFError;
-use crate::parse::Span;
 use spreadsheet_ods_cellref::CellRefError;
 use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter};
@@ -134,7 +134,7 @@ impl<'span> Tracer<'span> {
     }
 
     /// Extracts the error kind and a flag to differentiate between
-    /// parse error and failures+incomplete.
+    /// ast error and failures+incomplete.
     fn error_kind(err: &nom::Err<nom::error::Error<Span<'_>>>) -> (bool, nom::error::ErrorKind) {
         match err {
             nom::Err::Error(e) => (false, e.code),

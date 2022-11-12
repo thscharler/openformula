@@ -2,7 +2,7 @@
 //! Contains all token parsers. Operates on and returns only spans.
 //!
 
-use crate::parse::Span;
+use crate::ast::Span;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while, take_while1};
 use nom::character::complete::{char as nchar, one_of};
@@ -188,12 +188,12 @@ pub fn lah_prefix_op<'a>(i: Span<'a>) -> bool {
     one_of::<Span<'a>, _, nom::error::Error<_>>("+-")(i).is_ok()
 }
 
-/// Tries to parse any prefix operator.
+/// Tries to ast any prefix operator.
 pub fn prefix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     alt((tag("+"), tag("-")))(i)
 }
 
-/// Tries to parse any postfix operator.
+/// Tries to ast any postfix operator.
 pub fn postfix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("%")(i)
 }
@@ -240,68 +240,66 @@ pub fn quoted<'a>(quote: char) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, Span
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
-    use crate::ast_parser::eat_space;
-    use crate::parse::tokens::quoted;
-    use crate::parse::Span;
-    use crate::tokens::{lah_number, lah_parentheses_open};
+    use crate::ast::Span;
+    use crate::ast::{parser, tokens};
     use nom::error::ErrorKind;
     use nom::error::ParseError;
-    use spreadsheet_ods_cellref::tokens::{col, iri, row, sheet_name};
+    use spreadsheet_ods_cellref::tokens as refs_tokens;
 
     #[test]
     fn test_quoted() {
         unsafe {
             assert_eq!(
-                quoted('\'')(Span::new("'")),
+                tokens::quoted('\'')(Span::new("'")),
                 Err(nom::Err::Error(nom::error::Error::from_error_kind(
                     Span::new_from_raw_offset(1, 1, "", ()),
                     ErrorKind::Char
                 )))
             );
             assert_eq!(
-                quoted('\'')(Span::new("''")),
+                tokens::quoted('\'')(Span::new("''")),
                 Ok((
                     Span::new_from_raw_offset(2, 1, "", ()),
                     Span::new_from_raw_offset(1, 1, "", ())
                 ))
             );
             assert_eq!(
-                quoted('\'')(Span::new("'''")),
+                tokens::quoted('\'')(Span::new("'''")),
                 Err(nom::Err::Error(nom::error::Error::from_error_kind(
                     Span::new_from_raw_offset(3, 1, "", ()),
                     ErrorKind::Char
                 )))
             );
             assert_eq!(
-                quoted('\'')(Span::new("''''")),
+                tokens::quoted('\'')(Span::new("''''")),
                 Ok((
                     Span::new_from_raw_offset(4, 1, "", ()),
                     Span::new_from_raw_offset(1, 1, "''", ())
                 ))
             );
             assert_eq!(
-                quoted('\'')(Span::new("'text'")),
+                tokens::quoted('\'')(Span::new("'text'")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, "", ()),
                     Span::new_from_raw_offset(1, 1, "text", ())
                 ))
             );
             assert_eq!(
-                quoted('\'')(Span::new("'t'ext'")),
+                tokens::quoted('\'')(Span::new("'t'ext'")),
                 Ok((
                     Span::new_from_raw_offset(3, 1, "ext'", ()),
                     Span::new_from_raw_offset(1, 1, "t", ())
                 ))
             );
             assert_eq!(
-                quoted('\'')(Span::new("'t''ext'")),
+                tokens::quoted('\'')(Span::new("'t''ext'")),
                 Ok((
                     Span::new_from_raw_offset(8, 1, "", ()),
                     Span::new_from_raw_offset(1, 1, "t''ext", ())
                 ))
             );
             assert_eq!(
-                quoted('\'')(Span::new("'t'''ext'")),
+                tokens::quoted('\'')(Span::new("'t'''ext'")),
                 Ok((
                     Span::new_from_raw_offset(5, 1, "ext'", ()),
                     Span::new_from_raw_offset(1, 1, "t''", ())
@@ -314,28 +312,28 @@ mod tests {
     fn test_column() {
         unsafe {
             assert_eq!(
-                col(Span::new("A")),
+                refs_tokens::col(Span::new("A")),
                 Ok((
                     Span::new_from_raw_offset(1, 1, "", ()),
                     (None, Span::new_from_raw_offset(0, 1, "A", ()))
                 ))
             );
             assert_eq!(
-                col(Span::new("AAAA")),
+                refs_tokens::col(Span::new("AAAA")),
                 Ok((
                     Span::new_from_raw_offset(4, 1, "", ()),
                     (None, Span::new_from_raw_offset(0, 1, "AAAA", ()))
                 ))
             );
             assert_eq!(
-                col(Span::new("AAAA ")),
+                refs_tokens::col(Span::new("AAAA ")),
                 Ok((
                     Span::new_from_raw_offset(4, 1, " ", ()),
                     (None, Span::new_from_raw_offset(0, 1, "AAAA", ()))
                 ))
             );
             assert_eq!(
-                col(Span::new("AAAA1234")),
+                refs_tokens::col(Span::new("AAAA1234")),
                 Ok((
                     Span::new_from_raw_offset(4, 1, "1234", ()),
                     (None, Span::new_from_raw_offset(0, 1, "AAAA", ()))
@@ -348,28 +346,28 @@ mod tests {
     fn test_column2() {
         unsafe {
             assert_eq!(
-                col(Span::new("A")),
+                refs_tokens::col(Span::new("A")),
                 Ok((
                     Span::new_from_raw_offset(1, 1, "", ()),
                     (None, Span::from("A"))
                 ))
             );
             assert_eq!(
-                col(Span::new("AAAA")),
+                refs_tokens::col(Span::new("AAAA")),
                 Ok((
                     Span::new_from_raw_offset(4, 1, "", ()),
                     (None, Span::from("AAAA"))
                 ))
             );
             assert_eq!(
-                col(Span::new("AAAA ")),
+                refs_tokens::col(Span::new("AAAA ")),
                 Ok((
                     Span::new_from_raw_offset(4, 1, " ", ()),
                     (None, Span::from("AAAA"))
                 ))
             );
             assert_eq!(
-                col(Span::new("AAAA1234")),
+                refs_tokens::col(Span::new("AAAA1234")),
                 Ok((
                     Span::new_from_raw_offset(4, 1, "1234", ()),
                     (None, Span::from("AAAA"))
@@ -382,21 +380,21 @@ mod tests {
     fn test_row() {
         unsafe {
             assert_eq!(
-                row(Span::new("1")),
+                refs_tokens::row(Span::new("1")),
                 Ok((
                     Span::new_from_raw_offset(1, 1, "", ()),
                     (None, Span::new_from_raw_offset(0, 1, "1", ()))
                 ))
             );
             assert_eq!(
-                row(Span::new("123")),
+                refs_tokens::row(Span::new("123")),
                 Ok((
                     Span::new_from_raw_offset(3, 1, "", ()),
                     (None, Span::new_from_raw_offset(0, 1, "123", ()))
                 ))
             );
             assert_eq!(
-                row(Span::new("123 ")),
+                refs_tokens::row(Span::new("123 ")),
                 Ok((
                     Span::new_from_raw_offset(3, 1, " ", ()),
                     (None, Span::new_from_raw_offset(0, 1, "123", ()))
@@ -409,49 +407,49 @@ mod tests {
     fn test_sheet_name() {
         unsafe {
             assert_eq!(
-                sheet_name(Span::new("sheet1")),
+                refs_tokens::sheet_name(Span::new("sheet1")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, "", ()),
                     (None, Span::new_from_raw_offset(0, 1, "sheet1", ()))
                 ))
             );
             assert_eq!(
-                sheet_name(Span::new("sheet1]")),
+                refs_tokens::sheet_name(Span::new("sheet1]")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, "]", ()),
                     (None, Span::new_from_raw_offset(0, 1, "sheet1", ()))
                 ))
             );
             assert_eq!(
-                sheet_name(Span::new("sheet1.")),
+                refs_tokens::sheet_name(Span::new("sheet1.")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, ".", ()),
                     (None, Span::new_from_raw_offset(0, 1, "sheet1", ()))
                 ))
             );
             assert_eq!(
-                sheet_name(Span::new("sheet1$")),
+                refs_tokens::sheet_name(Span::new("sheet1$")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, "$", ()),
                     (None, Span::new_from_raw_offset(0, 1, "sheet1", ()))
                 ))
             );
             assert_eq!(
-                sheet_name(Span::new("sheet1 ")),
+                refs_tokens::sheet_name(Span::new("sheet1 ")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, " ", ()),
                     (None, Span::new_from_raw_offset(0, 1, "sheet1", ()))
                 ))
             );
             assert_eq!(
-                sheet_name(Span::new("sheet1#")),
+                refs_tokens::sheet_name(Span::new("sheet1#")),
                 Ok((
                     Span::new_from_raw_offset(6, 1, "#", ()),
                     (None, Span::new_from_raw_offset(0, 1, "sheet1", ()))
                 ))
             );
             assert_eq!(
-                sheet_name(Span::new("'sheet1'")),
+                refs_tokens::sheet_name(Span::new("'sheet1'")),
                 Ok((
                     Span::new_from_raw_offset(8, 1, "", ()),
                     (None, Span::new_from_raw_offset(1, 1, "sheet1", ()))
@@ -463,7 +461,7 @@ mod tests {
     fn test_iri() {
         unsafe {
             assert_eq!(
-                iri(Span::new("'file:c:x.txt'#")),
+                refs_tokens::iri(Span::new("'file:c:x.txt'#")),
                 Ok((
                     Span::new_from_raw_offset(15, 1, "", ()),
                     Span::new_from_raw_offset(1, 1, "file:c:x.txt", ())
@@ -474,10 +472,10 @@ mod tests {
 
     #[test]
     fn test_lah() {
-        dbg!(lah_number(Span::new("222")));
-        dbg!(lah_number(Span::new("ABC")));
-        dbg!(lah_parentheses_open(Span::new("()")));
-        let rest = eat_space(Span::new("  ()"));
-        dbg!(lah_parentheses_open(rest));
+        dbg!(tokens::lah_number(Span::new("222")));
+        dbg!(tokens::lah_number(Span::new("ABC")));
+        dbg!(tokens::lah_parentheses_open(Span::new("()")));
+        let rest = parser::eat_space(Span::new("  ()"));
+        dbg!(tokens::lah_parentheses_open(rest));
     }
 }
