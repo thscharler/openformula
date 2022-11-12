@@ -5,6 +5,7 @@
 //!
 
 use crate::error::ParseOFError;
+use crate::error2::ParseOFError2;
 use crate::parse::Span;
 use spreadsheet_ods_cellref::CellRefError;
 use std::cell::RefCell;
@@ -189,6 +190,80 @@ impl<'span> Tracer<'span> {
         self.tracks
             .borrow_mut()
             .push(Track::Error(func, err.to_string(), nom));
+        err
+    }
+
+    /// Erring in a parser. Handles CellRefError.
+    ///
+    /// Panic
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn reference(&self, err: CellRefError) -> ParseOFError2 {
+        match err {
+            CellRefError::ErrNomError(span, e) => ParseOFError2::ErrNomError(span.into(), e),
+            CellRefError::ErrNomFailure(span, e) => ParseOFError2::ErrNomFailure(span.into(), e),
+            //CellRefError::ErrCellRef(span) => ParseOFError::ErrCellRef(span.into()),
+            CellRefError::ErrCellRange(span) => ParseOFError2::ErrCellRange(span.into()),
+            CellRefError::ErrColRange(span) => ParseOFError2::ErrColRange(span.into()),
+            CellRefError::ErrRowRange(span) => ParseOFError2::ErrRowRange(span.into()),
+            CellRefError::ErrRowname(span, e) => ParseOFError2::ErrRowname(span.into(), e),
+            CellRefError::ErrColname(span, e) => ParseOFError2::ErrColname(span.into(), e),
+            _ => todo!(),
+        }
+    }
+
+    /// Error in a Parser.
+    ///
+    /// Panic
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn parse(&self, err: ParseOFError2) -> ParseOFError2 {
+        let func = self.func.borrow_mut().pop().unwrap();
+        self.tracks
+            .borrow_mut()
+            .push(Track::ErrorStr(func, err.to_string()));
+
+        err
+    }
+
+    /// Extracts the error kind and a flag to differentiate between
+    /// parse error and failures+incomplete.
+    fn error_kind(err: &nom::Err<nom::error::Error<Span<'_>>>) -> (bool, nom::error::ErrorKind) {
+        match err {
+            nom::Err::Error(e) => (false, e.code),
+            nom::Err::Incomplete(_e) => (true, nom::error::ErrorKind::Fail),
+            nom::Err::Failure(e) => (true, e.code),
+        }
+    }
+
+    /// Erring in a parser. Handles all nom errors.
+    ///
+    /// Panic
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn nom(
+        &self,
+        rest: Span<'span>,
+        // err_fn: fn(span: Span<'span>, nom: nom::error::ErrorKind) -> ParseOFError2,
+        nom: nom::Err<nom::error::Error<Span<'span>>>,
+    ) -> ParseOFError2 {
+        // The nom error is just the span + error kind in a way.
+        // Plus a few bits to differentiate between parsing error and complete failure.
+        let (fail, error_kind) = Self::error_kind(&nom);
+        // Map the error.
+        let err = if fail {
+            ParseOFError2::fail(rest, error_kind)
+        } else {
+            ParseOFError2::err(rest, error_kind)
+            // err_fn(rest, error_kind)
+        };
+
+        // Keep track.
+        let func = self.func.borrow_mut().pop().unwrap();
+        self.tracks
+            .borrow_mut()
+            .push(Track::Error(func, err.to_string(), nom));
+
         err
     }
 

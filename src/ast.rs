@@ -6,7 +6,7 @@ use crate::conv::{quote_double, quote_single};
 use crate::dbg_ast;
 use crate::parse::Span;
 use nom::Offset;
-use spreadsheet_ods_cellref::refs_format::{fmt_abs, fmt_col_name, fmt_row_name};
+use spreadsheet_ods_cellref::format::{fmt_abs, fmt_col_name, fmt_row_name};
 use spreadsheet_ods_cellref::{CellRange, ColRange, RowRange};
 use std::fmt::{Debug, Display, Formatter};
 use std::str::from_utf8_unchecked;
@@ -39,7 +39,6 @@ pub enum OFAst<'a> {
     NodeNamed(OFNamed<'a>),
 
     /// CellRef
-    // TODO: replace CellRef
     NodeCellRef(OFCellRef<'a>),
     /// CellRange
     // TODO: replace CellRange

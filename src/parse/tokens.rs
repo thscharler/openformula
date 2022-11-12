@@ -174,16 +174,31 @@ pub fn add_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(alt((tag("+"), tag("-"))))(i)
 }
 
+/// Tries to parses any additive operator.
+pub fn add_op2<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    alt((tag("+"), tag("-")))(i)
+}
+
 /// Tries to parses any multiplicative operator.
 // TODO: do we need this opt here (and somewhere else too).
 pub fn mul_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(alt((tag("*"), tag("/"))))(i)
 }
 
+/// Tries to parses any multiplicative operator.
+pub fn mul_op2<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    alt((tag("*"), tag("/")))(i)
+}
+
 /// Tries to parses the power operator.
 // TODO: do we need this opt here (and somewhere else too).
 pub fn pow_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(tag("^"))(i)
+}
+
+/// Tries to parses the power operator.
+pub fn pow_op2<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    tag("^")(i)
 }
 
 /// Lookahead for any prefix operator.
@@ -198,10 +213,20 @@ pub fn prefix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(alt((tag("+"), tag("-"))))(i)
 }
 
+/// Tries to parse any prefix operator.
+pub fn prefix_op2<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    alt((tag("+"), tag("-")))(i)
+}
+
 /// Tries to parse any postfix operator.
 // TODO: do we need this opt here (and somewhere else too).
 pub fn postfix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Option<Span<'a>>> {
     opt(tag("%"))(i)
+}
+
+/// Tries to parse any postfix operator.
+pub fn postfix_op2<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    tag("%")(i)
 }
 
 /// Simple lookahead for a identifier.

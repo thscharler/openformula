@@ -38,6 +38,7 @@
 mod ast;
 mod dbg_ast;
 mod error;
+mod error2;
 mod parse;
 mod refs;
 

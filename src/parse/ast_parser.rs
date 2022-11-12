@@ -20,13 +20,13 @@ use nom::character::complete::multispace0;
 use nom::combinator::{opt, recognize};
 use nom::sequence::tuple;
 use nom::InputTake;
-use spreadsheet_ods_cellref::refs_parser::{
+use spreadsheet_ods_cellref::parser::{
     parse_cell_range, parse_col_range, parse_row_range, try_bool_from_abs_flag,
     try_u32_from_colname, try_u32_from_rowname,
 };
 use spreadsheet_ods_cellref::tokens::{iri, lah_iri, lah_sheet_name, sheet_name};
 use spreadsheet_ods_cellref::{
-    refs_parser, tokens as refs_tokens, CellRange, CellRefError, ColRange, RowRange,
+    parser as refs_parser, tokens as refs_tokens, CellRange, CellRefError, ColRange, RowRange,
 };
 
 // Expression ::=
