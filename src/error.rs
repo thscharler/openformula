@@ -7,21 +7,29 @@ use std::fmt::{Debug, Display, Formatter};
 #[derive(Debug)]
 pub enum ParseOFError<'s> {
     /// Nom ast error.
-    ErrNomError(Span<'s>, nom::error::ErrorKind),
+    ErrNomError(Span<'s>),
     /// Nom failure.
-    ErrNomFailure(Span<'s>, nom::error::ErrorKind),
+    ErrNomFailure(Span<'s>),
+    /// Error converting a row-name part of any Ref to an u32.
+    ErrRowname(Span<'s>),
+    /// Error converting a col-name part of any Ref to an u32.
+    ErrColname(Span<'s>),
+
     /// Parsing didn't ast all of the string.
     ErrParseIncomplete(Span<'s>),
 
     /// Error when parsing an expression in parenthesis.
-    ErrParenthesis(Span<'s>, nom::error::ErrorKind),
+    ErrParenthesis(Span<'s>),
     /// Error when parsing a function call
-    ErrFnCall(Span<'s>, nom::error::ErrorKind),
+    ErrFnCall(Span<'s>),
 
     /// Elementary expression fails.
     ErrElementary(Span<'s>),
     /// Reference expression fails.
     ErrReference(Span<'s>),
+
+    /// Reference expression fails.
+    ErrString(Span<'s>),
 
     /// CellRange parsing error.
     ErrCellRange(Span<'s>),
@@ -29,29 +37,25 @@ pub enum ParseOFError<'s> {
     ErrColRange(Span<'s>),
     /// Rowrange parsing error.
     ErrRowRange(Span<'s>),
-
-    /// Error converting a row-name part of any Ref to an u32.
-    ErrRowname(Span<'s>, ParseRownameError),
-    /// Error converting a col-name part of any Ref to an u32.
-    ErrColname(Span<'s>, ParseColnameError),
 }
 
 impl<'s> ParseOFError<'s> {
     /// Return the errspan of any variant.
     pub fn span(&self) -> &Span<'s> {
         match self {
-            ParseOFError::ErrNomError(s, _) => s,
-            ParseOFError::ErrNomFailure(s, _) => s,
+            ParseOFError::ErrNomError(s) => s,
+            ParseOFError::ErrNomFailure(s) => s,
             ParseOFError::ErrParseIncomplete(s) => s,
             ParseOFError::ErrElementary(s) => s,
             ParseOFError::ErrReference(s) => s,
             ParseOFError::ErrCellRange(s) => s,
             ParseOFError::ErrColRange(s) => s,
             ParseOFError::ErrRowRange(s) => s,
-            ParseOFError::ErrRowname(s, _) => s,
-            ParseOFError::ErrColname(s, _) => s,
-            ParseOFError::ErrParenthesis(s, _) => s,
-            ParseOFError::ErrFnCall(s, _) => s,
+            ParseOFError::ErrRowname(s) => s,
+            ParseOFError::ErrColname(s) => s,
+            ParseOFError::ErrParenthesis(s) => s,
+            ParseOFError::ErrFnCall(s) => s,
+            ParseOFError::ErrString(s) => s,
         }
     }
 
@@ -68,13 +72,13 @@ impl<'s> ParseOFError<'s> {
     }
 
     /// NomError variant.
-    pub fn err(span: Span<'s>, err: nom::error::ErrorKind) -> ParseOFError<'s> {
-        ParseOFError::ErrNomError(span, err)
+    pub fn err(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrNomError(span)
     }
 
     /// NomFailure variant.
-    pub fn fail(span: Span<'s>, err: nom::error::ErrorKind) -> ParseOFError<'s> {
-        ParseOFError::ErrNomFailure(span, err)
+    pub fn fail(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrNomFailure(span)
     }
 
     /// ParseIncomplete variant.
@@ -82,12 +86,12 @@ impl<'s> ParseOFError<'s> {
         ParseOFError::ErrParseIncomplete(span)
     }
 
-    pub fn parens(span: Span<'s>, err: nom::error::ErrorKind) -> ParseOFError<'s> {
-        ParseOFError::ErrParenthesis(span, err)
+    pub fn parens(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrParenthesis(span)
     }
 
-    pub fn fn_call(span: Span<'s>, err: nom::error::ErrorKind) -> ParseOFError<'s> {
-        ParseOFError::ErrFnCall(span, err)
+    pub fn fn_call(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrFnCall(span)
     }
 
     /// Elementary
@@ -114,6 +118,10 @@ impl<'s> ParseOFError<'s> {
     pub fn row_range(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::ErrRowRange(span)
     }
+
+    pub fn string(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrString(span)
+    }
 }
 
 impl<'s> Error for ParseOFError<'s> {}
@@ -128,7 +136,7 @@ impl<'s, T> LocateError<'s, T, ParseRownameError> for Result<T, ParseRownameErro
     fn locate_err(self, span: Span<'s>) -> Result<T, ParseOFError<'s>> {
         match self {
             Ok(v) => Ok(v),
-            Err(e) => Err(ParseOFError::ErrRowname(span, e)),
+            Err(_) => Err(ParseOFError::ErrRowname(span)),
         }
     }
 }
@@ -137,7 +145,7 @@ impl<'s, T> LocateError<'s, T, ParseColnameError> for Result<T, ParseColnameErro
     fn locate_err(self, span: Span<'s>) -> Result<T, ParseOFError<'s>> {
         match self {
             Ok(v) => Ok(v),
-            Err(e) => Err(ParseOFError::ErrColname(span, e)),
+            Err(_) => Err(ParseOFError::ErrColname(span)),
         }
     }
 }
@@ -145,18 +153,19 @@ impl<'s, T> LocateError<'s, T, ParseColnameError> for Result<T, ParseColnameErro
 impl<'s> Display for ParseOFError<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseOFError::ErrNomError(_, e) => write!(f, "NomError kind={:?} ", e)?,
-            ParseOFError::ErrNomFailure(_, e) => write!(f, "NomFailure kind={:?} ", e)?,
+            ParseOFError::ErrNomError(_) => write!(f, "NomError ")?,
+            ParseOFError::ErrNomFailure(_) => write!(f, "NomFailure ")?,
+            ParseOFError::ErrRowname(_) => write!(f, "ParseRowname ")?,
+            ParseOFError::ErrColname(_) => write!(f, "ParseColname ")?,
             ParseOFError::ErrParseIncomplete(_) => write!(f, "ParseIncomplete ")?,
             ParseOFError::ErrElementary(_) => write!(f, "Elementary ")?,
             ParseOFError::ErrReference(_) => write!(f, "Reference ")?,
             ParseOFError::ErrCellRange(_) => write!(f, "CellRange ")?,
             ParseOFError::ErrColRange(_) => write!(f, "ColRange ")?,
             ParseOFError::ErrRowRange(_) => write!(f, "RowRange ")?,
-            ParseOFError::ErrRowname(_, e) => write!(f, "ParseRowname err={:?} ", e)?,
-            ParseOFError::ErrColname(_, e) => write!(f, "ParseColname err={:?} ", e)?,
-            ParseOFError::ErrParenthesis(_, e) => write!(f, "Parenthesis err={:?} ", e)?,
-            ParseOFError::ErrFnCall(_, e) => write!(f, "FnCall err={:?} ", e)?,
+            ParseOFError::ErrParenthesis(_) => write!(f, "Parenthesis ")?,
+            ParseOFError::ErrFnCall(_) => write!(f, "FnCall ")?,
+            ParseOFError::ErrString(_) => write!(f, "String ")?,
         }
         Self::fmt_span(self.span(), f)?;
         Ok(())

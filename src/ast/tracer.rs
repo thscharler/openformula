@@ -200,14 +200,14 @@ impl<'span> Tracer<'span> {
     pub fn reference(&self, span: Span<'span>, err: CellRefError) -> ParseOFError<'span> {
         // TODO: remove this one
         let err = match err {
-            CellRefError::ErrNomError(_, e) => ParseOFError::ErrNomError(span, e),
-            CellRefError::ErrNomFailure(_, e) => ParseOFError::ErrNomFailure(span, e),
+            CellRefError::ErrNomError(_, _) => ParseOFError::ErrNomError(span),
+            CellRefError::ErrNomFailure(_, _) => ParseOFError::ErrNomFailure(span),
             //CellRefError::ErrCellRef(_) => ParseOFError::ErrCellRef(span),
             CellRefError::ErrCellRange(_) => ParseOFError::ErrCellRange(span),
             CellRefError::ErrColRange(_) => ParseOFError::ErrColRange(span),
             CellRefError::ErrRowRange(_) => ParseOFError::ErrRowRange(span),
-            CellRefError::ErrRowname(_, e) => ParseOFError::ErrRowname(span, e),
-            CellRefError::ErrColname(_, e) => ParseOFError::ErrColname(span, e),
+            CellRefError::ErrRowname(_, _) => ParseOFError::ErrRowname(span),
+            CellRefError::ErrColname(_, _) => ParseOFError::ErrColname(span),
             _ => todo!(),
         };
 
@@ -236,7 +236,7 @@ impl<'span> Tracer<'span> {
     /// Maps a nom error to some wellknown error. Only maps nom::Err::Error not the others.
     pub fn map_nom(
         &self,
-        err_fn: fn(span: Span<'span>, nom: nom::error::ErrorKind) -> ParseOFError<'span>,
+        err_fn: fn(span: Span<'span>) -> ParseOFError<'span>,
         nom: nom::Err<nom::error::Error<Span<'span>>>,
     ) -> ParseOFError<'span> {
         //
@@ -245,9 +245,9 @@ impl<'span> Tracer<'span> {
         let (fail, error_span, error_kind) = Self::error_kind(&nom);
         // Map the error.
         let err = if fail {
-            ParseOFError::fail(error_span, error_kind)
+            ParseOFError::fail(error_span)
         } else {
-            err_fn(error_span, error_kind)
+            err_fn(error_span)
         };
 
         // Keep track.
@@ -283,7 +283,6 @@ impl<'span> Tracer<'span> {
     ///
     /// Panics if there was no call to enter() before.
     pub fn nom(&self, nom: nom::Err<nom::error::Error<Span<'span>>>) -> ParseOFError<'span> {
-        // nom::Err::Error to ParseOFError::ErrNomError
         self.map_nom(ParseOFError::err, nom)
     }
 }

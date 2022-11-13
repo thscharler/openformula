@@ -123,7 +123,7 @@ pub trait BinaryExpr<'s> {
                                 Err(e) => break Err(trace.parse(e)),
                             }
                         }
-                        Err(ParseOFError::ErrNomError(_, _)) => {
+                        Err(ParseOFError::ErrNomError(_)) => {
                             break Ok(trace.ok(expr1.span(), loop_rest, expr1))
                         }
                         Err(e) => break Err(trace.parse(e)),
@@ -467,58 +467,56 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
+        trace.suggest(Suggest::Number);
         if NumberExpr::lah(i) {
             trace.optional(NumberExpr::name());
             match NumberExpr::parse(trace, i) {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
                 }
-                Err(ParseOFError::ErrNomError(_, _)) => {
+                Err(ParseOFError::ErrNomError(_)) => {
                     /* skip */
                     trace.expect(Suggest::Number);
                 }
                 Err(e) => return Err(trace.parse(e)),
             }
-        } else {
-            trace.suggest(Suggest::Number);
         }
 
+        trace.suggest(Suggest::String);
         if StringExpr::lah(i) {
             trace.optional(StringExpr::name());
             match StringExpr::parse(trace, i) {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
                 }
-                Err(ParseOFError::ErrNomError(_, _)) => {
+                Err(ParseOFError::ErrNomError(_)) => {
                     /* skip */
                     trace.expect(Suggest::String);
                 }
                 Err(e) => return Err(trace.parse(e)),
             }
-        } else {
-            trace.suggest(Suggest::String);
         }
 
+        trace.suggest(Suggest::Parenthesis);
         if ParenthesisExpr::lah(i) {
             trace.optional(ParenthesisExpr::name());
             match ParenthesisExpr::parse(trace, i) {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
                 }
-                Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+                Err(ParseOFError::ErrNomError(_)) => { /* skip */ }
                 Err(e) => return Err(trace.parse(e)),
             }
-        } else {
-            trace.suggest(Suggest::Parenthesis);
         }
 
+        trace.suggest(Suggest::Reference);
         if ReferenceExpr::lah(i) {
             trace.optional(ReferenceExpr::name());
             match ReferenceExpr::parse(trace, i) {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
                 }
-                Err(ParseOFError::ErrNomError(_, _)) => {
+                Err(ParseOFError::ErrNomError(_)) => {
                     /* skip, some token error */
                     trace.expect(Suggest::Reference);
                 }
@@ -528,24 +526,21 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 }
                 Err(e) => return Err(trace.parse(e)),
             }
-        } else {
-            trace.suggest(Suggest::Reference);
         }
 
+        trace.suggest(Suggest::FnCall);
         if FnCallExpr::lah(i) {
             trace.optional(FnCallExpr::name());
             match FnCallExpr::parse(trace, i) {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
                 }
-                Err(ParseOFError::ErrNomError(_, _)) => {
+                Err(ParseOFError::ErrNomError(_)) => {
                     /* skip */
                     trace.expect(Suggest::FnCall);
                 }
                 Err(e) => return Err(trace.parse(e)),
             }
-        } else {
-            trace.suggest(Suggest::FnCall);
         }
 
         Err(trace.parse(ParseOFError::elementary(i)))
@@ -603,7 +598,7 @@ impl<'s> GeneralExpr<'s> for StringExpr {
                 let ast = OFAst::string(conv::unquote_double(tok), tok);
                 Ok(trace.ok(ast.span(), rest2, ast))
             }
-            Err(e) => Err(trace.nom(e)),
+            Err(e) => Err(trace.map_nom(ParseOFError::string, e)),
         }
     }
 }
@@ -649,7 +644,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Ok((rest, expr)) => {
                 return Ok(trace.ok(expr.span(), rest, expr));
             }
-            Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+            Err(ParseOFError::ErrNomError(_)) => { /* skip */ }
             Err(e) => return Err(trace.parse(e)),
         }
         trace.optional(CellRangeExpr::name());
@@ -657,7 +652,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Ok((rest, expr)) => {
                 return Ok(trace.ok(expr.span(), rest, expr));
             }
-            Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+            Err(ParseOFError::ErrNomError(_)) => { /* skip */ }
             Err(e) => return Err(trace.parse(e)),
         }
         trace.optional(CellRangeExpr::name());
@@ -665,7 +660,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Ok((rest, expr)) => {
                 return Ok(trace.ok(expr.span(), rest, expr));
             }
-            Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+            Err(ParseOFError::ErrNomError(_)) => { /* skip */ }
             Err(e) => return Err(trace.parse(e)),
         }
         trace.optional(CellRangeExpr::name());
@@ -673,7 +668,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Ok((rest, expr)) => {
                 return Ok(trace.ok(expr.span(), rest, expr));
             }
-            Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+            Err(ParseOFError::ErrNomError(_)) => { /* skip */ }
             Err(e) => return Err(trace.parse(e)),
         }
 
@@ -993,7 +988,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                                 trace.step("arg", expr.span());
                                 Some(expr)
                             }
-                            Err(ParseOFError::ErrNomError(_, _))
+                            Err(ParseOFError::ErrNomError(_))
                             | Err(ParseOFError::ErrElementary(_)) => {
                                 // Optional
                                 trace.step("arg", Span::new(""));
@@ -1222,9 +1217,9 @@ pub fn check_eof<'s>(
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
-    use crate::ast::parser::GeneralExpr;
     use crate::ast::parser::NumberExpr;
     use crate::ast::parser::{ElementaryExpr, Expr};
+    use crate::ast::parser::{GeneralExpr, StringExpr};
     use crate::ast::tracer::Tracer;
     use crate::ast::{OFAst, ParseResult, Span};
 
@@ -1265,6 +1260,14 @@ mod tests {
     }
 
     #[test]
+    fn test_string() {
+        let tests = ["4", "\"", "\"\"", "\"X"];
+        for test in tests {
+            run_test2(test, StringExpr::parse);
+        }
+    }
+
+    #[test]
     fn test_number() {
         let test_ok = ["25", "25e+5", "25.", "25.001", "25.003e-7"];
         for test in test_ok {
@@ -1300,19 +1303,20 @@ mod tests {
     #[test]
     fn test_expr_fail() {
         let tests = [
-            "471X",
-            r#""strdata"#,
-            "1+",
-            "(1+1",
-            "XX",
-            "4*5+",
-            "4+5*",
-            "22 * FUN ( 77  ",
-            "22 * FUN 77 ) ",
-            "17 + FUN(  ",
-            "17 + FUN  )",
-            "11 ^ FUN(   ;;66)",
-            "11 ^ FUN(   ;;X)",
+            "",
+            "", // "471X",
+               // r#""strdata"#,
+               // "1+",
+               // "(1+1",
+               // "XX",
+               // "4*5+",
+               // "4+5*",
+               // "22 * FUN ( 77  ",
+               // "22 * FUN 77 ) ",
+               // "17 + FUN(  ",
+               // "17 + FUN  )",
+               // "11 ^ FUN(   ;;66)",
+               // "11 ^ FUN(   ;;X)",
         ];
         for test in tests {
             run_test2(test, Expr::parse);
