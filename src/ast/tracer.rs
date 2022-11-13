@@ -8,7 +8,27 @@ use crate::ast::Span;
 use crate::error::ParseOFError;
 use spreadsheet_ods_cellref::CellRefError;
 use std::cell::RefCell;
+use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
+
+///
+#[derive(Debug)]
+pub enum Suggest {
+    Reference,
+    FnCall,
+    PostfixOp,
+    PrefixOp,
+    MulOp,
+    AddOp,
+    CompOp,
+    Number,
+    String,
+    Parenthesis,
+    ParenthesisOpen,
+    ParenthesisClose,
+    Separator,
+    Expr,
+}
 
 /// Follows the parsing.
 #[derive(Default)]
@@ -17,6 +37,10 @@ pub struct Tracer<'span> {
     pub tracks: RefCell<Vec<Track<'span>>>,
     /// In an optional branch.
     pub optional: RefCell<Vec<&'static str>>,
+    /// Suggestions
+    pub suggest: RefCell<Vec<Suggest>>,
+    /// Expected
+    pub expect: RefCell<Vec<Suggest>>,
     /// Last fn tracked via enter.
     pub func: RefCell<Vec<&'static str>>,
 }
@@ -26,8 +50,11 @@ impl<'span> Debug for Tracer<'span> {
         writeln!(f, "Tracer")?;
         let tracks = self.tracks.borrow();
 
+        let mut span = None;
         let mut indent = String::new();
         for tr in tracks.iter() {
+            span = Some(tr.span());
+
             match tr {
                 Track::Enter(_, _) => {
                     indent.push_str("  ");
@@ -46,11 +73,6 @@ impl<'span> Debug for Tracer<'span> {
                     indent.pop();
                     indent.pop();
                 }
-                Track::ErrorStr(_, _, _) => {
-                    writeln!(f, "{}{:?}", indent, tr)?;
-                    indent.pop();
-                    indent.pop();
-                }
                 Track::ErrorSpan(_, _, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
                     indent.pop();
@@ -58,6 +80,15 @@ impl<'span> Debug for Tracer<'span> {
                 }
             }
         }
+
+        writeln!(
+            f,
+            "Found '{}' expected {} suggest {}",
+            span.map(|s| s.fragment()).unwrap_or(&""),
+            self.expectations(),
+            self.suggestions()
+        )?;
+
         Ok(())
     }
 }
@@ -105,6 +136,34 @@ impl<'span> Tracer<'span> {
                 b_optional.pop();
             }
         }
+    }
+
+    /// Suggested tokens.
+    pub fn suggest(&self, suggest: Suggest) {
+        self.suggest.borrow_mut().push(suggest);
+    }
+
+    /// Suggestions
+    pub fn suggestions(&self) -> String {
+        let mut buf = String::new();
+        for s in &*self.suggest.borrow() {
+            let _ = write!(buf, "{:?}, ", s);
+        }
+        buf
+    }
+
+    /// Expected tokens.
+    pub fn expect(&self, suggest: Suggest) {
+        self.expect.borrow_mut().push(suggest);
+    }
+
+    /// Suggestions
+    pub fn expectations(&self) -> String {
+        let mut buf = String::new();
+        for s in &*self.expect.borrow() {
+            let _ = write!(buf, "{:?}, ", s);
+        }
+        buf
     }
 
     /// Ok in a parser.
@@ -230,8 +289,18 @@ pub enum Track<'span> {
     ),
     /// Function where this occurred and some error info.
     ErrorSpan(&'static str, bool, String, Span<'span>),
-    ///  Function where this occurred and some error info.
-    ErrorStr(&'static str, bool, String),
+}
+
+impl<'span> Track<'span> {
+    pub fn span(&self) -> &Span<'span> {
+        match self {
+            Track::Enter(_, s) => s,
+            Track::Step(_, _, s) => s,
+            Track::Ok(_, _, s) => s,
+            Track::Error(_, _, _, s, _) => s,
+            Track::ErrorSpan(_, _, _, s) => s,
+        }
+    }
 }
 
 impl<'span> Debug for Track<'span> {
@@ -269,15 +338,6 @@ impl<'span> Debug for Track<'span> {
                     if *opt { "OPT" } else { "!!!" },
                     err_str,
                     err_span
-                )?;
-            }
-            Track::ErrorStr(func, opt, err_str) => {
-                write!(
-                    f,
-                    "{}: {} err=({})",
-                    func,
-                    if *opt { "OPT" } else { "!!!" },
-                    err_str
                 )?;
             }
         }

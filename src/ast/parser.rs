@@ -8,6 +8,7 @@
 //! The look-ahead functions are called internally at certain branching points.
 
 use crate::ast::tokens::lah_prefix_op;
+use crate::ast::tracer::Suggest;
 use crate::ast::{
     conv, span_union_opt, tokens, tracer::Tracer, Node, OFAddOp, OFAst, OFCellRange, OFCellRef,
     OFColRange, OFCompOp, OFMulOp, OFPostfixOp, OFPowOp, OFPrefixOp, OFRowRange, ParseResult, Span,
@@ -379,6 +380,7 @@ impl<'s> GeneralExpr<'s> for PostFixExpr {
                             Err(e) => break Err(trace.parse(e)),
                         }
                     } else {
+                        trace.suggest(Suggest::PostfixOp);
                         break Ok(trace.ok(expr.span(), loop_rest, expr));
                     }
                 }
@@ -471,9 +473,14 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
                 }
-                Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+                Err(ParseOFError::ErrNomError(_, _)) => {
+                    /* skip */
+                    trace.expect(Suggest::Number);
+                }
                 Err(e) => return Err(trace.parse(e)),
             }
+        } else {
+            trace.suggest(Suggest::Number);
         }
 
         if StringExpr::lah(i) {
@@ -482,9 +489,14 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
                 }
-                Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+                Err(ParseOFError::ErrNomError(_, _)) => {
+                    /* skip */
+                    trace.expect(Suggest::String);
+                }
                 Err(e) => return Err(trace.parse(e)),
             }
+        } else {
+            trace.suggest(Suggest::String);
         }
 
         if ParenthesisExpr::lah(i) {
@@ -496,6 +508,8 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
                 Err(e) => return Err(trace.parse(e)),
             }
+        } else {
+            trace.suggest(Suggest::Parenthesis);
         }
 
         if ReferenceExpr::lah(i) {
@@ -504,10 +518,18 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
                 }
-                Err(ParseOFError::ErrNomError(_, _)) => { /* skip, some token error */ }
-                Err(ParseOFError::ErrReference(_)) => { /* skip, no reference */ }
+                Err(ParseOFError::ErrNomError(_, _)) => {
+                    /* skip, some token error */
+                    trace.expect(Suggest::Reference);
+                }
+                Err(ParseOFError::ErrReference(_)) => {
+                    /* skip, no reference */
+                    trace.expect(Suggest::Reference);
+                }
                 Err(e) => return Err(trace.parse(e)),
             }
+        } else {
+            trace.suggest(Suggest::Reference);
         }
 
         if FnCallExpr::lah(i) {
@@ -516,9 +538,14 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
                 }
-                Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+                Err(ParseOFError::ErrNomError(_, _)) => {
+                    /* skip */
+                    trace.expect(Suggest::FnCall);
+                }
                 Err(e) => return Err(trace.parse(e)),
             }
+        } else {
+            trace.suggest(Suggest::FnCall);
         }
 
         Err(trace.parse(ParseOFError::elementary(i)))
@@ -878,7 +905,10 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
                                 let ast = OFAst::parens(par1, expr, par2);
                                 Ok(trace.ok(ast.span(), rest3, ast))
                             }
-                            Err(e) => Err(trace.nom(e)),
+                            Err(e) => {
+                                trace.expect(Suggest::ParenthesisClose);
+                                Err(trace.nom(e))
+                            }
                         }
                     }
                     Err(e) => Err(trace.parse(e)),
@@ -941,6 +971,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         args.push(*ast);
                     }
                     Err(nom::Err::Error(_)) => {
+                        trace.suggest(Suggest::Separator);
                         // Optional
                     }
                     Err(e) => {
@@ -961,12 +992,14 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                             }
                             Err(ParseOFError::ErrNomError(_, _)) => {
                                 // Optional
+                                trace.suggest(Suggest::Expr);
                                 trace.step("arg", Span::new(""));
                                 None
                             }
                             Err(e) => return Err(trace.parse(e)),
                         }
                     } else {
+                        trace.suggest(Suggest::Expr);
                         None
                     };
 
@@ -978,6 +1011,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                             Some(sep1)
                         }
                         Err(nom::Err::Error(_)) => {
+                            trace.suggest(Suggest::Separator);
                             // Optional
                             None
                         }
@@ -1029,11 +1063,17 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                                 return Err(trace.nom(e));
                             }
                         }
-                        Err(e) => return Err(trace.nom(e)),
+                        Err(e) => {
+                            trace.expect(Suggest::ParenthesisClose);
+                            return Err(trace.nom(e));
+                        }
                     }
                 }
             }
-            Err(e) => return Err(trace.nom(e)),
+            Err(e) => {
+                trace.suggest(Suggest::ParenthesisOpen);
+                return Err(trace.nom(e));
+            }
         };
     }
 }
@@ -1201,6 +1241,8 @@ mod tests {
                 }
             }
             println!("{:?}", &tracer);
+            println!("SUGGEST {}", tracer.suggestions());
+            println!("EXPECT {}", tracer.expectations());
         }
     }
 
@@ -1239,6 +1281,28 @@ mod tests {
             "11 ^ FUN(   ;;66)",
             "1+2*3^4",
             "27+(19*.A5)",
+        ];
+        for test in tests {
+            run_test2(test, Expr::parse);
+        }
+    }
+
+    #[test]
+    fn test_expr_fail() {
+        let tests = [
+            "471X",
+            r#""strdata"#,
+            "1+",
+            "(1+1",
+            "XX",
+            "4*5+",
+            "4+5*",
+            "22 * FUN ( 77  ",
+            "22 * FUN 77 ) ",
+            "17 + FUN(  ",
+            "17 + FUN  )",
+            "11 ^ FUN(   ;;66)",
+            "11 ^ FUN(   ;;X)",
         ];
         for test in tests {
             run_test2(test, Expr::parse);
