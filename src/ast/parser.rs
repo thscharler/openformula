@@ -212,7 +212,7 @@ impl<'s> BinaryExpr<'s> for CompareExpr {
                 _ => unreachable!(),
             },
 
-            Err(e) => Err(trace.nom(i, e)),
+            Err(e) => Err(trace.nom(e)),
         }
     }
 
@@ -247,7 +247,7 @@ impl<'s> BinaryExpr<'s> for AddExpr {
                 _ => unreachable!(),
             },
 
-            Err(e) => Err(trace.nom(i, e)),
+            Err(e) => Err(trace.nom(e)),
         }
     }
 
@@ -281,7 +281,7 @@ impl<'s> BinaryExpr<'s> for MulExpr {
                 "/" => Ok(trace.ok(tok, rest, OFMulOp::Divide(tok))),
                 _ => unreachable!(),
             },
-            Err(e) => Err(trace.nom(i, e)),
+            Err(e) => Err(trace.nom(e)),
         }
     }
 
@@ -314,7 +314,7 @@ impl<'s> BinaryExpr<'s> for PowExpr {
                 "^" => Ok(trace.ok(tok, rest, OFPowOp::Power(tok))),
                 _ => unreachable!(),
             },
-            Err(e) => Err(trace.nom(i, e)),
+            Err(e) => Err(trace.nom(e)),
         }
     }
 
@@ -337,7 +337,7 @@ impl PostFixExpr {
                 "%" => Ok(trace.ok(tok, rest, OFPostfixOp::Percent(tok))),
                 _ => unreachable!(),
             },
-            Err(e) => Err(trace.nom(i, e)),
+            Err(e) => Err(trace.nom(e)),
         }
     }
 }
@@ -388,7 +388,7 @@ impl PrefixExpr {
                 "-" => Ok(trace.ok(tok, rest, OFPrefixOp::Minus(tok))),
                 _ => unreachable!(),
             },
-            Err(e) => Err(trace.nom(i, e)),
+            Err(e) => Err(trace.nom(e)),
         }
     }
 }
@@ -527,7 +527,7 @@ impl<'s> GeneralExpr<'s> for NumberExpr {
                     Err(_) => unreachable!(),
                 }
             }
-            Err(e) => Err(trace.nom(rest, e)),
+            Err(e) => Err(trace.nom(e)),
         }
     }
 }
@@ -552,7 +552,7 @@ impl<'s> GeneralExpr<'s> for StringExpr {
                 let ast = OFAst::string(conv::unquote_double(tok), tok);
                 Ok(trace.ok(ast.span(), rest2, ast))
             }
-            Err(e) => Err(trace.nom(rest, e)),
+            Err(e) => Err(trace.nom(e)),
         }
     }
 }
@@ -687,7 +687,7 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
                 let ast = OFAst::cell_ref(iri, table, row, col, cell_ref.token);
                 Ok(trace.ok(cell_ref.token, rest, ast))
             }
-            Err(e) => Err(trace.nom(i, e)),
+            Err(e) => Err(trace.nom(e)),
         }
     }
 }
@@ -734,7 +734,7 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
                 let ast = OFAst::cell_range(cell_range, tok);
                 Ok(trace.ok(tok, rest, ast))
             }
-            Err(e) => Err(trace.reference(e)),
+            Err(e) => Err(trace.reference(i, e)),
         }
     }
 }
@@ -777,7 +777,7 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
                 let ast = OFAst::col_range(col_range, tok);
                 Ok(trace.ok(tok, rest, ast))
             }
-            Err(e) => Err(trace.reference(e)),
+            Err(e) => Err(trace.reference(i, e)),
         }
     }
 }
@@ -821,7 +821,7 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
                 let ast = OFAst::row_range(row_range, tok);
                 Ok(trace.ok(tok, rest, ast))
             }
-            Err(e) => Err(trace.reference(e)),
+            Err(e) => Err(trace.reference(i, e)),
         }
     }
 }
@@ -850,13 +850,13 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
                                 let ast = OFAst::parens(par1, expr, par2);
                                 Ok(trace.ok(ast.span(), rest3, ast))
                             }
-                            Err(e) => Err(trace.nom(rest1, e)),
+                            Err(e) => Err(trace.nom(e)),
                         }
                     }
                     Err(e) => Err(trace.parse(e)),
                 }
             }
-            Err(e) => Err(trace.nom(i, e)),
+            Err(e) => Err(trace.nom(e)),
         }
     }
 }
@@ -894,7 +894,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                 //
                 (eat_space(rest), tok)
             }
-            Err(e) => return Err(trace.nom(i, e)),
+            Err(e) => return Err(trace.nom(e)),
         };
 
         trace.step("name", fn_name);
@@ -917,7 +917,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         // Optional
                     }
                     Err(e) => {
-                        return Err(trace.nom(i, e));
+                        return Err(trace.nom(e));
                     }
                 }
 
@@ -955,7 +955,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                             None
                         }
                         Err(e) => {
-                            return Err(trace.nom(i, e));
+                            return Err(trace.nom(e));
                         }
                     };
 
@@ -967,24 +967,24 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
 
                     // Collecting args.
                     let parens = if let Some(expr) = expr {
-                        if sep1.is_some() {
-                            trace.step2("expr+sep");
+                        if let Some(sep1) = sep1 {
+                            trace.step("expr+sep", sep1.take(0));
                             args.push(*expr);
                             Parens::Optional
                         } else {
-                            trace.step2("expr+none");
+                            trace.step("expr+none", expr.span().take(0));
                             args.push(*expr);
                             Parens::Needed
                         }
                     } else {
                         if let Some(sep1) = sep1 {
-                            trace.step2("none+sep");
+                            trace.step("none+sep", sep1.take(0));
                             let ast = OFAst::empty(sep1.take(0));
                             args.push(*ast);
                             Parens::Optional
                         } else {
                             // no arguments and no separator. empty argument lists are ok.
-                            trace.step2("None+None");
+                            trace.step("None+None", loop_rest.take(0));
                             Parens::Needed
                         }
                     };
@@ -999,14 +999,14 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         Err(e @ nom::Err::Error(_)) => {
                             // Fail if closing parentheses are required.
                             if parens == Parens::Needed {
-                                return Err(trace.nom(i, e));
+                                return Err(trace.nom(e));
                             }
                         }
-                        Err(e) => return Err(trace.nom(i, e)),
+                        Err(e) => return Err(trace.nom(e)),
                     }
                 }
             }
-            Err(e) => return Err(trace.nom(i, e)),
+            Err(e) => return Err(trace.nom(e)),
         };
     }
 }
@@ -1050,13 +1050,12 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                 //
                 (rest, None)
             }
-            Err(e) => return Err(trace.nom(rest, e)),
+            Err(e) => return Err(trace.nom(e)),
         };
 
         // (QuotedSheetName '.')?
         let (rest, sheet_name) = match tuple((refs_tokens::sheet_name, tokens::dot))(rest) {
             Ok((rest1, ((abs, sheet_name), _dot))) => unsafe {
-                //
                 (
                     rest1,
                     Some(OFAst::sheet_name(
@@ -1070,55 +1069,59 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                 //
                 (rest, None)
             }
-            Err(e) => return Err(trace.nom(rest, e)),
+            Err(e) => return Err(trace.nom(e)),
         };
 
-        // TODO. do better ...
         // (Identifier | '$$' (Identifier | SingleQuoted)
-        let (rest, ident) = {
-            //
-            match tokens::identifier(rest) {
-                Ok((rest1, ident)) => {
-                    // Identifier
-                    (rest1, OFAst::simple_named(ident.to_string(), ident))
-                }
-                Err(nom::Err::Error(_)) => {
-                    // '$$' (Identifier | SingleQuoted)
-                    match tokens::dollar_dollar(rest) {
-                        Ok((rest1, _tag)) => {
-                            // Identifier
-                            match tokens::identifier(rest1) {
-                                Ok((rest2, ident)) => {
-                                    //
-                                    (rest2, OFAst::simple_named(ident.to_string(), ident))
-                                }
-                                Err(nom::Err::Error(_)) => {
-                                    // SingleQuoted
-                                    match tokens::quoted('\'')(rest1) {
-                                        Ok((rest3, ident)) => {
-                                            //
-                                            (
-                                                rest3,
-                                                OFAst::simple_named(
-                                                    conv::unquote_single(ident),
-                                                    ident,
-                                                ),
-                                            )
-                                        }
-                                        Err(e) => return Err(trace.nom(rest1, e)),
-                                    }
-                                }
-                                Err(e) => return Err(trace.nom(rest1, e)),
-                            }
-                        }
-                        Err(e) => return Err(trace.nom(rest, e)),
-                    }
-                }
-                Err(e) => return Err(trace.nom(rest, e)),
+
+        // Identifier
+        let (rest, named) = match tokens::identifier(rest) {
+            Ok((rest1, ident)) => {
+                // Identifier
+                (rest1, Some(OFAst::simple_named(ident.to_string(), ident)))
             }
+            Err(nom::Err::Error(_)) => (rest, None),
+            Err(e) => return Err(trace.nom(e)),
         };
 
-        let ast = OFAst::named(iri, sheet_name, ident);
+        // '$$' (Identifier | SingleQuoted)
+        let (rest, named) = if named.is_some() {
+            (rest, named.unwrap())
+        } else {
+            // '$$'
+            match tokens::dollar_dollar(rest) {
+                Ok((_rest1, _tag)) => {}
+                Err(e) => return Err(trace.nom(e)),
+            }
+
+            // Identifier
+            let (rest, named) = match tokens::identifier(rest) {
+                Ok((rest1, ident)) => {
+                    //
+                    (rest1, Some(OFAst::simple_named(ident.to_string(), ident)))
+                }
+                Err(nom::Err::Error(_)) => (rest, None),
+                Err(e) => return Err(trace.nom(e)),
+            };
+
+            // SingleQuoted
+            let (rest, named) = if named.is_some() {
+                (rest, named.unwrap())
+            } else {
+                match tokens::quoted('\'')(rest) {
+                    Ok((rest1, ident)) => {
+                        //
+                        let named_str = conv::unquote_single(ident);
+                        (rest1, OFAst::simple_named(named_str, ident))
+                    }
+                    Err(e) => return Err(trace.nom(e)),
+                }
+            };
+
+            (rest, named)
+        };
+
+        let ast = OFAst::named(iri, sheet_name, named);
         Ok(trace.ok(ast.span(), rest, ast))
     }
 }
@@ -1134,10 +1137,10 @@ pub fn eat_space<'a>(i: Span<'a>) -> Span<'a> {
 }
 
 /// Fails if the string was not fully parsed.
-pub fn check_eof<'a>(
-    i: Span<'a>,
-    err: fn(span: Span<'a>) -> ParseOFError,
-) -> Result<(), ParseOFError> {
+pub fn check_eof<'s>(
+    i: Span<'s>,
+    err: fn(span: Span<'s>) -> ParseOFError<'s>,
+) -> Result<(), ParseOFError<'s>> {
     if (*i).is_empty() {
         Ok(())
     } else {
@@ -1167,7 +1170,7 @@ mod tests {
                     println!("{:?} | {}", tok, rest);
                 }
                 Err(e) => {
-                    println!("{:?}", e);
+                    println!("{}", e);
                 }
             }
             println!("{:?}", &tracer);

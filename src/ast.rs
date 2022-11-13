@@ -22,7 +22,7 @@ pub mod tracer;
 pub type Span<'a> = LocatedSpan<&'a str>;
 
 /// Result type.
-pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseOFError>;
+pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseOFError<'s>>;
 
 /// Defines the AST tree.
 #[derive(PartialEq)]

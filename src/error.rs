@@ -4,84 +4,112 @@ use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug)]
-pub enum ParseOFError {
+pub enum ParseOFError<'s> {
     /// Nom ast error.
-    ErrNomError(ErrSpan, nom::error::ErrorKind),
+    ErrNomError(Span<'s>, nom::error::ErrorKind),
     /// Nom failure.
-    ErrNomFailure(ErrSpan, nom::error::ErrorKind),
+    ErrNomFailure(Span<'s>, nom::error::ErrorKind),
     /// Parsing didn't ast all of the string.
-    ErrParseIncomplete(ErrSpan),
+    ErrParseIncomplete(Span<'s>),
 
     /// Elementary expression fails.
-    ErrElementary(ErrSpan),
+    ErrElementary(Span<'s>),
     /// Reference expression fails.
-    ErrReference(ErrSpan),
+    ErrReference(Span<'s>),
 
     /// CellRange parsing error.
-    ErrCellRange(ErrSpan),
+    ErrCellRange(Span<'s>),
     /// ColRange parsing error.
-    ErrColRange(ErrSpan),
+    ErrColRange(Span<'s>),
     /// Rowrange parsing error.
-    ErrRowRange(ErrSpan),
+    ErrRowRange(Span<'s>),
 
     /// Error converting a row-name part of any Ref to an u32.
-    ErrRowname(ErrSpan, ParseRownameError),
+    ErrRowname(Span<'s>, ParseRownameError),
     /// Error converting a col-name part of any Ref to an u32.
-    ErrColname(ErrSpan, ParseColnameError),
+    ErrColname(Span<'s>, ParseColnameError),
 }
 
-impl ParseOFError {
+impl<'s> ParseOFError<'s> {
+    /// Return the errspan of any variant.
+    pub fn span(&self) -> &Span<'s> {
+        match self {
+            ParseOFError::ErrNomError(s, _) => s,
+            ParseOFError::ErrNomFailure(s, _) => s,
+            ParseOFError::ErrParseIncomplete(s) => s,
+            ParseOFError::ErrElementary(s) => s,
+            ParseOFError::ErrReference(s) => s,
+            ParseOFError::ErrCellRange(s) => s,
+            ParseOFError::ErrColRange(s) => s,
+            ParseOFError::ErrRowRange(s) => s,
+            ParseOFError::ErrRowname(s, _) => s,
+            ParseOFError::ErrColname(s, _) => s,
+        }
+    }
+
+    /// Format span in a more readable way.
+    fn fmt_span(span: &Span<'s>, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "span={}::{}:{} '{}'",
+            span.location_offset(),
+            span.location_line(),
+            span.get_column(),
+            span.fragment()
+        )
+    }
+
     /// NomError variant.
-    pub fn err(span: Span<'_>, err: nom::error::ErrorKind) -> ParseOFError {
+    pub fn err(span: Span<'s>, err: nom::error::ErrorKind) -> ParseOFError<'s> {
         ParseOFError::ErrNomError(span.into(), err)
     }
 
     /// NomFailure variant.
-    pub fn fail(span: Span<'_>, err: nom::error::ErrorKind) -> ParseOFError {
+    pub fn fail(span: Span<'s>, err: nom::error::ErrorKind) -> ParseOFError<'s> {
         ParseOFError::ErrNomFailure(span.into(), err)
     }
 
     /// ParseIncomplete variant.
-    pub fn parse_incomplete(span: Span<'_>) -> ParseOFError {
+    pub fn parse_incomplete(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::ErrParseIncomplete(span.into())
     }
 
     /// Elementary
-    pub fn elementary(span: Span<'_>) -> ParseOFError {
+    pub fn elementary(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::ErrElementary(span.into())
     }
 
     /// Reference
-    pub fn reference(span: Span<'_>) -> ParseOFError {
+    pub fn reference(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::ErrReference(span.into())
     }
 
     /// CellRange variant.
-    pub fn cell_range(span: Span<'_>) -> ParseOFError {
+    pub fn cell_range(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::ErrCellRange(span.into())
     }
 
     /// ColRange variant.
-    pub fn col_range(span: Span<'_>) -> ParseOFError {
+    pub fn col_range(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::ErrColRange(span.into())
     }
 
     /// RowRange variant.
-    pub fn row_range(span: Span<'_>) -> ParseOFError {
+    pub fn row_range(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::ErrRowRange(span.into())
     }
 }
 
-impl Error for ParseOFError {}
+impl<'s> Error for ParseOFError<'s> {}
 
 /// Adds a span as location and converts the error to our own type..
-pub trait LocateError<T, E> {
+pub trait LocateError<'s, T, E> {
     /// Maps some error and adds the information of the span where the error occured.
-    fn locate_err(self, span: Span<'_>) -> Result<T, ParseOFError>;
+    fn locate_err(self, span: Span<'s>) -> Result<T, ParseOFError<'s>>;
 }
 
-impl<T> LocateError<T, ParseRownameError> for Result<T, ParseRownameError> {
-    fn locate_err(self, span: Span<'_>) -> Result<T, ParseOFError> {
+impl<'s, T> LocateError<'s, T, ParseRownameError> for Result<T, ParseRownameError> {
+    fn locate_err(self, span: Span<'s>) -> Result<T, ParseOFError<'s>> {
         match self {
             Ok(v) => Ok(v),
             Err(e) => Err(ParseOFError::ErrRowname(span.into(), e)),
@@ -89,8 +117,8 @@ impl<T> LocateError<T, ParseRownameError> for Result<T, ParseRownameError> {
     }
 }
 
-impl<T> LocateError<T, ParseColnameError> for Result<T, ParseColnameError> {
-    fn locate_err(self, span: Span<'_>) -> Result<T, ParseOFError> {
+impl<'s, T> LocateError<'s, T, ParseColnameError> for Result<T, ParseColnameError> {
+    fn locate_err(self, span: Span<'s>) -> Result<T, ParseOFError<'s>> {
         match self {
             Ok(v) => Ok(v),
             Err(e) => Err(ParseOFError::ErrColname(span.into(), e)),
@@ -98,73 +126,75 @@ impl<T> LocateError<T, ParseColnameError> for Result<T, ParseColnameError> {
     }
 }
 
-impl Display for ParseOFError {
+impl<'s> Display for ParseOFError<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseOFError::ErrNomError(s, e) => write!(f, "NomError {} {:?}", s, e),
-            ParseOFError::ErrNomFailure(s, e) => write!(f, "NomFailure {} {:?}", s, e),
-            ParseOFError::ErrParseIncomplete(s) => write!(f, "ParseIncomplete {}", s),
-            ParseOFError::ErrElementary(s) => write!(f, "Elementary {}", s),
-            ParseOFError::ErrReference(s) => write!(f, "Reference {}", s),
-            ParseOFError::ErrCellRange(s) => write!(f, "CellRange {}", s),
-            ParseOFError::ErrColRange(s) => write!(f, "ColRange {}", s),
-            ParseOFError::ErrRowRange(s) => write!(f, "RowRange {}", s),
-            ParseOFError::ErrRowname(s, e) => write!(f, "ParseRowname {} {:?}", s, e),
-            ParseOFError::ErrColname(s, e) => write!(f, "ParseColname {} {:?}", s, e),
+            ParseOFError::ErrNomError(_, e) => write!(f, "NomError kind={:?} ", e)?,
+            ParseOFError::ErrNomFailure(_, e) => write!(f, "NomFailure kind={:?} ", e)?,
+            ParseOFError::ErrParseIncomplete(_) => write!(f, "ParseIncomplete ")?,
+            ParseOFError::ErrElementary(_) => write!(f, "Elementary ")?,
+            ParseOFError::ErrReference(_) => write!(f, "Reference ")?,
+            ParseOFError::ErrCellRange(_) => write!(f, "CellRange ")?,
+            ParseOFError::ErrColRange(_) => write!(f, "ColRange ")?,
+            ParseOFError::ErrRowRange(_) => write!(f, "RowRange ")?,
+            ParseOFError::ErrRowname(_, e) => write!(f, "ParseRowname err={:?} ", e)?,
+            ParseOFError::ErrColname(_, e) => write!(f, "ParseColname err={:?} ", e)?,
         }
+        Self::fmt_span(self.span(), f)?;
+        Ok(())
     }
 }
 
-/// For the errors the lifetime is annoying. This is a owning copy of the offending span.
-pub struct ErrSpan {
-    /// Offset from the start of input.
-    pub offset: usize,
-    /// Line.
-    pub line: u32,
-    /// Column.
-    pub column: usize,
-    /// The offending fragment.
-    pub fragment: String,
-}
-
-impl Debug for ErrSpan {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "ErrSpan(@{}:{} str '{}')",
-            self.line, self.column, self.fragment
-        )
-    }
-}
-
-impl Display for ErrSpan {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "(@{}:{} str '{}')",
-            self.line, self.column, self.fragment
-        )
-    }
-}
-
-impl From<spreadsheet_ods_cellref::error::ErrSpan> for ErrSpan {
-    fn from(span: spreadsheet_ods_cellref::error::ErrSpan) -> Self {
-        Self {
-            offset: span.offset,
-            line: span.line,
-            column: span.column,
-            fragment: span.fragment,
-        }
-    }
-}
-
-impl<'a> From<Span<'a>> for ErrSpan {
-    fn from(s: Span<'a>) -> Self {
-        Self {
-            offset: s.location_offset(),
-            line: s.location_line(),
-            column: s.get_column(),
-            fragment: s.fragment().to_string(),
-        }
-    }
-}
+// /// For the errors the lifetime is annoying. This is a owning copy of the offending span.
+// pub struct ErrSpan {
+//     /// Offset from the start of input.
+//     pub offset: usize,
+//     /// Line.
+//     pub line: u32,
+//     /// Column.
+//     pub column: usize,
+//     /// The offending fragment.
+//     pub fragment: String,
+// }
+//
+// impl Debug for ErrSpan {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         write!(
+//             f,
+//             "ErrSpan(@{}:{} str '{}')",
+//             self.line, self.column, self.fragment
+//         )
+//     }
+// }
+//
+// impl Display for ErrSpan {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         write!(
+//             f,
+//             "(@{}:{} str '{}')",
+//             self.line, self.column, self.fragment
+//         )
+//     }
+// }
+//
+// impl From<spreadsheet_ods_cellref::error::ErrSpan> for ErrSpan {
+//     fn from(span: spreadsheet_ods_cellref::error::ErrSpan) -> Self {
+//         Self {
+//             offset: span.offset,
+//             line: span.line,
+//             column: span.column,
+//             fragment: span.fragment,
+//         }
+//     }
+// }
+//
+// impl<'a> From<Span<'a>> for ErrSpan {
+//     fn from(s: Span<'a>) -> Self {
+//         Self {
+//             offset: s.location_offset(),
+//             line: s.location_line(),
+//             column: s.get_column(),
+//             fragment: s.fragment().to_string(),
+//         }
+//     }
+// }

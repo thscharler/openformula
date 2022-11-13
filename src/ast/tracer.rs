@@ -8,7 +8,7 @@ use crate::ast::Span;
 use crate::error::ParseOFError;
 use spreadsheet_ods_cellref::CellRefError;
 use std::cell::RefCell;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Formatter};
 
 /// Follows the parsing.
 #[derive(Default)]
@@ -39,12 +39,17 @@ impl<'span> Debug for Tracer<'span> {
                     indent.pop();
                     indent.pop();
                 }
-                Track::Error(_, _, _) => {
+                Track::Error(_, _, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
                     indent.pop();
                     indent.pop();
                 }
                 Track::ErrorStr(_, _) => {
+                    writeln!(f, "{}{:?}", indent, tr)?;
+                    indent.pop();
+                    indent.pop();
+                }
+                Track::ErrorSpan(_, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
                     indent.pop();
                     indent.pop();
@@ -77,18 +82,6 @@ impl<'span> Tracer<'span> {
         self.tracks.borrow_mut().push(Track::Step(func, step, span));
     }
 
-    /// Extra step.
-    ///
-    /// Panic
-    ///
-    /// Panics if there was no call to enter() before.
-    pub fn step2(&self, step: &'static str) {
-        let func = *self.func.borrow().last().unwrap();
-        self.tracks
-            .borrow_mut()
-            .push(Track::Step(func, step, Span::new("")));
-    }
-
     /// Ok in a parser.
     ///
     /// Panic
@@ -105,16 +98,17 @@ impl<'span> Tracer<'span> {
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
-    pub fn reference(&self, err: CellRefError) -> ParseOFError {
+    pub fn reference(&self, span: Span<'span>, err: CellRefError) -> ParseOFError<'span> {
+        // TODO: remove this one
         match err {
-            CellRefError::ErrNomError(span, e) => ParseOFError::ErrNomError(span.into(), e),
-            CellRefError::ErrNomFailure(span, e) => ParseOFError::ErrNomFailure(span.into(), e),
-            //CellRefError::ErrCellRef(span) => ParseOFError::ErrCellRef(span.into()),
-            CellRefError::ErrCellRange(span) => ParseOFError::ErrCellRange(span.into()),
-            CellRefError::ErrColRange(span) => ParseOFError::ErrColRange(span.into()),
-            CellRefError::ErrRowRange(span) => ParseOFError::ErrRowRange(span.into()),
-            CellRefError::ErrRowname(span, e) => ParseOFError::ErrRowname(span.into(), e),
-            CellRefError::ErrColname(span, e) => ParseOFError::ErrColname(span.into(), e),
+            CellRefError::ErrNomError(_, e) => ParseOFError::ErrNomError(span, e),
+            CellRefError::ErrNomFailure(_, e) => ParseOFError::ErrNomFailure(span, e),
+            //CellRefError::ErrCellRef(_) => ParseOFError::ErrCellRef(span),
+            CellRefError::ErrCellRange(_) => ParseOFError::ErrCellRange(span),
+            CellRefError::ErrColRange(_) => ParseOFError::ErrColRange(span),
+            CellRefError::ErrRowRange(_) => ParseOFError::ErrRowRange(span),
+            CellRefError::ErrRowname(_, e) => ParseOFError::ErrRowname(span, e),
+            CellRefError::ErrColname(_, e) => ParseOFError::ErrColname(span, e),
             _ => todo!(),
         }
     }
@@ -124,22 +118,24 @@ impl<'span> Tracer<'span> {
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
-    pub fn parse(&self, err: ParseOFError) -> ParseOFError {
+    pub fn parse(&self, err: ParseOFError<'span>) -> ParseOFError<'span> {
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks
             .borrow_mut()
-            .push(Track::ErrorStr(func, err.to_string()));
+            .push(Track::ErrorSpan(func, err.to_string(), *err.span()));
 
         err
     }
 
     /// Extracts the error kind and a flag to differentiate between
     /// ast error and failures+incomplete.
-    fn error_kind(err: &nom::Err<nom::error::Error<Span<'_>>>) -> (bool, nom::error::ErrorKind) {
+    fn error_kind(
+        err: &nom::Err<nom::error::Error<Span<'span>>>,
+    ) -> (bool, Span<'span>, nom::error::ErrorKind) {
         match err {
-            nom::Err::Error(e) => (false, e.code),
-            nom::Err::Incomplete(_e) => (true, nom::error::ErrorKind::Fail),
-            nom::Err::Failure(e) => (true, e.code),
+            nom::Err::Error(e) => (false, e.input, e.code),
+            nom::Err::Failure(e) => (true, e.input, e.code),
+            nom::Err::Incomplete(e) => panic!("{:?}", e),
         }
     }
 
@@ -150,48 +146,28 @@ impl<'span> Tracer<'span> {
     /// Panics if there was no call to enter() before.
     pub fn nom(
         &self,
-        rest: Span<'span>,
         // err_fn: fn(span: Span<'span>, nom: nom::error::ErrorKind) -> ParseOFError,
         nom: nom::Err<nom::error::Error<Span<'span>>>,
-    ) -> ParseOFError {
+    ) -> ParseOFError<'span> {
+        //
         // The nom error is just the span + error kind in a way.
         // Plus a few bits to differentiate between parsing error and complete failure.
-        let (fail, error_kind) = Self::error_kind(&nom);
+        let (fail, error_span, error_kind) = Self::error_kind(&nom);
         // Map the error.
+        // let err = err_fn(rest, error_kind);
         let err = if fail {
-            ParseOFError::fail(rest, error_kind)
+            ParseOFError::fail(error_span, error_kind)
         } else {
-            ParseOFError::err(rest, error_kind)
-            // err_fn(rest, error_kind)
+            ParseOFError::err(error_span, error_kind)
         };
 
         // Keep track.
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks
             .borrow_mut()
-            .push(Track::Error(func, err.to_string(), nom));
+            .push(Track::Error(func, err.to_string(), error_span, error_kind));
 
         err
-    }
-
-    /// Notes some error and converts it to a ParseExprError.
-    /// Used for ParseIntError et al.
-    pub fn re_err<V, E>(&self, err: Result<V, E>) -> Result<V, ParseOFError>
-    where
-        E: Into<ParseOFError>,
-        E: Display,
-    {
-        match err {
-            Ok(v) => Ok(v),
-            Err(e) => {
-                let func = self.func.borrow_mut().pop().unwrap();
-                self.tracks
-                    .borrow_mut()
-                    .push(Track::ErrorStr(func, e.to_string()));
-
-                Err(e.into())
-            }
-        }
     }
 }
 
@@ -203,13 +179,11 @@ pub enum Track<'span> {
     Step(&'static str, &'static str, Span<'span>),
     /// Function where this occurred and the remaining span.
     Ok(&'static str, Span<'span>, Span<'span>),
-    /// Function where this occurred and some error.
-    Error(
-        &'static str,
-        String,
-        nom::Err<nom::error::Error<Span<'span>>>,
-    ),
-    /// Some errors don't impl Error.
+    /// Function where this occurred and some error info.
+    Error(&'static str, String, Span<'span>, nom::error::ErrorKind),
+    /// Function where this occurred and some error info.
+    ErrorSpan(&'static str, String, Span<'span>),
+    ///  Function where this occurred and some error info.
     ErrorStr(&'static str, String),
 }
 
@@ -229,11 +203,18 @@ impl<'span> Debug for Track<'span> {
                     write!(f, "{}: -> no match", func)?;
                 }
             }
-            Track::Error(func, err_str, err) => {
-                write!(f, "{}: !!! {} : {}", func, err_str, err)?;
+            Track::Error(func, err_str, err_span, err) => {
+                write!(
+                    f,
+                    "{}: !!! err=({}) kind={:?} span='{}'",
+                    func, err_str, err, err_span
+                )?;
+            }
+            Track::ErrorSpan(func, err_str, err_span) => {
+                write!(f, "{}: !!! err=({}) span='{}'", func, err_str, err_span)?;
             }
             Track::ErrorStr(func, err_str) => {
-                write!(f, "{}: !!! {}", func, err_str)?;
+                write!(f, "{}: !!! err=({})", func, err_str)?;
             }
         }
         Ok(())
