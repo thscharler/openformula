@@ -50,17 +50,17 @@ impl<'span> Debug for Tracer<'span> {
         writeln!(f, "Tracer")?;
         let tracks = self.tracks.borrow();
 
-        let mut span = None;
         let mut indent = String::new();
         for tr in tracks.iter() {
-            span = Some(tr.span());
-
             match tr {
                 Track::Enter(_, _) => {
                     indent.push_str("  ");
                     writeln!(f, "{}{:?}", indent, tr)?;
                 }
                 Track::Step(_, _, _) => {
+                    writeln!(f, "{}{:?}", indent, tr)?;
+                }
+                Track::Detail(_, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
                 }
                 Track::Ok(_, _, _) => {
@@ -80,14 +80,6 @@ impl<'span> Debug for Tracer<'span> {
                 }
             }
         }
-
-        writeln!(
-            f,
-            "Found '{}' expected {} suggest {}",
-            span.map(|s| s.fragment()).unwrap_or(&""),
-            self.expectations(),
-            self.suggestions()
-        )?;
 
         Ok(())
     }
@@ -115,6 +107,18 @@ impl<'span> Tracer<'span> {
         self.tracks.borrow_mut().push(Track::Step(func, step, span));
     }
 
+    /// Extra information.
+    ///
+    /// Panic
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn detail<T: Into<String>>(&self, step: T) {
+        let func = *self.func.borrow().last().unwrap();
+        self.tracks
+            .borrow_mut()
+            .push(Track::Detail(func, step.into()));
+    }
+
     /// About to enter an optional part of the parser.
     pub fn optional(&self, func: &'static str) {
         self.optional.borrow_mut().push(func);
@@ -122,10 +126,7 @@ impl<'span> Tracer<'span> {
 
     /// In an optional branch
     pub fn in_optional(&self) -> bool {
-        match self.optional.borrow().last() {
-            None => false,
-            Some(_) => true,
-        }
+        self.optional.borrow().last().is_some()
     }
 
     /// Looses one optional layer if the function matches.
@@ -140,6 +141,8 @@ impl<'span> Tracer<'span> {
 
     /// Suggested tokens.
     pub fn suggest(&self, suggest: Suggest) {
+        self.detail(format!("suggest {:?}", suggest));
+
         self.suggest.borrow_mut().push(suggest);
     }
 
@@ -152,8 +155,17 @@ impl<'span> Tracer<'span> {
         buf
     }
 
+    ///
+    pub fn clear_suggestions(&self) {
+        self.detail("clear suggestions");
+        self.suggest.borrow_mut().clear();
+        self.expect.borrow_mut().clear();
+    }
+
     /// Expected tokens.
     pub fn expect(&self, suggest: Suggest) {
+        self.detail(format!("suggest {:?}", suggest));
+
         self.expect.borrow_mut().push(suggest);
     }
 
@@ -221,6 +233,38 @@ impl<'span> Tracer<'span> {
         err
     }
 
+    /// Maps a nom error to some wellknown error. Only maps nom::Err::Error not the others.
+    pub fn map_nom(
+        &self,
+        err_fn: fn(span: Span<'span>, nom: nom::error::ErrorKind) -> ParseOFError<'span>,
+        nom: nom::Err<nom::error::Error<Span<'span>>>,
+    ) -> ParseOFError<'span> {
+        //
+        // The nom error is just the span + error kind in a way.
+        // Plus a few bits to differentiate between parsing error and complete failure.
+        let (fail, error_span, error_kind) = Self::error_kind(&nom);
+        // Map the error.
+        let err = if fail {
+            ParseOFError::fail(error_span, error_kind)
+        } else {
+            err_fn(error_span, error_kind)
+        };
+
+        // Keep track.
+        let func = self.func.borrow_mut().pop().unwrap();
+        self.tracks.borrow_mut().push(Track::Error(
+            func,
+            self.in_optional(),
+            err.to_string(),
+            error_kind,
+            error_span,
+        ));
+
+        self.maybe_drop_optional(func);
+
+        err
+    }
+
     /// Extracts the error kind and a flag to differentiate between
     /// ast error and failures+incomplete.
     fn error_kind(
@@ -238,36 +282,9 @@ impl<'span> Tracer<'span> {
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
-    pub fn nom(
-        &self,
-        // err_fn: fn(span: Span<'span>, nom: nom::error::ErrorKind) -> ParseOFError,
-        nom: nom::Err<nom::error::Error<Span<'span>>>,
-    ) -> ParseOFError<'span> {
-        //
-        // The nom error is just the span + error kind in a way.
-        // Plus a few bits to differentiate between parsing error and complete failure.
-        let (fail, error_span, error_kind) = Self::error_kind(&nom);
-        // Map the error.
-        // let err = err_fn(rest, error_kind);
-        let err = if fail {
-            ParseOFError::fail(error_span, error_kind)
-        } else {
-            ParseOFError::err(error_span, error_kind)
-        };
-
-        // Keep track.
-        let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks.borrow_mut().push(Track::Error(
-            func,
-            self.in_optional(),
-            err.to_string(),
-            error_span,
-            error_kind,
-        ));
-
-        self.maybe_drop_optional(func);
-
-        err
+    pub fn nom(&self, nom: nom::Err<nom::error::Error<Span<'span>>>) -> ParseOFError<'span> {
+        // nom::Err::Error to ParseOFError::ErrNomError
+        self.map_nom(ParseOFError::err, nom)
     }
 }
 
@@ -277,6 +294,8 @@ pub enum Track<'span> {
     Enter(&'static str, Span<'span>),
     /// Function with an extra step.
     Step(&'static str, &'static str, Span<'span>),
+    /// Internal tracing.
+    Detail(&'static str, String),
     /// Function where this occurred and the remaining span.
     Ok(&'static str, Span<'span>, Span<'span>),
     /// Function where this occurred and some error info.
@@ -284,21 +303,22 @@ pub enum Track<'span> {
         &'static str,
         bool,
         String,
-        Span<'span>,
         nom::error::ErrorKind,
+        Span<'span>,
     ),
     /// Function where this occurred and some error info.
     ErrorSpan(&'static str, bool, String, Span<'span>),
 }
 
 impl<'span> Track<'span> {
-    pub fn span(&self) -> &Span<'span> {
+    pub fn span(&self) -> Option<&Span<'span>> {
         match self {
-            Track::Enter(_, s) => s,
-            Track::Step(_, _, s) => s,
-            Track::Ok(_, _, s) => s,
-            Track::Error(_, _, _, s, _) => s,
-            Track::ErrorSpan(_, _, _, s) => s,
+            Track::Enter(_, s) => Some(s),
+            Track::Step(_, _, s) => Some(s),
+            Track::Ok(_, _, s) => Some(s),
+            Track::Error(_, _, _, _, s) => Some(s),
+            Track::ErrorSpan(_, _, _, s) => Some(s),
+            Track::Detail(_, _) => None,
         }
     }
 }
@@ -312,6 +332,9 @@ impl<'span> Debug for Track<'span> {
             Track::Step(func, step, input) => {
                 write!(f, "{}: {} '{}'", func, step, input)?;
             }
+            Track::Detail(func, detail) => {
+                write!(f, "{}: {}", func, detail)?;
+            }
             Track::Ok(func, val, rest) => {
                 if !val.is_empty() {
                     write!(f, "{}: -> [ {}, '{}' ]", func, val, rest)?;
@@ -319,7 +342,7 @@ impl<'span> Debug for Track<'span> {
                     write!(f, "{}: -> no match", func)?;
                 }
             }
-            Track::Error(func, opt, err_str, err_span, err) => {
+            Track::Error(func, opt, err_str, err, err_span) => {
                 write!(
                     f,
                     "{}: {} err=({}) kind={:?} span='{}'",

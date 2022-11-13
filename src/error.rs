@@ -13,6 +13,11 @@ pub enum ParseOFError<'s> {
     /// Parsing didn't ast all of the string.
     ErrParseIncomplete(Span<'s>),
 
+    /// Error when parsing an expression in parenthesis.
+    ErrParenthesis(Span<'s>, nom::error::ErrorKind),
+    /// Error when parsing a function call
+    ErrFnCall(Span<'s>, nom::error::ErrorKind),
+
     /// Elementary expression fails.
     ErrElementary(Span<'s>),
     /// Reference expression fails.
@@ -45,6 +50,8 @@ impl<'s> ParseOFError<'s> {
             ParseOFError::ErrRowRange(s) => s,
             ParseOFError::ErrRowname(s, _) => s,
             ParseOFError::ErrColname(s, _) => s,
+            ParseOFError::ErrParenthesis(s, _) => s,
+            ParseOFError::ErrFnCall(s, _) => s,
         }
     }
 
@@ -72,7 +79,15 @@ impl<'s> ParseOFError<'s> {
 
     /// ParseIncomplete variant.
     pub fn parse_incomplete(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::ErrParseIncomplete(span.into())
+        ParseOFError::ErrParseIncomplete(span)
+    }
+
+    pub fn parens(span: Span<'s>, err: nom::error::ErrorKind) -> ParseOFError<'s> {
+        ParseOFError::ErrParenthesis(span, err)
+    }
+
+    pub fn fn_call(span: Span<'s>, err: nom::error::ErrorKind) -> ParseOFError<'s> {
+        ParseOFError::ErrFnCall(span, err)
     }
 
     /// Elementary
@@ -140,6 +155,8 @@ impl<'s> Display for ParseOFError<'s> {
             ParseOFError::ErrRowRange(_) => write!(f, "RowRange ")?,
             ParseOFError::ErrRowname(_, e) => write!(f, "ParseRowname err={:?} ", e)?,
             ParseOFError::ErrColname(_, e) => write!(f, "ParseColname err={:?} ", e)?,
+            ParseOFError::ErrParenthesis(_, e) => write!(f, "Parenthesis err={:?} ", e)?,
+            ParseOFError::ErrFnCall(_, e) => write!(f, "FnCall err={:?} ", e)?,
         }
         Self::fmt_span(self.span(), f)?;
         Ok(())

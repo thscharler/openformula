@@ -273,11 +273,11 @@ impl<'s> BinaryExpr<'s> for MulExpr {
     }
 
     fn lah(i: Span<'s>) -> bool {
-        PostFixExpr::lah(i)
+        <PowExpr as BinaryExpr>::lah(i)
     }
 
     fn operand<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        PostFixExpr::parse(trace, i)
+        <PowExpr as BinaryExpr>::parse(trace, i)
     }
 
     fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Self::Operator> {
@@ -907,7 +907,7 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
                             }
                             Err(e) => {
                                 trace.expect(Suggest::ParenthesisClose);
-                                Err(trace.nom(e))
+                                Err(trace.map_nom(ParseOFError::parens, e))
                             }
                         }
                     }
@@ -960,6 +960,9 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
 
         match tokens::parentheses_open(eat_space(rest1)) {
             Ok((mut loop_rest, par1)) => {
+                // Should be a function call now.
+                trace.clear_suggestions();
+
                 // First separator is checked before the arguments as arguments can be empty.
                 match tokens::separator(eat_space(loop_rest)) {
                     Ok((rest2, sep1)) => {
@@ -990,16 +993,15 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                                 trace.step("arg", expr.span());
                                 Some(expr)
                             }
-                            Err(ParseOFError::ErrNomError(_, _)) => {
+                            Err(ParseOFError::ErrNomError(_, _))
+                            | Err(ParseOFError::ErrElementary(_)) => {
                                 // Optional
-                                trace.suggest(Suggest::Expr);
                                 trace.step("arg", Span::new(""));
                                 None
                             }
                             Err(e) => return Err(trace.parse(e)),
                         }
                     } else {
-                        trace.suggest(Suggest::Expr);
                         None
                     };
 
@@ -1007,7 +1009,9 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                     let sep1 = match tokens::separator(eat_space(loop_rest)) {
                         Ok((rest2, sep1)) => {
                             loop_rest = rest2;
+                            // separator separates
                             trace.step("separator", sep1);
+                            trace.clear_suggestions();
                             Some(sep1)
                         }
                         Err(nom::Err::Error(_)) => {
@@ -1060,11 +1064,11 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         Err(e @ nom::Err::Error(_)) => {
                             // Fail if closing parentheses are required.
                             if parens == Parens::Needed {
-                                return Err(trace.nom(e));
+                                trace.expect(Suggest::ParenthesisClose);
+                                return Err(trace.map_nom(ParseOFError::fn_call, e));
                             }
                         }
                         Err(e) => {
-                            trace.expect(Suggest::ParenthesisClose);
                             return Err(trace.nom(e));
                         }
                     }
@@ -1152,8 +1156,8 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
         };
 
         // '$$' (Identifier | SingleQuoted)
-        let (rest, named) = if named.is_some() {
-            (rest, named.unwrap())
+        let (rest, named) = if let Some(named) = named {
+            (rest, named)
         } else {
             // '$$'
             match tokens::dollar_dollar(rest) {
@@ -1172,8 +1176,8 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
             };
 
             // SingleQuoted
-            let (rest, named) = if named.is_some() {
-                (rest, named.unwrap())
+            let (rest, named) = if let Some(named) = named {
+                (rest, named)
             } else {
                 match tokens::quoted('\'')(rest) {
                     Ok((rest1, ident)) => {
@@ -1234,15 +1238,21 @@ mod tests {
             println!("{}", str);
             match testfn(&tracer, Span::new(str)) {
                 Ok((rest, tok)) => {
-                    println!("{:?} | {}", tok, rest);
+                    println!("{:?}", &tracer);
+                    println!("=> {:?} | {}", tok, rest);
                 }
                 Err(e) => {
-                    println!("{}", e);
+                    println!("{:?}", &tracer);
+                    println!();
+                    println!("=> {}", e);
+                    println!(
+                        "   Found '{}' expected {} suggest {}",
+                        e.span(),
+                        tracer.expectations(),
+                        tracer.suggestions()
+                    );
                 }
             }
-            println!("{:?}", &tracer);
-            println!("SUGGEST {}", tracer.suggestions());
-            println!("EXPECT {}", tracer.expectations());
         }
     }
 
