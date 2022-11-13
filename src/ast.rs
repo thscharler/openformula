@@ -25,6 +25,7 @@ pub type Span<'a> = LocatedSpan<&'a str>;
 pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseOFError<'s>>;
 
 /// Defines the AST tree.
+#[allow(clippy::enum_variant_names)]
 #[derive(PartialEq)]
 pub enum OFAst<'a> {
     /// Empty expression
@@ -420,7 +421,7 @@ impl<'a> BinaryNode<'a> for OFCompare<'a> {
     type Op = OFCompOp<'a>;
 
     fn left(&self) -> &OFAst<'a> {
-        &*self.left
+        self.left.as_ref()
     }
 
     fn op(&self) -> &Self::Op {
@@ -428,7 +429,7 @@ impl<'a> BinaryNode<'a> for OFCompare<'a> {
     }
 
     fn right(&self) -> &OFAst<'a> {
-        &*self.right
+        self.right.as_ref()
     }
 }
 
@@ -547,7 +548,7 @@ impl<'a> BinaryNode<'a> for OFAdd<'a> {
     type Op = OFAddOp<'a>;
 
     fn left(&self) -> &OFAst<'a> {
-        &*self.left
+        self.left.as_ref()
     }
 
     fn op(&self) -> &Self::Op {
@@ -555,7 +556,7 @@ impl<'a> BinaryNode<'a> for OFAdd<'a> {
     }
 
     fn right(&self) -> &OFAst<'a> {
-        &*self.right
+        self.right.as_ref()
     }
 }
 
@@ -658,7 +659,7 @@ impl<'a> BinaryNode<'a> for OFMul<'a> {
     type Op = OFMulOp<'a>;
 
     fn left(&self) -> &OFAst<'a> {
-        &*self.left
+        self.left.as_ref()
     }
 
     fn op(&self) -> &Self::Op {
@@ -666,7 +667,7 @@ impl<'a> BinaryNode<'a> for OFMul<'a> {
     }
 
     fn right(&self) -> &OFAst<'a> {
-        &*self.right
+        self.right.as_ref()
     }
 }
 
@@ -769,7 +770,7 @@ impl<'a> BinaryNode<'a> for OFPow<'a> {
     type Op = OFPowOp<'a>;
 
     fn left(&self) -> &OFAst<'a> {
-        &*self.left
+        self.left.as_ref()
     }
 
     fn op(&self) -> &Self::Op {
@@ -777,7 +778,7 @@ impl<'a> BinaryNode<'a> for OFPow<'a> {
     }
 
     fn right(&self) -> &OFAst<'a> {
-        &*self.right
+        self.right.as_ref()
     }
 }
 

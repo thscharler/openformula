@@ -11,7 +11,7 @@ pub fn unquote_double(i: Span<'_>) -> String {
 
 /// Replaces one quote (") with two.
 pub fn quote_double(i: &str) -> String {
-    (*i).replace("\"", "\"\"")
+    (*i).replace('"', "\"\"")
 }
 
 /// Replaces two single quotes (') with a single on.
@@ -21,5 +21,5 @@ pub fn unquote_single(i: Span<'_>) -> String {
 
 /// Replaces one single quote (') with two.
 pub fn quote_single(i: &str) -> String {
-    (*i).replace("'", "''")
+    (*i).replace('\'', "''")
 }

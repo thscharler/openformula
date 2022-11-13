@@ -3,6 +3,7 @@ use spreadsheet_ods_cellref::parser::{ParseColnameError, ParseRownameError};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 pub enum ParseOFError<'s> {
     /// Nom ast error.
@@ -61,12 +62,12 @@ impl<'s> ParseOFError<'s> {
 
     /// NomError variant.
     pub fn err(span: Span<'s>, err: nom::error::ErrorKind) -> ParseOFError<'s> {
-        ParseOFError::ErrNomError(span.into(), err)
+        ParseOFError::ErrNomError(span, err)
     }
 
     /// NomFailure variant.
     pub fn fail(span: Span<'s>, err: nom::error::ErrorKind) -> ParseOFError<'s> {
-        ParseOFError::ErrNomFailure(span.into(), err)
+        ParseOFError::ErrNomFailure(span, err)
     }
 
     /// ParseIncomplete variant.
@@ -76,27 +77,27 @@ impl<'s> ParseOFError<'s> {
 
     /// Elementary
     pub fn elementary(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::ErrElementary(span.into())
+        ParseOFError::ErrElementary(span)
     }
 
     /// Reference
     pub fn reference(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::ErrReference(span.into())
+        ParseOFError::ErrReference(span)
     }
 
     /// CellRange variant.
     pub fn cell_range(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::ErrCellRange(span.into())
+        ParseOFError::ErrCellRange(span)
     }
 
     /// ColRange variant.
     pub fn col_range(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::ErrColRange(span.into())
+        ParseOFError::ErrColRange(span)
     }
 
     /// RowRange variant.
     pub fn row_range(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::ErrRowRange(span.into())
+        ParseOFError::ErrRowRange(span)
     }
 }
 
@@ -112,7 +113,7 @@ impl<'s, T> LocateError<'s, T, ParseRownameError> for Result<T, ParseRownameErro
     fn locate_err(self, span: Span<'s>) -> Result<T, ParseOFError<'s>> {
         match self {
             Ok(v) => Ok(v),
-            Err(e) => Err(ParseOFError::ErrRowname(span.into(), e)),
+            Err(e) => Err(ParseOFError::ErrRowname(span, e)),
         }
     }
 }
@@ -121,7 +122,7 @@ impl<'s, T> LocateError<'s, T, ParseColnameError> for Result<T, ParseColnameErro
     fn locate_err(self, span: Span<'s>) -> Result<T, ParseOFError<'s>> {
         match self {
             Ok(v) => Ok(v),
-            Err(e) => Err(ParseOFError::ErrColname(span.into(), e)),
+            Err(e) => Err(ParseOFError::ErrColname(span, e)),
         }
     }
 }
