@@ -100,7 +100,7 @@ impl<'span> Tracer<'span> {
     /// Panics if there was no call to enter() before.
     pub fn reference(&self, span: Span<'span>, err: CellRefError) -> ParseOFError<'span> {
         // TODO: remove this one
-        match err {
+        let err = match err {
             CellRefError::ErrNomError(_, e) => ParseOFError::ErrNomError(span, e),
             CellRefError::ErrNomFailure(_, e) => ParseOFError::ErrNomFailure(span, e),
             //CellRefError::ErrCellRef(_) => ParseOFError::ErrCellRef(span),
@@ -110,7 +110,14 @@ impl<'span> Tracer<'span> {
             CellRefError::ErrRowname(_, e) => ParseOFError::ErrRowname(span, e),
             CellRefError::ErrColname(_, e) => ParseOFError::ErrColname(span, e),
             _ => todo!(),
-        }
+        };
+
+        let func = self.func.borrow_mut().pop().unwrap();
+        self.tracks
+            .borrow_mut()
+            .push(Track::ErrorSpan(func, err.to_string(), *err.span()));
+
+        err
     }
 
     /// Error in a Parser.

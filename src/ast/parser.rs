@@ -121,6 +121,9 @@ pub trait BinaryExpr<'s> {
                                 Err(e) => break Err(trace.parse(e)),
                             }
                         }
+                        Err(ParseOFError::ErrNomError(_, _)) => {
+                            break Ok(trace.ok(expr1.span(), loop_rest, expr1))
+                        }
                         Err(e) => break Err(trace.parse(e)),
                     }
                 }
@@ -364,6 +367,9 @@ impl<'s> GeneralExpr<'s> for PostFixExpr {
                             loop_rest = rest1;
                             expr = OFAst::postfix(expr, tok);
                         }
+                        Err(ParseOFError::ErrNomError(_, _)) => {
+                            break Ok(trace.ok(expr.span(), loop_rest, expr))
+                        }
                         Err(e) => break Err(trace.parse(e)),
                     }
                 }
@@ -482,7 +488,8 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
                 }
-                Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
+                Err(ParseOFError::ErrNomError(_, _)) => { /* skip, some token error */ }
+                Err(ParseOFError::ErrReference(_)) => { /* skip, no reference */ }
                 Err(e) => return Err(trace.parse(e)),
             }
         }
