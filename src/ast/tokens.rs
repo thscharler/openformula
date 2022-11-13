@@ -194,6 +194,11 @@ pub fn prefix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 }
 
 /// Tries to ast any postfix operator.
+pub fn lah_postfix_op<'a>(i: Span<'a>) -> bool {
+    one_of::<Span<'a>, _, nom::error::Error<_>>("%")(i).is_ok()
+}
+
+/// Tries to ast any postfix operator.
 pub fn postfix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("%")(i)
 }

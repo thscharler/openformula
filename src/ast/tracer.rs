@@ -15,6 +15,8 @@ use std::fmt::{Debug, Formatter};
 pub struct Tracer<'span> {
     /// Collected tracks.
     pub tracks: RefCell<Vec<Track<'span>>>,
+    /// In an optional branch.
+    pub optional: RefCell<Vec<&'static str>>,
     /// Last fn tracked via enter.
     pub func: RefCell<Vec<&'static str>>,
 }
@@ -39,17 +41,17 @@ impl<'span> Debug for Tracer<'span> {
                     indent.pop();
                     indent.pop();
                 }
-                Track::Error(_, _, _, _) => {
+                Track::Error(_, _, _, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
                     indent.pop();
                     indent.pop();
                 }
-                Track::ErrorStr(_, _) => {
+                Track::ErrorStr(_, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
                     indent.pop();
                     indent.pop();
                 }
-                Track::ErrorSpan(_, _, _) => {
+                Track::ErrorSpan(_, _, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
                     indent.pop();
                     indent.pop();
@@ -82,6 +84,29 @@ impl<'span> Tracer<'span> {
         self.tracks.borrow_mut().push(Track::Step(func, step, span));
     }
 
+    /// About to enter an optional part of the parser.
+    pub fn optional(&self, func: &'static str) {
+        self.optional.borrow_mut().push(func);
+    }
+
+    /// In an optional branch
+    pub fn in_optional(&self) -> bool {
+        match self.optional.borrow().last() {
+            None => false,
+            Some(_) => true,
+        }
+    }
+
+    /// Looses one optional layer if the function matches.
+    fn maybe_drop_optional(&self, func: &'static str) {
+        let mut b_optional = self.optional.borrow_mut();
+        if let Some(opt) = b_optional.last() {
+            if *opt == func {
+                b_optional.pop();
+            }
+        }
+    }
+
     /// Ok in a parser.
     ///
     /// Panic
@@ -90,6 +115,9 @@ impl<'span> Tracer<'span> {
     pub fn ok<T>(&self, span: Span<'span>, rest: Span<'span>, val: T) -> (Span<'span>, T) {
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks.borrow_mut().push(Track::Ok(func, span, rest));
+
+        self.maybe_drop_optional(func);
+
         (rest, val)
     }
 
@@ -112,12 +140,7 @@ impl<'span> Tracer<'span> {
             _ => todo!(),
         };
 
-        let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks
-            .borrow_mut()
-            .push(Track::ErrorSpan(func, err.to_string(), *err.span()));
-
-        err
+        self.parse(err)
     }
 
     /// Error in a Parser.
@@ -127,9 +150,14 @@ impl<'span> Tracer<'span> {
     /// Panics if there was no call to enter() before.
     pub fn parse(&self, err: ParseOFError<'span>) -> ParseOFError<'span> {
         let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks
-            .borrow_mut()
-            .push(Track::ErrorSpan(func, err.to_string(), *err.span()));
+        self.tracks.borrow_mut().push(Track::ErrorSpan(
+            func,
+            self.in_optional(),
+            err.to_string(),
+            *err.span(),
+        ));
+
+        self.maybe_drop_optional(func);
 
         err
     }
@@ -170,9 +198,15 @@ impl<'span> Tracer<'span> {
 
         // Keep track.
         let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks
-            .borrow_mut()
-            .push(Track::Error(func, err.to_string(), error_span, error_kind));
+        self.tracks.borrow_mut().push(Track::Error(
+            func,
+            self.in_optional(),
+            err.to_string(),
+            error_span,
+            error_kind,
+        ));
+
+        self.maybe_drop_optional(func);
 
         err
     }
@@ -187,11 +221,17 @@ pub enum Track<'span> {
     /// Function where this occurred and the remaining span.
     Ok(&'static str, Span<'span>, Span<'span>),
     /// Function where this occurred and some error info.
-    Error(&'static str, String, Span<'span>, nom::error::ErrorKind),
+    Error(
+        &'static str,
+        bool,
+        String,
+        Span<'span>,
+        nom::error::ErrorKind,
+    ),
     /// Function where this occurred and some error info.
-    ErrorSpan(&'static str, String, Span<'span>),
+    ErrorSpan(&'static str, bool, String, Span<'span>),
     ///  Function where this occurred and some error info.
-    ErrorStr(&'static str, String),
+    ErrorStr(&'static str, bool, String),
 }
 
 impl<'span> Debug for Track<'span> {
@@ -210,18 +250,35 @@ impl<'span> Debug for Track<'span> {
                     write!(f, "{}: -> no match", func)?;
                 }
             }
-            Track::Error(func, err_str, err_span, err) => {
+            Track::Error(func, opt, err_str, err_span, err) => {
                 write!(
                     f,
-                    "{}: !!! err=({}) kind={:?} span='{}'",
-                    func, err_str, err, err_span
+                    "{}: {} err=({}) kind={:?} span='{}'",
+                    func,
+                    if *opt { "OPT" } else { "!!!" },
+                    err_str,
+                    err,
+                    err_span
                 )?;
             }
-            Track::ErrorSpan(func, err_str, err_span) => {
-                write!(f, "{}: !!! err=({}) span='{}'", func, err_str, err_span)?;
+            Track::ErrorSpan(func, opt, err_str, err_span) => {
+                write!(
+                    f,
+                    "{}: {} err=({}) span='{}'",
+                    func,
+                    if *opt { "OPT" } else { "!!!" },
+                    err_str,
+                    err_span
+                )?;
             }
-            Track::ErrorStr(func, err_str) => {
-                write!(f, "{}: !!! err=({})", func, err_str)?;
+            Track::ErrorStr(func, opt, err_str) => {
+                write!(
+                    f,
+                    "{}: {} err=({})",
+                    func,
+                    if *opt { "OPT" } else { "!!!" },
+                    err_str
+                )?;
             }
         }
         Ok(())

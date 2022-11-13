@@ -7,6 +7,7 @@
 //!
 //! The look-ahead functions are called internally at certain branching points.
 
+use crate::ast::tokens::lah_prefix_op;
 use crate::ast::{
     conv, span_union_opt, tokens, tracer::Tracer, Node, OFAddOp, OFAst, OFCellRange, OFCellRef,
     OFColRange, OFCompOp, OFMulOp, OFPostfixOp, OFPowOp, OFPrefixOp, OFRowRange, ParseResult, Span,
@@ -203,7 +204,8 @@ impl<'s> BinaryExpr<'s> for CompareExpr {
     }
 
     fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, OFCompOp<'s>> {
-        trace.enter("operator", i);
+        trace.enter("comp-operator", i);
+        trace.optional("comp-operator");
         match tokens::comparison_op(i) {
             Ok((rest, tok)) => match *tok {
                 "=" => Ok(trace.ok(tok, rest, OFCompOp::Equal(tok))),
@@ -242,7 +244,8 @@ impl<'s> BinaryExpr<'s> for AddExpr {
     }
 
     fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Self::Operator> {
-        trace.enter("operator", i);
+        trace.enter("add-operator", i);
+        trace.optional("add-operator");
         match tokens::add_op(i) {
             Ok((rest, tok)) => match *tok {
                 "+" => Ok(trace.ok(tok, rest, OFAddOp::Add(tok))),
@@ -277,7 +280,8 @@ impl<'s> BinaryExpr<'s> for MulExpr {
     }
 
     fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Self::Operator> {
-        trace.enter("operator", i);
+        trace.enter("mul-operator", i);
+        trace.optional("mul-operator");
         match tokens::mul_op(i) {
             Ok((rest, tok)) => match *tok {
                 "*" => Ok(trace.ok(tok, rest, OFMulOp::Multiply(tok))),
@@ -311,7 +315,8 @@ impl<'s> BinaryExpr<'s> for PowExpr {
     }
 
     fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Self::Operator> {
-        trace.enter("operator", i);
+        trace.enter("pow-operator", i);
+        trace.optional("pow-operator");
         match tokens::pow_op(i) {
             Ok((rest, tok)) => match *tok {
                 "^" => Ok(trace.ok(tok, rest, OFPowOp::Power(tok))),
@@ -334,7 +339,8 @@ impl PostFixExpr {
         trace: &'t Tracer<'s>,
         i: Span<'s>,
     ) -> ParseResult<'s, 't, OFPostfixOp<'s>> {
-        trace.enter("operator", i);
+        trace.enter("postfix-operator", i);
+        trace.optional("postfix-operator");
         match tokens::postfix_op(i) {
             Ok((rest, tok)) => match *tok {
                 "%" => Ok(trace.ok(tok, rest, OFPostfixOp::Percent(tok))),
@@ -361,16 +367,19 @@ impl<'s> GeneralExpr<'s> for PostFixExpr {
             Ok((mut loop_rest, mut expr)) => {
                 //
                 loop {
-                    match Self::operator(trace, eat_space(loop_rest)) {
-                        Ok((rest1, tok)) => {
-                            trace.step("op", tok.span());
-                            loop_rest = rest1;
-                            expr = OFAst::postfix(expr, tok);
+                    if tokens::lah_postfix_op(loop_rest) {
+                        match Self::operator(trace, eat_space(loop_rest)) {
+                            Ok((rest1, tok)) => {
+                                trace.step("op", tok.span());
+                                loop_rest = rest1;
+                                expr = OFAst::postfix(expr, tok);
+                            }
+                            // We can rely on lah_postfix_op, so this can only fail
+                            // for other reasons, not a simple "does not parse".
+                            Err(e) => break Err(trace.parse(e)),
                         }
-                        Err(ParseOFError::ErrNomError(_, _)) => {
-                            break Ok(trace.ok(expr.span(), loop_rest, expr))
-                        }
-                        Err(e) => break Err(trace.parse(e)),
+                    } else {
+                        break Ok(trace.ok(expr.span(), loop_rest, expr));
                     }
                 }
             }
@@ -387,7 +396,8 @@ impl PrefixExpr {
         trace: &'t Tracer<'s>,
         i: Span<'s>,
     ) -> ParseResult<'s, 't, OFPrefixOp<'s>> {
-        trace.enter("operator", i);
+        trace.enter("prefix-operator", i);
+        trace.optional("prefix-operator");
         match tokens::prefix_op(i) {
             Ok((rest, tok)) => match *tok {
                 "+" => Ok(trace.ok(tok, rest, OFPrefixOp::Plus(tok))),
@@ -411,25 +421,27 @@ impl<'s> GeneralExpr<'s> for PrefixExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
-        match Self::operator(trace, rest) {
-            Ok((rest1, tok)) => {
-                //
-                match PrefixExpr::parse(trace, eat_space(rest1)) {
-                    Ok((rest2, expr)) => {
-                        let ast = OFAst::prefix(tok, expr);
-                        Ok(trace.ok(ast.span(), rest2, ast))
+        if lah_prefix_op(rest) {
+            match Self::operator(trace, rest) {
+                Ok((rest1, op)) => {
+                    // Potentially recursive
+                    match PrefixExpr::parse(trace, eat_space(rest1)) {
+                        Ok((rest2, expr)) => {
+                            let ast = OFAst::prefix(op, expr);
+                            Ok(trace.ok(ast.span(), rest2, ast))
+                        }
+                        Err(e) => Err(trace.parse(e)),
                     }
-                    Err(e) => Err(trace.parse(e)),
                 }
+                // We can rely on lah_prefix_op, so this can only fail
+                // for other reasons, not a simple "does not parse".
+                Err(e) => Err(trace.parse(e)),
             }
-            Err(ParseOFError::ErrNomError(_, _)) => {
-                //
-                match ElementaryExpr::parse(trace, eat_space(rest)) {
-                    Ok((rest2, expr)) => Ok(trace.ok(expr.span(), rest2, expr)),
-                    Err(e) => Err(trace.parse(e)),
-                }
+        } else {
+            match ElementaryExpr::parse(trace, eat_space(rest)) {
+                Ok((rest2, expr)) => Ok(trace.ok(expr.span(), rest2, expr)),
+                Err(e) => Err(trace.parse(e)),
             }
-            Err(e) => Err(trace.parse(e)),
         }
     }
 }
@@ -454,6 +466,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
         trace.enter(Self::name(), i);
 
         if NumberExpr::lah(i) {
+            trace.optional(NumberExpr::name());
             match NumberExpr::parse(trace, i) {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
@@ -464,6 +477,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
         }
 
         if StringExpr::lah(i) {
+            trace.optional(StringExpr::name());
             match StringExpr::parse(trace, i) {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
@@ -474,6 +488,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
         }
 
         if ParenthesisExpr::lah(i) {
+            trace.optional(ParenthesisExpr::name());
             match ParenthesisExpr::parse(trace, i) {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
@@ -484,6 +499,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
         }
 
         if ReferenceExpr::lah(i) {
+            trace.optional(ReferenceExpr::name());
             match ReferenceExpr::parse(trace, i) {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
@@ -495,6 +511,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
         }
 
         if FnCallExpr::lah(i) {
+            trace.optional(FnCallExpr::name());
             match FnCallExpr::parse(trace, i) {
                 Ok((rest, expr)) => {
                     return Ok(trace.ok(expr.span(), rest, expr));
@@ -600,6 +617,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
+        trace.optional(CellRangeExpr::name());
         match CellRangeExpr::parse(trace, i) {
             Ok((rest, expr)) => {
                 return Ok(trace.ok(expr.span(), rest, expr));
@@ -607,6 +625,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
             Err(e) => return Err(trace.parse(e)),
         }
+        trace.optional(CellRangeExpr::name());
         match CellRefExpr::parse(trace, i) {
             Ok((rest, expr)) => {
                 return Ok(trace.ok(expr.span(), rest, expr));
@@ -614,6 +633,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
             Err(e) => return Err(trace.parse(e)),
         }
+        trace.optional(CellRangeExpr::name());
         match ColRangeExpr::parse(trace, i) {
             Ok((rest, expr)) => {
                 return Ok(trace.ok(expr.span(), rest, expr));
@@ -621,6 +641,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Err(ParseOFError::ErrNomError(_, _)) => { /* skip */ }
             Err(e) => return Err(trace.parse(e)),
         }
+        trace.optional(CellRangeExpr::name());
         match RowRangeExpr::parse(trace, i) {
             Ok((rest, expr)) => {
                 return Ok(trace.ok(expr.span(), rest, expr));
@@ -895,7 +916,6 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
-        // TODO: simplify error handling
         let (rest1, fn_name) = match recognize(tokens::fn_name)(i) {
             Ok((rest, tok)) => {
                 //
