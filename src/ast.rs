@@ -12,6 +12,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::str::from_utf8_unchecked;
 use std::{fmt, mem, slice};
 
+pub mod combinators;
 pub mod conv;
 pub mod format;
 pub mod parser;
@@ -1278,6 +1279,15 @@ pub struct OFSimpleNamed<'a> {
     pub span: Span<'a>,
 }
 
+impl<'a> OFSimpleNamed<'a> {
+    fn need_quotes(&self) -> bool {
+        match tokens::identifier(Span::new(&self.ident)) {
+            Ok((rest, _)) => !rest.is_empty(),
+            Err(_) => true,
+        }
+    }
+}
+
 impl<'a> Node<'a> for OFSimpleNamed<'a> {
     fn name(&self) -> &str {
         "simple_named"
@@ -1288,7 +1298,7 @@ impl<'a> Node<'a> for OFSimpleNamed<'a> {
     }
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if self.ident.contains('\'') {
+        if self.need_quotes() {
             write!(f, "$$'{}'", conv::quote_single(&self.ident))
         } else {
             write!(f, "{}", self.ident)
@@ -1304,7 +1314,11 @@ impl<'a> Debug for OFSimpleNamed<'a> {
 
 impl<'a> Display for OFSimpleNamed<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.ident)
+        if self.need_quotes() {
+            write!(f, "$$'{}'", conv::quote_single(&self.ident))
+        } else {
+            write!(f, "{}", self.ident)
+        }
     }
 }
 

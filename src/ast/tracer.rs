@@ -4,6 +4,7 @@
 //! Doesn't copy any strings, just tracks all function calls in the parser.
 //!
 
+use crate::ast::tokens::TokenError;
 use crate::ast::Span;
 use crate::error::ParseOFError;
 use spreadsheet_ods_cellref::CellRefError;
@@ -14,6 +15,19 @@ use std::fmt::{Debug, Formatter};
 ///
 #[derive(Debug)]
 pub enum Suggest {
+    StartQuote,
+    EndQuote,
+    StartSingleQuote,
+    EndSingleQuote,
+    DollarDollar,
+    Identifier,
+    Iri,
+    SheetName,
+    Dot,
+
+    SingleQuoted,
+    String,
+
     Reference,
     FnCall,
     PostfixOp,
@@ -22,7 +36,6 @@ pub enum Suggest {
     AddOp,
     CompOp,
     Number,
-    String,
     Parenthesis,
     ParenthesisOpen,
     ParenthesisClose,
@@ -68,7 +81,7 @@ impl<'span> Debug for Tracer<'span> {
                     indent.pop();
                     indent.pop();
                 }
-                Track::Error(_, _, _, _, _) => {
+                Track::Error(_, _, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
                     indent.pop();
                     indent.pop();
@@ -242,7 +255,7 @@ impl<'span> Tracer<'span> {
         //
         // The nom error is just the span + error kind in a way.
         // Plus a few bits to differentiate between parsing error and complete failure.
-        let (fail, error_span, error_kind) = Self::error_kind(&nom);
+        let (fail, error_span, _error_kind) = Self::error_kind(&nom);
         // Map the error.
         let err = if fail {
             ParseOFError::fail(error_span)
@@ -255,8 +268,7 @@ impl<'span> Tracer<'span> {
         self.tracks.borrow_mut().push(Track::Error(
             func,
             self.in_optional(),
-            err.to_string(),
-            error_kind,
+            nom.to_string(),
             error_span,
         ));
 
@@ -285,6 +297,43 @@ impl<'span> Tracer<'span> {
     pub fn nom(&self, nom: nom::Err<nom::error::Error<Span<'span>>>) -> ParseOFError<'span> {
         self.map_nom(ParseOFError::err, nom)
     }
+
+    /// Maps a nom error to some wellknown error. Only maps nom::Err::Error not the others.
+    pub fn map_tok(
+        &self,
+        err_fn: fn(span: Span<'span>) -> ParseOFError<'span>,
+        tok: TokenError<'span>,
+    ) -> ParseOFError<'span> {
+        let error_span = *tok.span();
+        //
+        let err = if let TokenError::TokNomFailure(_) = &tok {
+            ParseOFError::fail(error_span)
+        } else {
+            err_fn(error_span)
+        };
+
+        // Keep track.
+        let func = self.func.borrow_mut().pop().unwrap();
+        self.tracks.borrow_mut().push(Track::Error(
+            func,
+            self.in_optional(),
+            tok.to_string(),
+            error_span,
+        ));
+
+        self.maybe_drop_optional(func);
+
+        err
+    }
+
+    /// Erring in a parser. Handles all nom errors.
+    ///
+    /// Panic
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn tok(&self, tok: TokenError<'span>) -> ParseOFError<'span> {
+        self.map_tok(ParseOFError::err, tok)
+    }
 }
 
 /// One track of the parsing trace.
@@ -298,13 +347,7 @@ pub enum Track<'span> {
     /// Function where this occurred and the remaining span.
     Ok(&'static str, Span<'span>, Span<'span>),
     /// Function where this occurred and some error info.
-    Error(
-        &'static str,
-        bool,
-        String,
-        nom::error::ErrorKind,
-        Span<'span>,
-    ),
+    Error(&'static str, bool, String, Span<'span>),
     /// Function where this occurred and some error info.
     ErrorSpan(&'static str, bool, String, Span<'span>),
 }
@@ -315,7 +358,7 @@ impl<'span> Track<'span> {
             Track::Enter(_, s) => Some(s),
             Track::Step(_, _, s) => Some(s),
             Track::Ok(_, _, s) => Some(s),
-            Track::Error(_, _, _, _, s) => Some(s),
+            Track::Error(_, _, _, s) => Some(s),
             Track::ErrorSpan(_, _, _, s) => Some(s),
             Track::Detail(_, _) => None,
         }
@@ -341,14 +384,13 @@ impl<'span> Debug for Track<'span> {
                     write!(f, "{}: -> no match", func)?;
                 }
             }
-            Track::Error(func, opt, err_str, err, err_span) => {
+            Track::Error(func, opt, err_str, err_span) => {
                 write!(
                     f,
-                    "{}: {} err=({}) kind={:?} span='{}'",
+                    "{}: {} err=({}) span='{}'",
                     func,
                     if *opt { "OPT" } else { "!!!" },
                     err_str,
-                    err,
                     err_span
                 )?;
             }

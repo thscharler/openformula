@@ -5,11 +5,83 @@
 use crate::ast::Span;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while, take_while1};
-use nom::character::complete::{char as nchar, one_of};
+use nom::character::complete::{char as nchar, none_of, one_of};
 use nom::combinator::{opt, recognize};
 use nom::multi::{count, many0, many1};
 use nom::sequence::{delimited, tuple};
 use nom::IResult;
+use std::fmt::{Display, Formatter};
+
+type TokenResult<'a, O> = Result<(Span<'a>, O), TokenError<'a>>;
+
+#[derive(Debug, PartialEq)]
+pub enum TokenError<'s> {
+    /// Nom ast error.
+    TokNomError(Span<'s>),
+    /// Nom failure.
+    TokNomFailure(Span<'s>),
+
+    TokStartQuote(Span<'s>),
+    TokEndQuote(Span<'s>),
+    TokStartSingleQuote(Span<'s>),
+    TokEndSingleQuote(Span<'s>),
+    TokString(Span<'s>),
+    TokNumber(Span<'s>),
+    TokFnName(Span<'s>),
+    TokComparisonOp(Span<'s>),
+    TokDollar(Span<'s>),
+    TokDollarDollar(Span<'s>),
+    TokIdentifier(Span<'s>),
+    TokDot(Span<'s>),
+    TokSheetName(Span<'s>),
+    Hash(Span<'s>),
+}
+
+impl<'s> TokenError<'s> {
+    pub fn span(&self) -> &Span<'s> {
+        match self {
+            TokenError::TokNomError(s) => s,
+            TokenError::TokNomFailure(s) => s,
+            TokenError::TokStartQuote(s) => s,
+            TokenError::TokString(s) => s,
+            TokenError::TokEndQuote(s) => s,
+            TokenError::TokNumber(s) => s,
+            TokenError::TokFnName(s) => s,
+            TokenError::TokComparisonOp(s) => s,
+            TokenError::TokDollarDollar(s) => s,
+            TokenError::TokIdentifier(s) => s,
+            TokenError::TokDollar(s) => s,
+            TokenError::TokStartSingleQuote(s) => s,
+            TokenError::TokEndSingleQuote(s) => s,
+            TokenError::TokDot(s) => s,
+            TokenError::TokSheetName(s) => s,
+            TokenError::Hash(s) => s,
+        }
+    }
+}
+
+impl<'s> Display for TokenError<'s> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenError::TokNomError(s) => write!(f, "NomError {}", s),
+            TokenError::TokNomFailure(s) => write!(f, "NomFailure {}", s),
+            TokenError::TokStartQuote(s) => write!(f, "QuoteStart {}", s),
+            TokenError::TokString(s) => write!(f, "String {}", s),
+            TokenError::TokEndQuote(s) => write!(f, "QuoteEnd {}", s),
+            TokenError::TokNumber(s) => write!(f, "Number {}", s),
+            TokenError::TokFnName(s) => write!(f, "FnName {}", s),
+            TokenError::TokComparisonOp(s) => write!(f, "CompOp {}", s),
+            TokenError::TokDollarDollar(s) => write!(f, "DollarDollar {}", s),
+            TokenError::TokIdentifier(s) => write!(f, "DollarDollar {}", s),
+            TokenError::TokDollar(s) => write!(f, "Dollar {}", s),
+            TokenError::TokStartSingleQuote(s) => write!(f, "SingleQuoteStart {}", s),
+            TokenError::TokEndSingleQuote(s) => write!(f, "SingleQuoteEnd {}", s),
+            TokenError::TokDot(s) => write!(f, "Dot {}", s),
+            TokenError::TokSheetName(s) => write!(f, "SheetName {}", s),
+            TokenError::Hash(s) => write!(f, "SheetName {}", s),
+        }
+    }
+}
 
 /// Lookahead for a number
 pub fn lah_number<'a>(i: Span<'a>) -> bool {
@@ -19,8 +91,8 @@ pub fn lah_number<'a>(i: Span<'a>) -> bool {
 // Number ::= StandardNumber | '.' [0-9]+ ([eE] [-+]? [0-9]+)?
 // StandardNumber ::= [0-9]+ ('.' [0-9]+)? ([eE] [-+]? [0-9]+)?
 /// Any number.
-pub fn number<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    alt((
+pub fn number<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match alt((
         // Case one: .42
         recognize(tuple((
             nchar('.'),
@@ -43,7 +115,11 @@ pub fn number<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
                 opt(decimal),
             ))), //
         ))),
-    ))(i)
+    ))(rest)
+    {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokNumber(rest)),
+    }
 }
 
 /// Sequence of digits.
@@ -57,8 +133,38 @@ pub fn lah_string<'a>(i: Span<'a>) -> bool {
 }
 
 /// Standard string
-pub fn string<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    quoted('"')(i)
+pub fn string<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    const QUOTE: char = '\"';
+
+    let rest = match nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE)(rest) {
+        Ok((rest, _)) => rest,
+        Err(_) => {
+            return Err(TokenError::TokStartQuote(rest));
+        }
+    };
+
+    let (rest, string) = match recognize(many0(alt((
+        take_while1(|v| v != QUOTE),
+        recognize(count(
+            nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE),
+            2,
+        )),
+    ))))(rest)
+    {
+        Ok((rest, tok)) => (rest, tok),
+        Err(_) => {
+            return Err(TokenError::TokString(rest));
+        }
+    };
+
+    let rest = match nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE)(rest) {
+        Ok((rest, _)) => rest,
+        Err(_) => {
+            return Err(TokenError::TokEndQuote(rest));
+        }
+    };
+
+    Ok((rest, string))
 }
 
 /// Lookahead for a function name.
@@ -71,15 +177,24 @@ pub fn lah_fn_name<'a>(i: Span<'a>) -> bool {
 
 // LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
 /// Function name.
-pub fn fn_name<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn fn_name_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     recognize(tuple((
         take_while1(unicode_ident::is_xid_start),
         take_while(|c: char| unicode_ident::is_xid_continue(c) || c == '_' || c == '.'),
     )))(i)
 }
 
+// LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
+/// Function name.
+pub fn fn_name<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match fn_name_raw(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokFnName(rest)),
+    }
+}
+
 /// Parse comparison operators.
-pub fn comparison_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn comparison_op_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     alt((
         tag("="),
         tag("<>"),
@@ -88,6 +203,14 @@ pub fn comparison_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
         tag("<="),
         tag(">="),
     ))(i)
+}
+
+/// Parse comparison operators.
+pub fn comparison_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match comparison_op_raw(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokComparisonOp(rest)),
+    }
 }
 
 /// Parse string operators.
@@ -116,8 +239,39 @@ pub fn lah_dollar_dollar<'a>(i: Span<'a>) -> bool {
 }
 
 /// Parse separator char for function args.
-pub fn dollar_dollar<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn dollar_dollar_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("$$")(i)
+}
+
+/// Parse separator char for function args.
+pub fn dollar_dollar<'a>(i: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match dollar_dollar_raw(i) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokDollarDollar(i)),
+    }
+}
+
+/// Parse separator char for function args.
+pub fn lah_dollar<'a>(i: Span<'a>) -> bool {
+    tag::<&str, Span<'a>, nom::error::Error<_>>("$")(i).is_ok()
+}
+
+/// Parse separator char for function args.
+fn dollar_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    tag("$")(i)
+}
+
+/// Parse separator char for function args.
+pub fn dollar<'a>(i: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match dollar_raw(i) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokDollar(i)),
+    }
+}
+
+/// Hashtag
+fn hashtag_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    tag("#")(i)
 }
 
 /// Parse separator char for function args.
@@ -126,19 +280,24 @@ pub fn separator<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 }
 
 /// Lookahead for a dot.
-// TODO: WATCH
 pub fn lah_dot<'a>(i: Span<'a>) -> bool {
     nchar::<Span<'a>, nom::error::Error<_>>('.')(i).is_ok()
 }
 
 /// Parse dot
-// TODO: WATCH
-pub fn dot<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn dot_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(".")(i)
 }
 
+/// Parse dot
+pub fn dot<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match dot_raw(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokDot(rest)),
+    }
+}
+
 /// Parse colon
-// TODO: WATCH
 pub fn colon<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(":")(i)
 }
@@ -216,17 +375,95 @@ pub fn lah_identifier<'a>(i: Span<'a>) -> bool {
 //                      - ( [A-Za-z]+[0-9]+ )  # means no cell reference
 //                      - ([Tt][Rr][Uu][Ee]) - ([Ff][Aa][Ll][Ss][Ee]) # true and false
 /// Identifier.
-pub fn identifier<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn identifier_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     recognize(tuple((
         take_while1(unicode_ident::is_xid_start),
-        take_while1(unicode_ident::is_xid_continue),
+        take_while(unicode_ident::is_xid_continue),
     )))(i)
+}
+
+/// Identifier.
+pub fn identifier<'a>(i: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match identifier_raw(i) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokIdentifier(i)),
+    }
+}
+
+/// Lookahead for a sheet-name
+// TODO: sync with spreadsheet_ods_cellref
+pub fn lah_sheet_name(i: Span<'_>) -> bool {
+    // TODO: none_of("]. #$") is a very wide definition.
+    alt::<_, char, nom::error::Error<_>, _>((nchar('$'), nchar('\''), none_of("]. #$")))(i).is_ok()
+}
+
+// SheetName ::= QuotedSheetName | '$'? [^\]\. #$']+
+// QuotedSheetName ::= '$'? SingleQuoted
+
+fn sheet_name_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    recognize(many1(none_of("]. #$'")))(i)
+}
+
+// TODO: sync with spreadsheet_ods_cellref
+/// Sheet name
+pub fn sheet_name(rest: Span<'_>) -> TokenResult<'_, (Option<Span<'_>>, Span<'_>)> {
+    let (rest, abs) = match opt(dollar_raw)(rest) {
+        Ok((rest, tok)) => (rest, tok),
+        Err(_) => return Err(TokenError::TokDollar(rest)),
+    };
+    let (rest, name) = match single_quoted(rest) {
+        Ok((rest, tok)) => (rest, Some(tok)),
+        Err(TokenError::TokStartSingleQuote(_)) => (rest, None),
+        Err(e) => return Err(e),
+    };
+    let (rest, name) = if let Some(name) = name {
+        (rest, name)
+    } else {
+        match sheet_name_raw(rest) {
+            Ok((rest, tok)) => (rest, tok),
+            Err(_) => return Err(TokenError::TokSheetName(rest)),
+        }
+    };
+
+    Ok((rest, (abs, name)))
+}
+
+// QuotedSheetName ::= '$'? SingleQuoted
+// TODO: sync with spreadsheet_ods_cellref
+/// Sheet name
+pub fn quoted_sheet_name(rest: Span<'_>) -> TokenResult<'_, (Option<Span<'_>>, Span<'_>)> {
+    let (rest, abs) = match opt(dollar_raw)(rest) {
+        Ok((rest, tok)) => (rest, tok),
+        Err(_) => return Err(TokenError::TokDollar(rest)),
+    };
+    let (rest, name) = match single_quoted(rest) {
+        Ok((rest, tok)) => (rest, tok),
+        Err(e) => return Err(e),
+    };
+
+    Ok((rest, (abs, name)))
+}
+
+// Source ::= "'" IRI "'" "#"
+/// IRI
+pub fn iri(rest: Span<'_>) -> TokenResult<'_, Span<'_>> {
+    let (rest, iri) = match single_quoted(rest) {
+        Ok((rest, tok)) => (rest, tok),
+        Err(e) => return Err(e),
+    };
+    let (rest,) = match hashtag_raw(rest) {
+        Ok((rest, _hash)) => (rest,),
+        Err(_) => return Err(TokenError::Hash(rest)),
+    };
+
+    Ok((rest, iri))
 }
 
 // SingleQuoted ::= "'" ([^'] | "''")+ "'"
 /// Parse a quoted string. A double quote within is an escaped quote.
 /// Returns the string within the outer quotes. The double quotes are not
 /// reduced.
+// TODO: remove
 pub fn quoted<'a>(quote: char) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     move |i| {
         let (i, r) = delimited(
@@ -242,14 +479,57 @@ pub fn quoted<'a>(quote: char) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, Span
     }
 }
 
+/// Parse a quoted string. A double quote within is an escaped quote.
+/// Returns the string within the outer quotes. The double quotes are not
+/// reduced.
+pub fn single_quoted<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    const QUOTE: char = '\'';
+
+    let rest = match nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE)(rest) {
+        Ok((rest, _)) => rest,
+        Err(_) => {
+            return Err(TokenError::TokStartSingleQuote(rest));
+        }
+    };
+
+    let (rest, string) = match recognize(many0(alt((
+        take_while1(|v| v != QUOTE),
+        recognize(count(
+            nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE),
+            2,
+        )),
+    ))))(rest)
+    {
+        Ok((rest, tok)) => (rest, tok),
+        Err(_) => {
+            return Err(TokenError::TokString(rest));
+        }
+    };
+
+    let rest = match nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE)(rest) {
+        Ok((rest, _)) => rest,
+        Err(_) => {
+            return Err(TokenError::TokEndSingleQuote(rest));
+        }
+    };
+
+    Ok((rest, string))
+}
+
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
+    use crate::ast::tokens::{identifier, iri, TokenError};
     use crate::ast::Span;
     use crate::ast::{parser, tokens};
     use nom::error::ErrorKind;
     use nom::error::ParseError;
     use spreadsheet_ods_cellref::tokens as refs_tokens;
+
+    #[test]
+    fn test_identifier() {
+        println!("{:?}", identifier(Span::new("Name")));
+    }
 
     #[test]
     fn test_quoted() {
@@ -305,6 +585,81 @@ mod tests {
             );
             assert_eq!(
                 tokens::quoted('\'')(Span::new("'t'''ext'")),
+                Ok((
+                    Span::new_from_raw_offset(5, 1, "ext'", ()),
+                    Span::new_from_raw_offset(1, 1, "t''", ())
+                ))
+            );
+        }
+    }
+
+    #[test]
+    fn test_single_quoted() {
+        unsafe {
+            assert_eq!(
+                tokens::single_quoted(Span::new("")),
+                Err(TokenError::TokStartQuote(Span::new_from_raw_offset(
+                    0,
+                    1,
+                    "",
+                    ()
+                )))
+            );
+            assert_eq!(
+                tokens::single_quoted(Span::new("'")),
+                Err(TokenError::TokEndQuote(Span::new_from_raw_offset(
+                    1,
+                    1,
+                    "",
+                    ()
+                )))
+            );
+            assert_eq!(
+                tokens::single_quoted(Span::new("''")),
+                Ok((
+                    Span::new_from_raw_offset(2, 1, "", ()),
+                    Span::new_from_raw_offset(1, 1, "", ())
+                ))
+            );
+            assert_eq!(
+                tokens::single_quoted(Span::new("'''")),
+                Err(TokenError::TokEndQuote(Span::new_from_raw_offset(
+                    3,
+                    1,
+                    "",
+                    ()
+                )))
+            );
+            assert_eq!(
+                tokens::single_quoted(Span::new("''''")),
+                Ok((
+                    Span::new_from_raw_offset(4, 1, "", ()),
+                    Span::new_from_raw_offset(1, 1, "''", ())
+                ))
+            );
+            assert_eq!(
+                tokens::single_quoted(Span::new("'text'")),
+                Ok((
+                    Span::new_from_raw_offset(6, 1, "", ()),
+                    Span::new_from_raw_offset(1, 1, "text", ())
+                ))
+            );
+            assert_eq!(
+                tokens::single_quoted(Span::new("'t'ext'")),
+                Ok((
+                    Span::new_from_raw_offset(3, 1, "ext'", ()),
+                    Span::new_from_raw_offset(1, 1, "t", ())
+                ))
+            );
+            assert_eq!(
+                tokens::single_quoted(Span::new("'t''ext'")),
+                Ok((
+                    Span::new_from_raw_offset(8, 1, "", ()),
+                    Span::new_from_raw_offset(1, 1, "t''ext", ())
+                ))
+            );
+            assert_eq!(
+                tokens::single_quoted(Span::new("'t'''ext'")),
                 Ok((
                     Span::new_from_raw_offset(5, 1, "ext'", ()),
                     Span::new_from_raw_offset(1, 1, "t''", ())
@@ -465,6 +820,8 @@ mod tests {
     #[test]
     fn test_iri() {
         unsafe {
+            println!("{:?}", iri(Span::new("Name")));
+
             assert_eq!(
                 refs_tokens::iri(Span::new("'file:c:x.txt'#")),
                 Ok((

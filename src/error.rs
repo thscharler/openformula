@@ -22,14 +22,18 @@ pub enum ParseOFError<'s> {
     ErrParenthesis(Span<'s>),
     /// Error when parsing a function call
     ErrFnCall(Span<'s>),
+    /// Error when parsing a named expression
+    ErrNamed(Span<'s>),
 
     /// Elementary expression fails.
     ErrElementary(Span<'s>),
     /// Reference expression fails.
     ErrReference(Span<'s>),
 
-    /// Reference expression fails.
     ErrString(Span<'s>),
+    ErrNumber(Span<'s>),
+    ErrFnName(Span<'s>),
+    ErrComparisonOp(Span<'s>),
 
     /// CellRange parsing error.
     ErrCellRange(Span<'s>),
@@ -56,6 +60,10 @@ impl<'s> ParseOFError<'s> {
             ParseOFError::ErrParenthesis(s) => s,
             ParseOFError::ErrFnCall(s) => s,
             ParseOFError::ErrString(s) => s,
+            ParseOFError::ErrNumber(s) => s,
+            ParseOFError::ErrFnName(s) => s,
+            ParseOFError::ErrComparisonOp(s) => s,
+            ParseOFError::ErrNamed(s) => s,
         }
     }
 
@@ -122,6 +130,18 @@ impl<'s> ParseOFError<'s> {
     pub fn string(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::ErrString(span)
     }
+
+    pub fn number(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrNumber(span)
+    }
+
+    pub fn fn_name(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrFnName(span)
+    }
+
+    pub fn comp_op(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrComparisonOp(span)
+    }
 }
 
 impl<'s> Error for ParseOFError<'s> {}
@@ -166,62 +186,12 @@ impl<'s> Display for ParseOFError<'s> {
             ParseOFError::ErrParenthesis(_) => write!(f, "Parenthesis ")?,
             ParseOFError::ErrFnCall(_) => write!(f, "FnCall ")?,
             ParseOFError::ErrString(_) => write!(f, "String ")?,
+            ParseOFError::ErrNumber(_) => write!(f, "Number ")?,
+            ParseOFError::ErrFnName(_) => write!(f, "FnName ")?,
+            ParseOFError::ErrComparisonOp(_) => write!(f, "FnName ")?,
+            ParseOFError::ErrNamed(_) => write!(f, "Named ")?,
         }
         Self::fmt_span(self.span(), f)?;
         Ok(())
     }
 }
-
-// /// For the errors the lifetime is annoying. This is a owning copy of the offending span.
-// pub struct ErrSpan {
-//     /// Offset from the start of input.
-//     pub offset: usize,
-//     /// Line.
-//     pub line: u32,
-//     /// Column.
-//     pub column: usize,
-//     /// The offending fragment.
-//     pub fragment: String,
-// }
-//
-// impl Debug for ErrSpan {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         write!(
-//             f,
-//             "ErrSpan(@{}:{} str '{}')",
-//             self.line, self.column, self.fragment
-//         )
-//     }
-// }
-//
-// impl Display for ErrSpan {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         write!(
-//             f,
-//             "(@{}:{} str '{}')",
-//             self.line, self.column, self.fragment
-//         )
-//     }
-// }
-//
-// impl From<spreadsheet_ods_cellref::error::ErrSpan> for ErrSpan {
-//     fn from(span: spreadsheet_ods_cellref::error::ErrSpan) -> Self {
-//         Self {
-//             offset: span.offset,
-//             line: span.line,
-//             column: span.column,
-//             fragment: span.fragment,
-//         }
-//     }
-// }
-//
-// impl<'a> From<Span<'a>> for ErrSpan {
-//     fn from(s: Span<'a>) -> Self {
-//         Self {
-//             offset: s.location_offset(),
-//             line: s.location_line(),
-//             column: s.get_column(),
-//             fragment: s.fragment().to_string(),
-//         }
-//     }
-// }

@@ -7,7 +7,7 @@
 //!
 //! The look-ahead functions are called internally at certain branching points.
 
-use crate::ast::tokens::lah_prefix_op;
+use crate::ast::tokens::{lah_prefix_op, TokenError};
 use crate::ast::tracer::Suggest;
 use crate::ast::{
     conv, span_union_opt, tokens, tracer::Tracer, Node, OFAddOp, OFAst, OFCellRange, OFCellRef,
@@ -15,8 +15,6 @@ use crate::ast::{
 };
 use crate::error::{LocateError, ParseOFError};
 use nom::character::complete::multispace0;
-use nom::combinator::recognize;
-use nom::sequence::tuple;
 use nom::InputTake;
 use spreadsheet_ods_cellref::parser as refs_parser;
 use spreadsheet_ods_cellref::tokens as refs_tokens;
@@ -112,6 +110,7 @@ pub trait BinaryExpr<'s> {
             Ok((mut loop_rest, mut expr1)) => {
                 //
                 loop {
+                    // todo: suggest operator
                     match Self::operator(trace, eat_space(loop_rest)) {
                         Ok((rest2, op)) => {
                             //
@@ -172,12 +171,12 @@ impl<'s> GeneralExpr<'s> for Expr {
     }
 
     fn lah(i: Span<'s>) -> bool {
-        <CompareExpr as BinaryExpr>::lah(i)
+        CompareExpr::lah(i)
     }
 
     fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
-        match <CompareExpr as BinaryExpr>::parse(trace, i) {
+        match CompareExpr::parse(trace, i) {
             Ok((rest, expr)) => {
                 //
                 Ok(trace.ok(expr.span(), rest, expr))
@@ -189,21 +188,7 @@ impl<'s> GeneralExpr<'s> for Expr {
 
 struct CompareExpr;
 
-impl<'s> BinaryExpr<'s> for CompareExpr {
-    type Operator = OFCompOp<'s>;
-
-    fn name() -> &'static str {
-        "compare"
-    }
-
-    fn lah(i: Span<'s>) -> bool {
-        <AddExpr as BinaryExpr>::lah(i)
-    }
-
-    fn operand<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        <AddExpr as BinaryExpr>::parse(trace, i)
-    }
-
+impl<'s> CompareExpr {
     fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, OFCompOp<'s>> {
         trace.enter("comp-operator", i);
         trace.optional("comp-operator");
@@ -218,12 +203,50 @@ impl<'s> BinaryExpr<'s> for CompareExpr {
                 _ => unreachable!(),
             },
 
-            Err(e) => Err(trace.nom(e)),
+            Err(e) => Err(trace.map_tok(ParseOFError::comp_op, e)),
         }
     }
+}
 
-    fn ast(left: Box<OFAst<'s>>, op: Self::Operator, right: Box<OFAst<'s>>) -> Box<OFAst<'s>> {
-        OFAst::compare(left, op, right)
+impl<'s> GeneralExpr<'s> for CompareExpr {
+    fn name() -> &'static str {
+        "compare"
+    }
+
+    fn lah(i: Span<'s>) -> bool {
+        <AddExpr as BinaryExpr>::lah(i)
+    }
+
+    /// Parses all the binary expressions.
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), i);
+
+        match <AddExpr as BinaryExpr>::parse(trace, i) {
+            Ok((mut loop_rest, mut expr1)) => {
+                //
+                loop {
+                    trace.suggest(Suggest::CompOp);
+                    match Self::operator(trace, eat_space(loop_rest)) {
+                        Ok((rest2, op)) => {
+                            trace.clear_suggestions();
+                            //
+                            match <AddExpr as BinaryExpr>::parse(trace, eat_space(rest2)) {
+                                Ok((rest3, expr2)) => {
+                                    loop_rest = rest3;
+                                    expr1 = OFAst::compare(expr1, op, expr2);
+                                }
+                                Err(e) => break Err(trace.parse(e)),
+                            }
+                        }
+                        Err(ParseOFError::ErrComparisonOp(_)) => {
+                            break Ok(trace.ok(expr1.span(), loop_rest, expr1))
+                        }
+                        Err(e) => break Err(trace.parse(e)),
+                    }
+                }
+            }
+            Err(e) => Err(trace.parse(e)),
+        }
     }
 }
 
@@ -573,7 +596,10 @@ impl<'s> GeneralExpr<'s> for NumberExpr {
                     Err(_) => unreachable!(),
                 }
             }
-            Err(e) => Err(trace.nom(e)),
+            Err(e) => {
+                trace.expect(Suggest::Number);
+                Err(trace.map_tok(ParseOFError::number, e))
+            }
         }
     }
 }
@@ -598,7 +624,22 @@ impl<'s> GeneralExpr<'s> for StringExpr {
                 let ast = OFAst::string(conv::unquote_double(tok), tok);
                 Ok(trace.ok(ast.span(), rest2, ast))
             }
-            Err(e) => Err(trace.map_nom(ParseOFError::string, e)),
+            Err(e @ TokenError::TokStartQuote(_)) => {
+                trace.expect(Suggest::StartQuote);
+                Err(trace.map_tok(ParseOFError::string, e))
+            }
+            Err(e @ TokenError::TokEndQuote(_)) => {
+                trace.expect(Suggest::EndQuote);
+                Err(trace.map_tok(ParseOFError::string, e))
+            }
+            Err(e @ TokenError::TokString(_)) => {
+                trace.expect(Suggest::String);
+                Err(trace.map_tok(ParseOFError::string, e))
+            }
+            Err(e) => {
+                trace.expect(Suggest::String);
+                Err(trace.map_tok(ParseOFError::string, e))
+            }
         }
     }
 }
@@ -941,12 +982,12 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
-        let (rest1, fn_name) = match recognize(tokens::fn_name)(i) {
+        let (rest1, fn_name) = match tokens::fn_name(i) {
             Ok((rest, tok)) => {
                 //
                 (eat_space(rest), tok)
             }
-            Err(e) => return Err(trace.nom(e)),
+            Err(e) => return Err(trace.map_tok(ParseOFError::fn_name, e)),
         };
 
         trace.step("name", fn_name);
@@ -1105,82 +1146,108 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
         //                      (QuotedSheetName '.')?
         //                      (Identifier | '$$' (Identifier | SingleQuoted)
         //
+        trace.enter(Self::name(), rest);
 
-        // IRI?
-        let (rest, iri) = match refs_tokens::iri(rest) {
-            Ok((rest1, iri)) => {
-                //
-                (rest1, Some(OFAst::iri(conv::unquote_single(iri), iri)))
-            }
-            Err(nom::Err::Error(_)) => {
-                //
-                (rest, None)
-            }
-            Err(e) => return Err(trace.nom(e)),
+        // (IRI '#')?
+        trace.suggest(Suggest::Iri);
+        let (rest, iri) = match tokens::iri(rest) {
+            Ok((rest1, iri)) => (rest1, Some(OFAst::iri(conv::unquote_single(iri), iri))),
+            Err(TokenError::TokStartSingleQuote(_)) => (rest, None),
+            Err(TokenError::Hash(_)) => (rest, None),
+            Err(e) => return Err(trace.tok(e)),
         };
 
-        // (QuotedSheetName '.')?
-        let (rest, sheet_name) = match tuple((refs_tokens::sheet_name, tokens::dot))(rest) {
-            Ok((rest1, ((abs, sheet_name), _dot))) => unsafe {
+        // QuotedSheetName ::= '$'? SingleQuoted "."
+        trace.suggest(Suggest::SheetName);
+        let (rest, sheet_name) = match tokens::quoted_sheet_name(rest) {
+            Ok((rest1, (abs, sheet_name))) => {
+                let span = unsafe { span_union_opt(abs, sheet_name) };
                 (
                     rest1,
                     Some(OFAst::sheet_name(
                         refs_parser::try_bool_from_abs_flag(abs),
                         conv::unquote_single(sheet_name),
-                        span_union_opt(abs, sheet_name),
+                        span,
                     )),
                 )
-            },
-            Err(nom::Err::Error(_)) => {
-                //
-                (rest, None)
             }
-            Err(e) => return Err(trace.nom(e)),
+            Err(TokenError::TokStartSingleQuote(_)) => (rest, None),
+            Err(e) => return Err(trace.tok(e)),
+        };
+
+        let rest = if sheet_name.is_some() {
+            match tokens::dot(rest) {
+                Ok((rest1, _dot)) => rest1,
+                Err(e) => {
+                    trace.expect(Suggest::Dot);
+                    return Err(trace.tok(e));
+                }
+            }
+        } else {
+            rest
         };
 
         // (Identifier | '$$' (Identifier | SingleQuoted)
 
         // Identifier
+        trace.suggest(Suggest::Identifier);
         let (rest, named) = match tokens::identifier(rest) {
             Ok((rest1, ident)) => {
                 // Identifier
                 (rest1, Some(OFAst::simple_named(ident.to_string(), ident)))
             }
-            Err(nom::Err::Error(_)) => (rest, None),
-            Err(e) => return Err(trace.nom(e)),
+            Err(TokenError::TokIdentifier(_)) => (rest, None),
+            Err(e) => return Err(trace.tok(e)),
         };
 
-        // '$$' (Identifier | SingleQuoted)
+        // If we found a name we're good.
         let (rest, named) = if let Some(named) = named {
             (rest, named)
         } else {
+            // '$$' (Identifier | SingleQuoted)
+
             // '$$'
-            match tokens::dollar_dollar(rest) {
-                Ok((_rest1, _tag)) => {}
-                Err(e) => return Err(trace.nom(e)),
-            }
+            trace.suggest(Suggest::DollarDollar);
+            let (rest, _) = match tokens::dollar_dollar(rest) {
+                Ok((rest1, tag)) => (rest1, tag),
+                Err(e) => return Err(trace.tok(e)),
+            };
 
             // Identifier
+            trace.suggest(Suggest::Identifier);
             let (rest, named) = match tokens::identifier(rest) {
                 Ok((rest1, ident)) => {
                     //
                     (rest1, Some(OFAst::simple_named(ident.to_string(), ident)))
                 }
-                Err(nom::Err::Error(_)) => (rest, None),
-                Err(e) => return Err(trace.nom(e)),
+                Err(TokenError::TokIdentifier(_)) => (rest, None),
+                Err(e) => return Err(trace.tok(e)),
             };
 
             // SingleQuoted
             let (rest, named) = if let Some(named) = named {
                 (rest, named)
             } else {
-                match tokens::quoted('\'')(rest) {
+                trace.suggest(Suggest::SingleQuoted);
+                match tokens::single_quoted(rest) {
                     Ok((rest1, ident)) => {
                         //
                         let named_str = conv::unquote_single(ident);
                         (rest1, OFAst::simple_named(named_str, ident))
                     }
-                    Err(e) => return Err(trace.nom(e)),
+                    Err(e @ TokenError::TokStartQuote(_)) => {
+                        trace.suggest(Suggest::StartSingleQuote);
+                        return Err(trace.tok(e));
+                    }
+                    Err(e @ TokenError::TokString(_)) => {
+                        trace.suggest(Suggest::String);
+                        return Err(trace.tok(e));
+                    }
+                    Err(e @ TokenError::TokEndQuote(_)) => {
+                        trace.suggest(Suggest::EndSingleQuote);
+                        return Err(trace.tok(e));
+                    }
+                    Err(e) => return Err(trace.tok(e)),
                 }
             };
 
@@ -1217,9 +1284,9 @@ pub fn check_eof<'s>(
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
-    use crate::ast::parser::NumberExpr;
     use crate::ast::parser::{ElementaryExpr, Expr};
     use crate::ast::parser::{GeneralExpr, StringExpr};
+    use crate::ast::parser::{NamedExpr, NumberExpr};
     use crate::ast::tracer::Tracer;
     use crate::ast::{OFAst, ParseResult, Span};
 
@@ -1279,6 +1346,29 @@ mod tests {
             run_test2(test, NumberExpr::parse);
         }
     }
+
+    #[test]
+    fn test_comp() {
+        let tests = ["471 >0", "1==1", "(1<>1)"];
+        for test in tests {
+            run_test2(test, Expr::parse);
+        }
+    }
+
+    #[test]
+    fn test_named() {
+        let tests = [
+            "Pi",
+            "$$Tau",
+            "'xref'.Rho",
+            "'xref'Foo",
+            "$$'nice and clean'",
+        ];
+        for test in tests {
+            run_test2(test, NamedExpr::parse);
+        }
+    }
+
     #[test]
     fn test_expr() {
         let tests = [
@@ -1303,20 +1393,21 @@ mod tests {
     #[test]
     fn test_expr_fail() {
         let tests = [
-            "",
-            "", // "471X",
-               // r#""strdata"#,
-               // "1+",
-               // "(1+1",
-               // "XX",
-               // "4*5+",
-               // "4+5*",
-               // "22 * FUN ( 77  ",
-               // "22 * FUN 77 ) ",
-               // "17 + FUN(  ",
-               // "17 + FUN  )",
-               // "11 ^ FUN(   ;;66)",
-               // "11 ^ FUN(   ;;X)",
+            // "471X",
+            // r#""strdata"#,
+            // "1+",
+            // "(1+1",
+            // "XX",
+            // "4*5+",
+            // "4+5*",
+            "22 * $FUN()",
+            "22 * FUN ( 77  ",
+            "22 * FUN ( 77  ",
+            "22 * FUN 77 ) ",
+            "17 + FUN(  ",
+            "17 + FUN  )",
+            "11 ^ FUN(   ;;66)",
+            "11 ^ FUN(   ;;X)",
         ];
         for test in tests {
             run_test2(test, Expr::parse);
