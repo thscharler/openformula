@@ -7,7 +7,7 @@
 //!
 //! The look-ahead functions are called internally at certain branching points.
 
-use crate::ast::tokens::{lah_prefix_op, TokenError};
+use crate::ast::tokens::TokenError;
 use crate::ast::tracer::Suggest;
 use crate::ast::{
     conv, span_union_opt, tokens, tracer::Tracer, Node, OFAddOp, OFAst, OFCellRange, OFCellRef,
@@ -91,77 +91,6 @@ pub trait GeneralExpr<'s> {
     fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>>;
 }
 
-/// Special trait for binary expressions.
-pub trait BinaryExpr<'s> {
-    /// Operator type.
-    type Operator;
-
-    /// Get a name for debug.
-    fn name() -> &'static str;
-
-    /// Run a look-ahead.
-    fn lah(i: Span<'s>) -> bool;
-
-    /// Parses all the binary expressions.
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
-
-        match Self::operand(trace, i) {
-            Ok((mut loop_rest, mut expr1)) => {
-                //
-                loop {
-                    // todo: suggest operator
-                    match Self::operator(trace, eat_space(loop_rest)) {
-                        Ok((rest2, op)) => {
-                            //
-                            match Self::operand(trace, eat_space(rest2)) {
-                                Ok((rest3, expr2)) => {
-                                    loop_rest = rest3;
-                                    expr1 = Self::ast(expr1, op, expr2);
-                                }
-                                Err(e) => break Err(trace.parse(e)),
-                            }
-                        }
-                        Err(ParseOFError::ErrNomError(_)) => {
-                            break Ok(trace.ok(expr1.span(), loop_rest, expr1))
-                        }
-                        Err(e) => break Err(trace.parse(e)),
-                    }
-                }
-            }
-            Err(e) => Err(trace.parse(e)),
-        }
-    }
-
-    /// Parse the sub expression.
-    fn operand<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>>;
-
-    /// Parse the operator.
-    /// Parses and maps the Span to an OFCompOp
-    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Self::Operator>;
-
-    /// Creates an AST node.
-    fn ast(left: Box<OFAst<'s>>, op: Self::Operator, right: Box<OFAst<'s>>) -> Box<OFAst<'s>>;
-}
-
-/// GeneralExpr can be expressed in terms of BinaryExpr.
-impl<'s, T> GeneralExpr<'s> for T
-where
-    T: BinaryExpr<'s>,
-{
-    fn name() -> &'static str {
-        <Self as BinaryExpr>::name()
-    }
-
-    fn lah(i: Span<'s>) -> bool {
-        <Self as BinaryExpr>::lah(i)
-    }
-
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        <Self as BinaryExpr>::parse(trace, i)
-    }
-}
-
 /// Any expression.
 pub struct Expr;
 
@@ -202,8 +131,8 @@ impl<'s> CompareExpr {
                 ">=" => Ok(trace.ok(tok, rest, OFCompOp::GreaterEqual(tok))),
                 _ => unreachable!(),
             },
-
-            Err(e) => Err(trace.map_tok(ParseOFError::comp_op, e)),
+            Err(e @ TokenError::TokComparisonOp(_)) => Err(trace.map_tok(ParseOFError::comp_op, e)),
+            Err(e) => Err(trace.tok(e)),
         }
     }
 }
@@ -214,14 +143,14 @@ impl<'s> GeneralExpr<'s> for CompareExpr {
     }
 
     fn lah(i: Span<'s>) -> bool {
-        <AddExpr as BinaryExpr>::lah(i)
+        AddExpr::lah(i)
     }
 
     /// Parses all the binary expressions.
     fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
-        match <AddExpr as BinaryExpr>::parse(trace, i) {
+        match AddExpr::parse(trace, i) {
             Ok((mut loop_rest, mut expr1)) => {
                 //
                 loop {
@@ -230,7 +159,7 @@ impl<'s> GeneralExpr<'s> for CompareExpr {
                         Ok((rest2, op)) => {
                             trace.clear_suggestions();
                             //
-                            match <AddExpr as BinaryExpr>::parse(trace, eat_space(rest2)) {
+                            match AddExpr::parse(trace, eat_space(rest2)) {
                                 Ok((rest3, expr2)) => {
                                     loop_rest = rest3;
                                     expr1 = OFAst::compare(expr1, op, expr2);
@@ -252,22 +181,8 @@ impl<'s> GeneralExpr<'s> for CompareExpr {
 
 struct AddExpr;
 
-impl<'s> BinaryExpr<'s> for AddExpr {
-    type Operator = OFAddOp<'s>;
-
-    fn name() -> &'static str {
-        "add"
-    }
-
-    fn lah(i: Span<'s>) -> bool {
-        <MulExpr as BinaryExpr>::lah(i)
-    }
-
-    fn operand<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        <MulExpr as BinaryExpr>::parse(trace, i)
-    }
-
-    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Self::Operator> {
+impl<'s> AddExpr {
+    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, OFAddOp<'s>> {
         trace.enter("add-operator", i);
         trace.optional("add-operator");
         match tokens::add_op(i) {
@@ -276,34 +191,58 @@ impl<'s> BinaryExpr<'s> for AddExpr {
                 "-" => Ok(trace.ok(tok, rest, OFAddOp::Subtract(tok))),
                 _ => unreachable!(),
             },
-
-            Err(e) => Err(trace.nom(e)),
+            Err(e @ TokenError::TokAddOp(_)) => Err(trace.map_tok(ParseOFError::add_op, e)),
+            Err(e) => Err(trace.tok(e)),
         }
     }
+}
 
-    fn ast(left: Box<OFAst<'s>>, op: Self::Operator, right: Box<OFAst<'s>>) -> Box<OFAst<'s>> {
-        OFAst::add(left, op, right)
+impl<'s> GeneralExpr<'s> for AddExpr {
+    fn name() -> &'static str {
+        "add"
+    }
+
+    fn lah(i: Span<'s>) -> bool {
+        MulExpr::lah(i)
+    }
+
+    /// Parses all the binary expressions.
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), i);
+
+        match MulExpr::parse(trace, i) {
+            Ok((mut loop_rest, mut expr1)) => {
+                //
+                loop {
+                    trace.suggest(Suggest::AddOp);
+                    match Self::operator(trace, eat_space(loop_rest)) {
+                        Ok((rest2, op)) => {
+                            trace.clear_suggestions();
+                            //
+                            match MulExpr::parse(trace, eat_space(rest2)) {
+                                Ok((rest3, expr2)) => {
+                                    loop_rest = rest3;
+                                    expr1 = OFAst::add(expr1, op, expr2);
+                                }
+                                Err(e) => break Err(trace.parse(e)),
+                            }
+                        }
+                        Err(ParseOFError::ErrAddOp(_)) => {
+                            break Ok(trace.ok(expr1.span(), loop_rest, expr1))
+                        }
+                        Err(e) => break Err(trace.parse(e)),
+                    }
+                }
+            }
+            Err(e) => Err(trace.parse(e)),
+        }
     }
 }
 
 struct MulExpr;
 
-impl<'s> BinaryExpr<'s> for MulExpr {
-    type Operator = OFMulOp<'s>;
-
-    fn name() -> &'static str {
-        "mul"
-    }
-
-    fn lah(i: Span<'s>) -> bool {
-        <PowExpr as BinaryExpr>::lah(i)
-    }
-
-    fn operand<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        <PowExpr as BinaryExpr>::parse(trace, i)
-    }
-
-    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Self::Operator> {
+impl<'s> MulExpr {
+    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, OFMulOp<'s>> {
         trace.enter("mul-operator", i);
         trace.optional("mul-operator");
         match tokens::mul_op(i) {
@@ -312,33 +251,58 @@ impl<'s> BinaryExpr<'s> for MulExpr {
                 "/" => Ok(trace.ok(tok, rest, OFMulOp::Divide(tok))),
                 _ => unreachable!(),
             },
-            Err(e) => Err(trace.nom(e)),
+            Err(e @ TokenError::TokMulOp(_)) => Err(trace.map_tok(ParseOFError::mul_op, e)),
+            Err(e) => Err(trace.tok(e)),
         }
     }
+}
 
-    fn ast(left: Box<OFAst<'s>>, op: Self::Operator, right: Box<OFAst<'s>>) -> Box<OFAst<'s>> {
-        OFAst::mul(left, op, right)
+impl<'s> GeneralExpr<'s> for MulExpr {
+    fn name() -> &'static str {
+        "mul"
+    }
+
+    fn lah(i: Span<'s>) -> bool {
+        PowExpr::lah(i)
+    }
+
+    /// Parses all the binary expressions.
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), i);
+
+        match PowExpr::parse(trace, i) {
+            Ok((mut loop_rest, mut expr1)) => {
+                //
+                loop {
+                    trace.suggest(Suggest::MulOp);
+                    match Self::operator(trace, eat_space(loop_rest)) {
+                        Ok((rest2, op)) => {
+                            trace.clear_suggestions();
+                            //
+                            match PowExpr::parse(trace, eat_space(rest2)) {
+                                Ok((rest3, expr2)) => {
+                                    loop_rest = rest3;
+                                    expr1 = OFAst::mul(expr1, op, expr2);
+                                }
+                                Err(e) => break Err(trace.parse(e)),
+                            }
+                        }
+                        Err(ParseOFError::ErrMulOp(_)) => {
+                            break Ok(trace.ok(expr1.span(), loop_rest, expr1))
+                        }
+                        Err(e) => break Err(trace.parse(e)),
+                    }
+                }
+            }
+            Err(e) => Err(trace.parse(e)),
+        }
     }
 }
 
 struct PowExpr;
 
-impl<'s> BinaryExpr<'s> for PowExpr {
-    type Operator = OFPowOp<'s>;
-
-    fn name() -> &'static str {
-        "pow"
-    }
-
-    fn lah(i: Span<'s>) -> bool {
-        PostFixExpr::lah(i)
-    }
-
-    fn operand<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        PostFixExpr::parse(trace, i)
-    }
-
-    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Self::Operator> {
+impl<'s> PowExpr {
+    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, OFPowOp<'s>> {
         trace.enter("pow-operator", i);
         trace.optional("pow-operator");
         match tokens::pow_op(i) {
@@ -346,18 +310,57 @@ impl<'s> BinaryExpr<'s> for PowExpr {
                 "^" => Ok(trace.ok(tok, rest, OFPowOp::Power(tok))),
                 _ => unreachable!(),
             },
-            Err(e) => Err(trace.nom(e)),
+            Err(e @ TokenError::TokPowOp(_)) => Err(trace.map_tok(ParseOFError::pow_op, e)),
+            Err(e) => Err(trace.tok(e)),
         }
-    }
-
-    fn ast(left: Box<OFAst<'s>>, op: Self::Operator, right: Box<OFAst<'s>>) -> Box<OFAst<'s>> {
-        OFAst::pow(left, op, right)
     }
 }
 
-struct PostFixExpr;
+impl<'s> GeneralExpr<'s> for PowExpr {
+    fn name() -> &'static str {
+        "pow"
+    }
 
-impl PostFixExpr {
+    fn lah(i: Span<'s>) -> bool {
+        PostfixExpr::lah(i)
+    }
+
+    /// Parses all the binary expressions.
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), i);
+
+        match PostfixExpr::parse(trace, i) {
+            Ok((mut loop_rest, mut expr1)) => {
+                //
+                loop {
+                    trace.suggest(Suggest::PowOp);
+                    match Self::operator(trace, eat_space(loop_rest)) {
+                        Ok((rest2, op)) => {
+                            trace.clear_suggestions();
+                            //
+                            match PostfixExpr::parse(trace, eat_space(rest2)) {
+                                Ok((rest3, expr2)) => {
+                                    loop_rest = rest3;
+                                    expr1 = OFAst::pow(expr1, op, expr2);
+                                }
+                                Err(e) => break Err(trace.parse(e)),
+                            }
+                        }
+                        Err(ParseOFError::ErrPowOp(_)) => {
+                            break Ok(trace.ok(expr1.span(), loop_rest, expr1))
+                        }
+                        Err(e) => break Err(trace.parse(e)),
+                    }
+                }
+            }
+            Err(e) => Err(trace.parse(e)),
+        }
+    }
+}
+
+struct PostfixExpr;
+
+impl PostfixExpr {
     /// Parses and maps the Span to an OFPostfixOp
     pub fn operator<'s, 't>(
         trace: &'t Tracer<'s>,
@@ -370,12 +373,13 @@ impl PostFixExpr {
                 "%" => Ok(trace.ok(tok, rest, OFPostfixOp::Percent(tok))),
                 _ => unreachable!(),
             },
-            Err(e) => Err(trace.nom(e)),
+            Err(e @ TokenError::TokPostfixOp(_)) => Err(trace.map_tok(ParseOFError::postfix_op, e)),
+            Err(e) => Err(trace.tok(e)),
         }
     }
 }
 
-impl<'s> GeneralExpr<'s> for PostFixExpr {
+impl<'s> GeneralExpr<'s> for PostfixExpr {
     fn name() -> &'static str {
         "postfix"
     }
@@ -387,29 +391,25 @@ impl<'s> GeneralExpr<'s> for PostFixExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
-        match PrefixExpr::parse(trace, i) {
+        let (rest, ast) = match PrefixExpr::parse(trace, i) {
             Ok((mut loop_rest, mut expr)) => {
                 //
                 loop {
-                    if tokens::lah_postfix_op(loop_rest) {
-                        match Self::operator(trace, eat_space(loop_rest)) {
-                            Ok((rest1, tok)) => {
-                                trace.step("op", tok.span());
-                                loop_rest = rest1;
-                                expr = OFAst::postfix(expr, tok);
-                            }
-                            // We can rely on lah_postfix_op, so this can only fail
-                            // for other reasons, not a simple "does not parse".
-                            Err(e) => break Err(trace.parse(e)),
+                    trace.suggest(Suggest::PostfixOp);
+                    match Self::operator(trace, eat_space(loop_rest)) {
+                        Ok((rest1, tok)) => {
+                            loop_rest = rest1;
+                            expr = OFAst::postfix(expr, tok);
                         }
-                    } else {
-                        trace.suggest(Suggest::PostfixOp);
-                        break Ok(trace.ok(expr.span(), loop_rest, expr));
+                        Err(ParseOFError::ErrPostfixOp(_)) => break (loop_rest, expr),
+                        Err(e) => return Err(trace.parse(e)),
                     }
                 }
             }
-            Err(e) => Err(trace.parse(e)),
-        }
+            Err(e) => return Err(trace.parse(e)),
+        };
+
+        Ok(trace.ok(ast.span(), rest, ast))
     }
 }
 
@@ -429,7 +429,11 @@ impl PrefixExpr {
                 "-" => Ok(trace.ok(tok, rest, OFPrefixOp::Minus(tok))),
                 _ => unreachable!(),
             },
-            Err(e) => Err(trace.nom(e)),
+            Err(e @ TokenError::TokPrefixOp(_)) => {
+                trace.expect(Suggest::PrefixOp);
+                Err(trace.map_tok(ParseOFError::prefix_op, e))
+            }
+            Err(e) => Err(trace.tok(e)),
         }
     }
 }
@@ -446,28 +450,36 @@ impl<'s> GeneralExpr<'s> for PrefixExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
-        if lah_prefix_op(rest) {
-            match Self::operator(trace, rest) {
+        trace.suggest(Suggest::PrefixOp);
+        let mut op_vec = Vec::new();
+        let mut loop_rest = rest;
+        // eat all prefix ops and keep them save.
+        let rest = loop {
+            match Self::operator(trace, eat_space(loop_rest)) {
                 Ok((rest1, op)) => {
-                    // Potentially recursive
-                    match PrefixExpr::parse(trace, eat_space(rest1)) {
-                        Ok((rest2, expr)) => {
-                            let ast = OFAst::prefix(op, expr);
-                            Ok(trace.ok(ast.span(), rest2, ast))
-                        }
-                        Err(e) => Err(trace.parse(e)),
-                    }
+                    loop_rest = rest1;
+                    op_vec.push(op);
                 }
-                // We can rely on lah_prefix_op, so this can only fail
-                // for other reasons, not a simple "does not parse".
-                Err(e) => Err(trace.parse(e)),
+                Err(ParseOFError::ErrPrefixOp(_)) => {
+                    break loop_rest;
+                }
+                Err(e) => return Err(trace.parse(e)),
             }
-        } else {
-            match ElementaryExpr::parse(trace, eat_space(rest)) {
-                Ok((rest2, expr)) => Ok(trace.ok(expr.span(), rest2, expr)),
-                Err(e) => Err(trace.parse(e)),
-            }
+        };
+
+        // parse the expression itself
+        let (rest, expr) = match ElementaryExpr::parse(trace, eat_space(rest)) {
+            Ok((rest1, expr)) => (rest1, expr),
+            Err(e) => return Err(trace.parse(e)),
+        };
+
+        // join everything up
+        let mut ast = expr;
+        while let Some(op) = op_vec.pop() {
+            ast = OFAst::prefix(op, ast);
         }
+
+        Ok(trace.ok(ast.span(), rest, ast))
     }
 }
 
@@ -520,7 +532,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
             }
         }
 
-        trace.suggest(Suggest::Parenthesis);
+        trace.suggest(Suggest::Parentheses);
         if ParenthesisExpr::lah(i) {
             trace.optional(ParenthesisExpr::name());
             match ParenthesisExpr::parse(trace, i) {
@@ -688,7 +700,8 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Err(ParseOFError::ErrNomError(_)) => { /* skip */ }
             Err(e) => return Err(trace.parse(e)),
         }
-        trace.optional(CellRangeExpr::name());
+
+        trace.optional(CellRefExpr::name());
         match CellRefExpr::parse(trace, i) {
             Ok((rest, expr)) => {
                 return Ok(trace.ok(expr.span(), rest, expr));
@@ -696,7 +709,8 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Err(ParseOFError::ErrNomError(_)) => { /* skip */ }
             Err(e) => return Err(trace.parse(e)),
         }
-        trace.optional(CellRangeExpr::name());
+
+        trace.optional(ColRangeExpr::name());
         match ColRangeExpr::parse(trace, i) {
             Ok((rest, expr)) => {
                 return Ok(trace.ok(expr.span(), rest, expr));
@@ -704,7 +718,8 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Err(ParseOFError::ErrNomError(_)) => { /* skip */ }
             Err(e) => return Err(trace.parse(e)),
         }
-        trace.optional(CellRangeExpr::name());
+
+        trace.optional(RowRangeExpr::name());
         match RowRangeExpr::parse(trace, i) {
             Ok((rest, expr)) => {
                 return Ok(trace.ok(expr.span(), rest, expr));
@@ -713,6 +728,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Err(e) => return Err(trace.parse(e)),
         }
 
+        trace.expect(Suggest::Reference);
         Err(trace.parse(ParseOFError::reference(i)))
     }
 }
@@ -928,30 +944,36 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
         tokens::lah_parentheses_open(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
-        match tokens::parentheses_open(i) {
-            Ok((rest1, par1)) => {
-                match Expr::parse(trace, eat_space(rest1)) {
-                    Ok((rest2, expr)) => {
-                        //
-                        match tokens::parentheses_close(eat_space(rest2)) {
-                            Ok((rest3, par2)) => {
-                                let ast = OFAst::parens(par1, expr, par2);
-                                Ok(trace.ok(ast.span(), rest3, ast))
-                            }
-                            Err(e) => {
-                                trace.expect(Suggest::ParenthesisClose);
-                                Err(trace.map_nom(ParseOFError::parens, e))
-                            }
-                        }
-                    }
-                    Err(e) => Err(trace.parse(e)),
-                }
+        trace.suggest(Suggest::ParenthesesOpen);
+        let (rest, par1) = match tokens::parentheses_open(rest) {
+            Ok((rest1, par1)) => (rest1, par1),
+            Err(e) => {
+                trace.expect(Suggest::ParenthesesOpen);
+                return Err(trace.tok(e));
             }
-            Err(e) => Err(trace.nom(e)),
-        }
+        };
+        trace.clear_suggestions();
+
+        trace.suggest(Suggest::Expr);
+        let (rest, expr) = match Expr::parse(trace, eat_space(rest)) {
+            Ok((rest1, expr)) => (rest1, expr),
+            Err(e) => return Err(trace.parse(e)),
+        };
+
+        let (rest, par2) = match tokens::parentheses_close(eat_space(rest)) {
+            Ok((rest1, par2)) => (rest1, par2),
+            Err(e @ TokenError::TokParenthesesClose(_)) => {
+                trace.expect(Suggest::ParenthesesClose);
+                return Err(trace.tok(e));
+            }
+            Err(e) => return Err(trace.tok(e)),
+        };
+
+        let ast = OFAst::parens(par1, expr, par2);
+        Ok(trace.ok(ast.span(), rest, ast))
     }
 }
 
@@ -979,28 +1001,26 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
 
     #[allow(clippy::collapsible_else_if)]
     #[allow(clippy::needless_return)]
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
-        let (rest1, fn_name) = match tokens::fn_name(i) {
-            Ok((rest, tok)) => {
-                //
-                (eat_space(rest), tok)
-            }
+        trace.suggest(Suggest::FnName);
+        let (rest, fn_name) = match tokens::fn_name(rest) {
+            Ok((rest1, tok)) => (rest1, tok),
             Err(e) => return Err(trace.map_tok(ParseOFError::fn_name, e)),
         };
-
         trace.step("name", fn_name);
 
         let mut args = Vec::new();
 
-        match tokens::parentheses_open(eat_space(rest1)) {
+        trace.suggest(Suggest::ParenthesesOpen);
+        match tokens::parentheses_open(eat_space(rest)) {
             Ok((mut loop_rest, par1)) => {
                 // Should be a function call now.
                 trace.clear_suggestions();
 
                 // First separator is checked before the arguments as arguments can be empty.
-                match tokens::separator(eat_space(loop_rest)) {
+                match tokens::semikolon(eat_space(loop_rest)) {
                     Ok((rest2, sep1)) => {
                         loop_rest = rest2;
                         trace.step("initial arg", Span::new(""));
@@ -1009,40 +1029,35 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         let ast = OFAst::empty(sep1.take(0));
                         args.push(*ast);
                     }
-                    Err(nom::Err::Error(_)) => {
-                        trace.suggest(Suggest::Separator);
+                    Err(TokenError::TokSemikolon(_)) => {
                         // Optional
                     }
                     Err(e) => {
-                        return Err(trace.nom(e));
+                        return Err(trace.tok(e));
                     }
                 }
 
                 // Loops and eats from loop_rest.
                 loop {
                     // Parse argument.
-                    loop_rest = eat_space(loop_rest);
-                    let expr = if Expr::lah(loop_rest) {
-                        match Expr::parse(trace, loop_rest) {
-                            Ok((rest2, expr)) => {
-                                loop_rest = rest2;
-                                trace.step("arg", expr.span());
-                                Some(expr)
-                            }
-                            Err(ParseOFError::ErrNomError(_))
-                            | Err(ParseOFError::ErrElementary(_)) => {
-                                // Optional
-                                trace.step("arg", Span::new(""));
-                                None
-                            }
-                            Err(e) => return Err(trace.parse(e)),
+                    trace.suggest(Suggest::Expr);
+                    let expr = match Expr::parse(trace, eat_space(loop_rest)) {
+                        Ok((rest2, expr)) => {
+                            loop_rest = rest2;
+                            trace.step("arg", expr.span());
+                            Some(expr)
                         }
-                    } else {
-                        None
+                        Err(ParseOFError::ErrElementary(_)) => {
+                            // Optional
+                            trace.step("arg", Span::new(""));
+                            None
+                        }
+                        Err(e) => return Err(trace.parse(e)),
                     };
 
                     // Followed by a separator.
-                    let sep1 = match tokens::separator(eat_space(loop_rest)) {
+                    trace.suggest(Suggest::Separator);
+                    let sep1 = match tokens::semikolon(eat_space(loop_rest)) {
                         Ok((rest2, sep1)) => {
                             loop_rest = rest2;
                             // separator separates
@@ -1050,13 +1065,12 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                             trace.clear_suggestions();
                             Some(sep1)
                         }
-                        Err(nom::Err::Error(_)) => {
-                            trace.suggest(Suggest::Separator);
+                        Err(TokenError::TokSemikolon(_)) => {
                             // Optional
                             None
                         }
                         Err(e) => {
-                            return Err(trace.nom(e));
+                            return Err(trace.tok(e));
                         }
                     };
 
@@ -1069,22 +1083,25 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                     // Collecting args.
                     let parens = if let Some(expr) = expr {
                         if let Some(sep1) = sep1 {
+                            // argument and separator.
                             trace.step("expr+sep", sep1.take(0));
                             args.push(*expr);
                             Parens::Optional
                         } else {
+                            // argument but no separator.
                             trace.step("expr+none", expr.span().take(0));
                             args.push(*expr);
                             Parens::Needed
                         }
                     } else {
                         if let Some(sep1) = sep1 {
+                            // no argument but a separator.
                             trace.step("none+sep", sep1.take(0));
                             let ast = OFAst::empty(sep1.take(0));
                             args.push(*ast);
                             Parens::Optional
                         } else {
-                            // no arguments and no separator. empty argument lists are ok.
+                            // no argument and no separator. empty argument lists are ok.
                             trace.step("None+None", loop_rest.take(0));
                             Parens::Needed
                         }
@@ -1097,22 +1114,22 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                             let ast = OFAst::fn_call(fn_name, par1, args, par2);
                             return Ok(trace.ok(ast.span(), rest2, ast));
                         }
-                        Err(e @ nom::Err::Error(_)) => {
-                            // Fail if closing parentheses are required.
+                        Err(e @ TokenError::TokParenthesesClose(_)) => {
+                            // Fail if closing parentheses are required. Fine otherwise.
                             if parens == Parens::Needed {
-                                trace.expect(Suggest::ParenthesisClose);
-                                return Err(trace.map_nom(ParseOFError::fn_call, e));
+                                trace.expect(Suggest::ParenthesesClose);
+                                return Err(trace.map_tok(ParseOFError::fn_call, e));
                             }
                         }
                         Err(e) => {
-                            return Err(trace.nom(e));
+                            return Err(trace.tok(e));
                         }
                     }
                 }
             }
             Err(e) => {
-                trace.suggest(Suggest::ParenthesisOpen);
-                return Err(trace.nom(e));
+                trace.expect(Suggest::ParenthesesOpen);
+                return Err(trace.tok(e));
             }
         };
     }
@@ -1284,7 +1301,7 @@ pub fn check_eof<'s>(
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
-    use crate::ast::parser::{ElementaryExpr, Expr};
+    use crate::ast::parser::{ElementaryExpr, Expr, ParenthesisExpr};
     use crate::ast::parser::{GeneralExpr, StringExpr};
     use crate::ast::parser::{NamedExpr, NumberExpr};
     use crate::ast::tracer::Tracer;
@@ -1352,6 +1369,14 @@ mod tests {
         let tests = ["471 >0", "1==1", "(1<>1)"];
         for test in tests {
             run_test2(test, Expr::parse);
+        }
+    }
+
+    #[test]
+    fn test_parentheses() {
+        let tests = ["(21)", "21", "(21"];
+        for test in tests {
+            run_test2(test, ParenthesisExpr::parse);
         }
     }
 

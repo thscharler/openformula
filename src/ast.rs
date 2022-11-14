@@ -12,7 +12,6 @@ use std::fmt::{Debug, Display, Formatter};
 use std::str::from_utf8_unchecked;
 use std::{fmt, mem, slice};
 
-pub mod combinators;
 pub mod conv;
 pub mod format;
 pub mod parser;

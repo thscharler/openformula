@@ -35,6 +35,14 @@ pub enum TokenError<'s> {
     TokDot(Span<'s>),
     TokSheetName(Span<'s>),
     Hash(Span<'s>),
+    TokParenthesesOpen(Span<'s>),
+    TokParenthesesClose(Span<'s>),
+    TokSemikolon(Span<'s>),
+    TokPrefixOp(Span<'s>),
+    TokPostfixOp(Span<'s>),
+    TokAddOp(Span<'s>),
+    TokMulOp(Span<'s>),
+    TokPowOp(Span<'s>),
 }
 
 impl<'s> TokenError<'s> {
@@ -56,6 +64,14 @@ impl<'s> TokenError<'s> {
             TokenError::TokDot(s) => s,
             TokenError::TokSheetName(s) => s,
             TokenError::Hash(s) => s,
+            TokenError::TokParenthesesOpen(s) => s,
+            TokenError::TokParenthesesClose(s) => s,
+            TokenError::TokSemikolon(s) => s,
+            TokenError::TokPrefixOp(s) => s,
+            TokenError::TokPostfixOp(s) => s,
+            TokenError::TokAddOp(s) => s,
+            TokenError::TokMulOp(s) => s,
+            TokenError::TokPowOp(s) => s,
         }
     }
 }
@@ -79,6 +95,14 @@ impl<'s> Display for TokenError<'s> {
             TokenError::TokDot(s) => write!(f, "Dot {}", s),
             TokenError::TokSheetName(s) => write!(f, "SheetName {}", s),
             TokenError::Hash(s) => write!(f, "SheetName {}", s),
+            TokenError::TokParenthesesOpen(s) => write!(f, "ParenthesesOpen {}", s),
+            TokenError::TokParenthesesClose(s) => write!(f, "ParenthesesClose {}", s),
+            TokenError::TokSemikolon(s) => write!(f, "Semikolon {}", s),
+            TokenError::TokPrefixOp(s) => write!(f, "PrefixOp {}", s),
+            TokenError::TokPostfixOp(s) => write!(f, "PostfixOp {}", s),
+            TokenError::TokAddOp(s) => write!(f, "AddOp {}", s),
+            TokenError::TokMulOp(s) => write!(f, "MulOp {}", s),
+            TokenError::TokPowOp(s) => write!(f, "PowOp {}", s),
         }
     }
 }
@@ -177,7 +201,7 @@ pub fn lah_fn_name<'a>(i: Span<'a>) -> bool {
 
 // LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
 /// Function name.
-fn fn_name_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn fn_name_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     recognize(tuple((
         take_while1(unicode_ident::is_xid_start),
         take_while(|c: char| unicode_ident::is_xid_continue(c) || c == '_' || c == '.'),
@@ -187,14 +211,14 @@ fn fn_name_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 // LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
 /// Function name.
 pub fn fn_name<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
-    match fn_name_raw(rest) {
+    match fn_name_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(_) => Err(TokenError::TokFnName(rest)),
     }
 }
 
 /// Parse comparison operators.
-fn comparison_op_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn comparison_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     alt((
         tag("="),
         tag("<>"),
@@ -207,7 +231,7 @@ fn comparison_op_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 
 /// Parse comparison operators.
 pub fn comparison_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
-    match comparison_op_raw(rest) {
+    match comparison_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(_) => Err(TokenError::TokComparisonOp(rest)),
     }
@@ -234,49 +258,57 @@ pub fn ref_concatenation_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 }
 
 /// Parse separator char for function args.
-pub fn lah_dollar_dollar<'a>(i: Span<'a>) -> bool {
-    tag::<&str, Span<'a>, nom::error::Error<_>>("$$")(i).is_ok()
+pub fn lah_dollar_dollar<'a>(rest: Span<'a>) -> bool {
+    tag::<&str, Span<'a>, nom::error::Error<_>>("$$")(rest).is_ok()
 }
 
 /// Parse separator char for function args.
-fn dollar_dollar_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("$$")(i)
+fn dollar_dollar_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    tag("$$")(rest)
 }
 
 /// Parse separator char for function args.
-pub fn dollar_dollar<'a>(i: Span<'a>) -> TokenResult<'a, Span<'a>> {
-    match dollar_dollar_raw(i) {
+pub fn dollar_dollar<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match dollar_dollar_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(_) => Err(TokenError::TokDollarDollar(i)),
+        Err(_) => Err(TokenError::TokDollarDollar(rest)),
     }
 }
 
 /// Parse separator char for function args.
-pub fn lah_dollar<'a>(i: Span<'a>) -> bool {
-    tag::<&str, Span<'a>, nom::error::Error<_>>("$")(i).is_ok()
+pub fn lah_dollar<'a>(rest: Span<'a>) -> bool {
+    tag::<&str, Span<'a>, nom::error::Error<_>>("$")(rest).is_ok()
 }
 
 /// Parse separator char for function args.
-fn dollar_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("$")(i)
+fn dollar_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    tag("$")(rest)
 }
 
 /// Parse separator char for function args.
-pub fn dollar<'a>(i: Span<'a>) -> TokenResult<'a, Span<'a>> {
-    match dollar_raw(i) {
+pub fn dollar<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match dollar_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(_) => Err(TokenError::TokDollar(i)),
+        Err(_) => Err(TokenError::TokDollar(rest)),
     }
 }
 
 /// Hashtag
-fn hashtag_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("#")(i)
+fn hashtag_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    tag("#")(rest)
 }
 
 /// Parse separator char for function args.
-pub fn separator<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag(";")(i)
+fn semikolon_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    tag(";")(rest)
+}
+
+/// Parse separator char for function args.
+pub fn semikolon<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match semikolon_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokSemikolon(rest)),
+    }
 }
 
 /// Lookahead for a dot.
@@ -285,13 +317,13 @@ pub fn lah_dot<'a>(i: Span<'a>) -> bool {
 }
 
 /// Parse dot
-fn dot_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn dot_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag(".")(i)
 }
 
 /// Parse dot
 pub fn dot<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
-    match dot_raw(rest) {
+    match dot_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(_) => Err(TokenError::TokDot(rest)),
     }
@@ -308,13 +340,29 @@ pub fn lah_parentheses_open<'a>(i: Span<'a>) -> bool {
 }
 
 /// Parse open parentheses.
-pub fn parentheses_open<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn parentheses_open_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("(")(i)
 }
 
+/// Parse open parentheses.
+pub fn parentheses_open<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match parentheses_open_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokParenthesesOpen(rest)),
+    }
+}
+
 /// Parse closing parentheses.
-pub fn parentheses_close<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag(")")(i)
+fn parentheses_close_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    tag(")")(rest)
+}
+
+/// Parse closing parentheses.
+pub fn parentheses_close<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match parentheses_close_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokParenthesesClose(rest)),
+    }
 }
 
 /// Parse open brackets.
@@ -328,18 +376,42 @@ pub fn brackets_close<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 }
 
 /// Tries to parses any additive operator.
-pub fn add_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn add_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     alt((tag("+"), tag("-")))(i)
 }
 
+/// Tries to parses any additive operator.
+pub fn add_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match add_op_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokAddOp(rest)),
+    }
+}
+
 /// Tries to parses any multiplicative operator.
-pub fn mul_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn mul_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     alt((tag("*"), tag("/")))(i)
 }
 
+/// Tries to parses any multiplicative operator.
+pub fn mul_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match mul_op_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokMulOp(rest)),
+    }
+}
+
 /// Tries to parses the power operator.
-pub fn pow_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn pow_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("^")(i)
+}
+
+/// Tries to parses the power operator.
+pub fn pow_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match pow_op_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokPowOp(rest)),
+    }
 }
 
 /// Lookahead for any prefix operator.
@@ -348,8 +420,16 @@ pub fn lah_prefix_op<'a>(i: Span<'a>) -> bool {
 }
 
 /// Tries to ast any prefix operator.
-pub fn prefix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn prefix_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     alt((tag("+"), tag("-")))(i)
+}
+
+/// Tries to ast any prefix operator.
+pub fn prefix_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match prefix_op_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokPrefixOp(rest)),
+    }
 }
 
 /// Tries to ast any postfix operator.
@@ -358,8 +438,16 @@ pub fn lah_postfix_op<'a>(i: Span<'a>) -> bool {
 }
 
 /// Tries to ast any postfix operator.
-pub fn postfix_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn postfix_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     tag("%")(i)
+}
+
+/// Tries to ast any postfix operator.
+pub fn postfix_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match postfix_op_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokPostfixOp(rest)),
+    }
 }
 
 /// Simple lookahead for a identifier.
@@ -375,7 +463,7 @@ pub fn lah_identifier<'a>(i: Span<'a>) -> bool {
 //                      - ( [A-Za-z]+[0-9]+ )  # means no cell reference
 //                      - ([Tt][Rr][Uu][Ee]) - ([Ff][Aa][Ll][Ss][Ee]) # true and false
 /// Identifier.
-fn identifier_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn identifier_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     recognize(tuple((
         take_while1(unicode_ident::is_xid_start),
         take_while(unicode_ident::is_xid_continue),
@@ -384,7 +472,7 @@ fn identifier_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 
 /// Identifier.
 pub fn identifier<'a>(i: Span<'a>) -> TokenResult<'a, Span<'a>> {
-    match identifier_raw(i) {
+    match identifier_nom(i) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(_) => Err(TokenError::TokIdentifier(i)),
     }
@@ -400,14 +488,14 @@ pub fn lah_sheet_name(i: Span<'_>) -> bool {
 // SheetName ::= QuotedSheetName | '$'? [^\]\. #$']+
 // QuotedSheetName ::= '$'? SingleQuoted
 
-fn sheet_name_raw<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+fn sheet_name_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     recognize(many1(none_of("]. #$'")))(i)
 }
 
 // TODO: sync with spreadsheet_ods_cellref
 /// Sheet name
 pub fn sheet_name(rest: Span<'_>) -> TokenResult<'_, (Option<Span<'_>>, Span<'_>)> {
-    let (rest, abs) = match opt(dollar_raw)(rest) {
+    let (rest, abs) = match opt(dollar_nom)(rest) {
         Ok((rest, tok)) => (rest, tok),
         Err(_) => return Err(TokenError::TokDollar(rest)),
     };
@@ -419,7 +507,7 @@ pub fn sheet_name(rest: Span<'_>) -> TokenResult<'_, (Option<Span<'_>>, Span<'_>
     let (rest, name) = if let Some(name) = name {
         (rest, name)
     } else {
-        match sheet_name_raw(rest) {
+        match sheet_name_nom(rest) {
             Ok((rest, tok)) => (rest, tok),
             Err(_) => return Err(TokenError::TokSheetName(rest)),
         }
@@ -432,7 +520,7 @@ pub fn sheet_name(rest: Span<'_>) -> TokenResult<'_, (Option<Span<'_>>, Span<'_>
 // TODO: sync with spreadsheet_ods_cellref
 /// Sheet name
 pub fn quoted_sheet_name(rest: Span<'_>) -> TokenResult<'_, (Option<Span<'_>>, Span<'_>)> {
-    let (rest, abs) = match opt(dollar_raw)(rest) {
+    let (rest, abs) = match opt(dollar_nom)(rest) {
         Ok((rest, tok)) => (rest, tok),
         Err(_) => return Err(TokenError::TokDollar(rest)),
     };
@@ -451,7 +539,7 @@ pub fn iri(rest: Span<'_>) -> TokenResult<'_, Span<'_>> {
         Ok((rest, tok)) => (rest, tok),
         Err(e) => return Err(e),
     };
-    let (rest,) = match hashtag_raw(rest) {
+    let (rest,) = match hashtag_nom(rest) {
         Ok((rest, _hash)) => (rest,),
         Err(_) => return Err(TokenError::Hash(rest)),
     };

@@ -34,6 +34,11 @@ pub enum ParseOFError<'s> {
     ErrNumber(Span<'s>),
     ErrFnName(Span<'s>),
     ErrComparisonOp(Span<'s>),
+    ErrPrefixOp(Span<'s>),
+    ErrPostfixOp(Span<'s>),
+    ErrAddOp(Span<'s>),
+    ErrMulOp(Span<'s>),
+    ErrPowOp(Span<'s>),
 
     /// CellRange parsing error.
     ErrCellRange(Span<'s>),
@@ -64,6 +69,11 @@ impl<'s> ParseOFError<'s> {
             ParseOFError::ErrFnName(s) => s,
             ParseOFError::ErrComparisonOp(s) => s,
             ParseOFError::ErrNamed(s) => s,
+            ParseOFError::ErrPrefixOp(s) => s,
+            ParseOFError::ErrPostfixOp(s) => s,
+            ParseOFError::ErrAddOp(s) => s,
+            ParseOFError::ErrMulOp(s) => s,
+            ParseOFError::ErrPowOp(s) => s,
         }
     }
 
@@ -142,6 +152,26 @@ impl<'s> ParseOFError<'s> {
     pub fn comp_op(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::ErrComparisonOp(span)
     }
+
+    pub fn prefix_op(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrPrefixOp(span)
+    }
+
+    pub fn postfix_op(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrPostfixOp(span)
+    }
+
+    pub fn add_op(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrAddOp(span)
+    }
+
+    pub fn mul_op(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrMulOp(span)
+    }
+
+    pub fn pow_op(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrPowOp(span)
+    }
 }
 
 impl<'s> Error for ParseOFError<'s> {}
@@ -188,8 +218,13 @@ impl<'s> Display for ParseOFError<'s> {
             ParseOFError::ErrString(_) => write!(f, "String ")?,
             ParseOFError::ErrNumber(_) => write!(f, "Number ")?,
             ParseOFError::ErrFnName(_) => write!(f, "FnName ")?,
-            ParseOFError::ErrComparisonOp(_) => write!(f, "FnName ")?,
+            ParseOFError::ErrComparisonOp(_) => write!(f, "ComparisonOp ")?,
             ParseOFError::ErrNamed(_) => write!(f, "Named ")?,
+            ParseOFError::ErrPrefixOp(_) => write!(f, "PrefixOp ")?,
+            ParseOFError::ErrPostfixOp(_) => write!(f, "PostfixOp ")?,
+            ParseOFError::ErrAddOp(_) => write!(f, "AddOp ")?,
+            ParseOFError::ErrMulOp(_) => write!(f, "MulOp ")?,
+            ParseOFError::ErrPowOp(_) => write!(f, "PowOp ")?,
         }
         Self::fmt_span(self.span(), f)?;
         Ok(())
