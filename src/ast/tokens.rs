@@ -3,17 +3,18 @@
 //!
 
 use crate::ast::nomtokens::{
-    add_op_nom, brackets_close_nom, brackets_open_nom, colon_nom, comparison_op_nom, decimal,
-    dollar_dollar_nom, dollar_nom, dot_nom, fn_name_nom, hashtag_nom, identifier_nom, mul_op_nom,
-    parentheses_close_nom, parentheses_open_nom, postfix_op_nom, pow_op_nom, prefix_op_nom,
-    ref_concat_op_nom, ref_intersection_op_nom, reference_op_nom, semikolon_nom, sheet_name_nom,
-    string_op_nom,
+    add_op_nom, brackets_close_nom, brackets_open_nom, col_nom, colon_nom, comparison_op_nom,
+    decimal, dollar_dollar_nom, dollar_nom, dot_nom, fn_name_nom, hashtag_nom, identifier_nom,
+    mul_op_nom, parentheses_close_nom, parentheses_open_nom, postfix_op_nom, pow_op_nom,
+    prefix_op_nom, ref_concat_op_nom, ref_intersection_op_nom, reference_op_nom, row_nom,
+    semikolon_nom, sheet_name_nom, string_op_nom,
 };
 use crate::ast::Span;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{char as nchar, none_of, one_of};
 use nom::combinator::{opt, recognize};
+use nom::error::ErrorKind;
 use nom::multi::{count, many0};
 use nom::sequence::tuple;
 use nom::InputTake;
@@ -58,6 +59,10 @@ pub enum TokenError<'s> {
     TokColon(Span<'s>),
     TokBracketsOpen(Span<'s>),
     TokBracketsClose(Span<'s>),
+    TokDigit(Span<'s>),
+    TokRow(Span<'s>),
+    TokAlpha(Span<'s>),
+    TokCol(Span<'s>),
 }
 
 impl<'s> TokenError<'s> {
@@ -95,6 +100,10 @@ impl<'s> TokenError<'s> {
             TokenError::TokColon(s) => s,
             TokenError::TokBracketsOpen(s) => s,
             TokenError::TokBracketsClose(s) => s,
+            TokenError::TokDigit(s) => s,
+            TokenError::TokRow(s) => s,
+            TokenError::TokAlpha(s) => s,
+            TokenError::TokCol(s) => s,
         }
     }
 }
@@ -134,6 +143,10 @@ impl<'s> Display for TokenError<'s> {
             TokenError::TokColon(s) => write!(f, "Colon {}", s),
             TokenError::TokBracketsOpen(s) => write!(f, "BracketsOpen {}", s),
             TokenError::TokBracketsClose(s) => write!(f, "BracketsClose {}", s),
+            TokenError::TokDigit(s) => write!(f, "Digit {}", s),
+            TokenError::TokRow(s) => write!(f, "Row {}", s),
+            TokenError::TokAlpha(s) => write!(f, "Alpha {}", s),
+            TokenError::TokCol(s) => write!(f, "Col {}", s),
         }
     }
 }
@@ -511,6 +524,29 @@ pub fn iri(rest: Span<'_>) -> TokenResult<'_, Span<'_>> {
     };
 
     Ok((rest, iri))
+}
+
+// Row ::= '$'? [1-9] [0-9]*
+/// Row label
+pub fn row(rest: Span<'_>) -> TokenResult<'_, (Option<Span<'_>>, Span<'_>)> {
+    match row_nom(rest) {
+        Ok((rest, (abs, row))) => Ok((rest, (abs, row))),
+        Err(nom::Err::Error(e)) if e.code == ErrorKind::Tag => Err(TokenError::TokDollar(rest)),
+        Err(nom::Err::Error(e)) if e.code == ErrorKind::OneOf => Err(TokenError::TokDigit(rest)),
+        Err(nom::Err::Error(e)) if e.code == ErrorKind::Many1 => Err(TokenError::TokDigit(rest)),
+        Err(_) => Err(TokenError::TokRow(rest)),
+    }
+}
+
+// Column ::= '$'? [A-Z]+
+/// Column label
+pub fn col(rest: Span<'_>) -> TokenResult<'_, (Option<Span<'_>>, Span<'_>)> {
+    match col_nom(rest) {
+        Ok((rest, (abs, col))) => Ok((rest, (abs, col))),
+        Err(nom::Err::Error(e)) if e.code == ErrorKind::Tag => Err(TokenError::TokDollar(rest)),
+        Err(nom::Err::Error(e)) if e.code == ErrorKind::Alpha => Err(TokenError::TokAlpha(rest)),
+        Err(_) => Err(TokenError::TokCol(rest)),
+    }
 }
 
 // SingleQuoted ::= "'" ([^'] | "''")+ "'"

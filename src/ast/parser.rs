@@ -8,11 +8,12 @@
 //! The look-ahead functions are called internally at certain branching points.
 
 use crate::ast::nomtokens::eat_space;
-use crate::ast::tokens::{empty, TokenError};
+use crate::ast::tokens::{col, empty, row, TokenError};
 use crate::ast::tracer::Suggest;
 use crate::ast::{
-    conv, span_union_opt, tokens, tracer::Tracer, Node, OFAddOp, OFAst, OFCellRange, OFCellRef,
-    OFColRange, OFCompOp, OFMulOp, OFPostfixOp, OFPowOp, OFPrefixOp, OFRowRange, ParseResult, Span,
+    conv, span_union, span_union_opt, tokens, tracer::Tracer, Node, OFAddOp, OFAst, OFCellRange,
+    OFCellRef, OFCol, OFColRange, OFCompOp, OFIri, OFMulOp, OFPostfixOp, OFPowOp, OFPrefixOp,
+    OFRow, OFRowRange, OFSheetName, ParseResult, Span,
 };
 use crate::error::{LocateError, ParseOFError};
 use spreadsheet_ods_cellref::parser as refs_parser;
@@ -90,6 +91,18 @@ pub trait GeneralExpr<'s> {
     fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>>;
 }
 
+///
+pub trait GeneralTerm<'s, O> {
+    /// Get a name for debug.
+    fn name() -> &'static str;
+
+    /// Run a look-ahead.
+    fn lah(i: Span<'s>) -> bool;
+
+    /// Parses the expression.
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, O>;
+}
+
 /// Any expression.
 pub struct Expr;
 
@@ -105,10 +118,7 @@ impl<'s> GeneralExpr<'s> for Expr {
     fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
         match CompareExpr::parse(trace, i) {
-            Ok((rest, expr)) => {
-                //
-                Ok(trace.ok(expr.span(), rest, expr))
-            }
+            Ok((rest, expr)) => Ok(trace.ok(expr.span(), rest, expr)),
             Err(e) => Err(trace.parse(e)),
         }
     }
@@ -732,6 +742,70 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
     }
 }
 
+struct ColRowTerm;
+
+impl<'s> GeneralTerm<'s, (OFCol<'s>, OFRow<'s>)> for ColRowTerm {
+    fn name() -> &'static str {
+        "ColRow"
+    }
+
+    fn lah(_i: Span<'s>) -> bool {
+        todo!()
+    }
+
+    fn parse<'t>(
+        trace: &'t Tracer<'s>,
+        rest: Span<'s>,
+    ) -> ParseResult<'s, 't, (OFCol<'s>, OFRow<'s>)> {
+        trace.enter(Self::name(), rest);
+
+        let (rest, col) = match col(rest) {
+            Ok((rest, col)) => (rest, col),
+            Err(TokenError::TokDollar(s)) => {
+                trace.expect(Suggest::Dollar);
+                return Err(ParseOFError::dollar(s));
+            }
+            Err(TokenError::TokAlpha(s)) => {
+                trace.expect(Suggest::Alpha);
+                return Err(ParseOFError::alpha(s));
+            }
+            Err(e) => {
+                trace.expect(Suggest::Col);
+                return Err(ParseOFError::col(*e.span()));
+            }
+        };
+
+        let (rest, row) = match row(rest) {
+            Ok((rest, row)) => (rest, row),
+            Err(TokenError::TokDollar(s)) => {
+                trace.expect(Suggest::Dollar);
+                return Err(ParseOFError::dollar(s));
+            }
+            Err(TokenError::TokDigit(s)) => {
+                trace.expect(Suggest::Digit);
+                return Err(ParseOFError::digit(s));
+            }
+            Err(e) => {
+                trace.expect(Suggest::Row);
+                return Err(ParseOFError::row(*e.span()));
+            }
+        };
+
+        let col = OFAst::col(
+            refs_parser::try_bool_from_abs_flag(col.0),
+            refs_parser::try_u32_from_colname(col.1).locate_err(rest)?,
+            unsafe { span_union_opt(col.0, col.1) },
+        );
+        let row = OFAst::row(
+            refs_parser::try_bool_from_abs_flag(row.0),
+            refs_parser::try_u32_from_rowname(row.1).locate_err(rest)?,
+            unsafe { span_union_opt(row.0, row.1) },
+        );
+
+        Ok((rest, (col, row)))
+    }
+}
+
 /// Parses a simple cell reference.
 pub struct CellRefExpr;
 
@@ -766,35 +840,23 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
     }
 
     #[allow(clippy::manual_map)]
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
-        match refs_parser::parse_cell_ref_raw(i) {
-            Ok((rest, cell_ref)) => {
-                let iri = cell_ref.iri.map(|v| OFAst::iri(conv::unquote_single(v), v));
-                let table = cell_ref.table.map(|v| {
-                    OFAst::sheet_name(
-                        refs_parser::try_bool_from_abs_flag(cell_ref.abs_table),
-                        conv::unquote_single(v),
-                        v,
-                    )
-                });
-                let row = OFAst::row(
-                    refs_parser::try_bool_from_abs_flag(cell_ref.abs_row),
-                    refs_parser::try_u32_from_rowname(cell_ref.row).locate_err(i)?,
-                    cell_ref.row,
-                );
-                let col = OFAst::col(
-                    refs_parser::try_bool_from_abs_flag(cell_ref.abs_col),
-                    refs_parser::try_u32_from_colname(cell_ref.col).locate_err(i)?,
-                    cell_ref.col,
-                );
+        let (rest, iri) = IriTerm::parse(trace, rest)?;
+        let (rest, sheet) = SheetNameTerm::parse(trace, rest)?;
+        let (rest, (col, row)) = ColRowTerm::parse(trace, rest)?;
 
-                let ast = OFAst::cell_ref(iri, table, row, col, cell_ref.token);
-                Ok(trace.ok(cell_ref.token, rest, ast))
-            }
-            Err(e) => Err(trace.nom(e)),
-        }
+        let tok = if let Some(iri) = &iri {
+            unsafe { span_union(iri.span(), row.span()) }
+        } else if let Some(sheet_name) = &sheet {
+            unsafe { span_union(sheet_name.span(), row.span()) }
+        } else {
+            unsafe { span_union(col.span(), row.span()) }
+        };
+
+        let ast = OFAst::cell_ref(iri, sheet, row, col, tok);
+        Ok(trace.ok(tok, rest, ast))
     }
 }
 
@@ -1143,25 +1205,18 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
 //                      - ( [A-Za-z]+[0-9]+ )  # means no cell reference
 //                      - ([Tt][Rr][Uu][Ee]) - ([Ff][Aa][Ll][Ss][Ee]) # true or false
 
-struct NamedExpr;
+struct IriTerm;
 
-impl<'s> GeneralExpr<'s> for NamedExpr {
+impl<'s> GeneralTerm<'s, Option<OFIri<'s>>> for IriTerm {
     fn name() -> &'static str {
-        "named"
+        "iri"
     }
 
     fn lah(i: Span<'s>) -> bool {
         refs_tokens::lah_iri(i)
-            || refs_tokens::lah_sheet_name(i)
-            || tokens::lah_dollar_dollar(i)
-            || tokens::lah_identifier(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        // NamedExpression := IRI?
-        //                      (QuotedSheetName '.')?
-        //                      (Identifier | '$$' (Identifier | SingleQuoted)
-        //
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Option<OFIri<'s>>> {
         trace.enter(Self::name(), rest);
 
         // (IRI '#')?
@@ -1172,6 +1227,27 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
             Err(TokenError::Hash(_)) => (rest, None),
             Err(e) => return Err(trace.tok(e)),
         };
+
+        Ok((rest, iri))
+    }
+}
+
+struct SheetNameTerm;
+
+impl<'s> GeneralTerm<'s, Option<OFSheetName<'s>>> for SheetNameTerm {
+    fn name() -> &'static str {
+        "sheet_name"
+    }
+
+    fn lah(i: Span<'s>) -> bool {
+        refs_tokens::lah_sheet_name(i)
+    }
+
+    fn parse<'t>(
+        trace: &'t Tracer<'s>,
+        rest: Span<'s>,
+    ) -> ParseResult<'s, 't, Option<OFSheetName<'s>>> {
+        trace.enter(Self::name(), rest);
 
         // QuotedSheetName ::= '$'? SingleQuoted "."
         trace.suggest(Suggest::SheetName);
@@ -1202,6 +1278,37 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
         } else {
             rest
         };
+
+        Ok((rest, sheet_name))
+    }
+}
+
+struct NamedExpr;
+
+impl<'s> GeneralExpr<'s> for NamedExpr {
+    fn name() -> &'static str {
+        "named"
+    }
+
+    fn lah(i: Span<'s>) -> bool {
+        refs_tokens::lah_iri(i)
+            || refs_tokens::lah_sheet_name(i)
+            || tokens::lah_dollar_dollar(i)
+            || tokens::lah_identifier(i)
+    }
+
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        // NamedExpression := IRI?
+        //                      (QuotedSheetName '.')?
+        //                      (Identifier | '$$' (Identifier | SingleQuoted)
+        //
+        trace.enter(Self::name(), rest);
+
+        // (IRI '#')?
+        let (rest, iri) = IriTerm::parse(trace, rest)?;
+
+        // QuotedSheetName ::= '$'? SingleQuoted "."
+        let (rest, sheet_name) = SheetNameTerm::parse(trace, rest)?;
 
         // (Identifier | '$$' (Identifier | SingleQuoted)
 

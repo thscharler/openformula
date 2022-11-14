@@ -43,6 +43,11 @@ pub enum Suggest {
     ParenthesesClose,
     Separator,
     Expr,
+    Dollar,
+    Digit,
+    Alpha,
+    Col,
+    Row,
 }
 
 /// Follows the parsing.

@@ -39,6 +39,11 @@ pub enum ParseOFError<'s> {
     ErrAddOp(Span<'s>),
     ErrMulOp(Span<'s>),
     ErrPowOp(Span<'s>),
+    ErrDollar(Span<'s>),
+    ErrDigit(Span<'s>),
+    ErrAlpha(Span<'s>),
+    ErrRow(Span<'s>),
+    ErrCol(Span<'s>),
 
     /// CellRange parsing error.
     ErrCellRange(Span<'s>),
@@ -74,6 +79,11 @@ impl<'s> ParseOFError<'s> {
             ParseOFError::ErrAddOp(s) => s,
             ParseOFError::ErrMulOp(s) => s,
             ParseOFError::ErrPowOp(s) => s,
+            ParseOFError::ErrDollar(s) => s,
+            ParseOFError::ErrDigit(s) => s,
+            ParseOFError::ErrAlpha(s) => s,
+            ParseOFError::ErrRow(s) => s,
+            ParseOFError::ErrCol(s) => s,
         }
     }
 
@@ -172,6 +182,26 @@ impl<'s> ParseOFError<'s> {
     pub fn pow_op(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::ErrPowOp(span)
     }
+
+    pub fn dollar(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrDollar(span)
+    }
+
+    pub fn alpha(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrAlpha(span)
+    }
+
+    pub fn col(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrCol(span)
+    }
+
+    pub fn row(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrRow(span)
+    }
+
+    pub fn digit(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrDigit(span)
+    }
 }
 
 impl<'s> Error for ParseOFError<'s> {}
@@ -225,6 +255,11 @@ impl<'s> Display for ParseOFError<'s> {
             ParseOFError::ErrAddOp(_) => write!(f, "AddOp ")?,
             ParseOFError::ErrMulOp(_) => write!(f, "MulOp ")?,
             ParseOFError::ErrPowOp(_) => write!(f, "PowOp ")?,
+            ParseOFError::ErrDollar(_) => write!(f, "Dollar ")?,
+            ParseOFError::ErrDigit(_) => write!(f, "Digit ")?,
+            ParseOFError::ErrAlpha(_) => write!(f, "Alpha ")?,
+            ParseOFError::ErrRow(_) => write!(f, "Row ")?,
+            ParseOFError::ErrCol(_) => write!(f, "Col ")?,
         }
         Self::fmt_span(self.span(), f)?;
         Ok(())

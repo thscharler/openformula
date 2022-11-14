@@ -7,8 +7,8 @@
 use crate::ast::Span;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while, take_while1};
-use nom::character::complete::{multispace0, none_of, one_of};
-use nom::combinator::recognize;
+use nom::character::complete::{alpha1, multispace0, none_of, one_of};
+use nom::combinator::{opt, recognize};
 use nom::multi::many1;
 use nom::sequence::tuple;
 use nom::IResult;
@@ -160,4 +160,21 @@ pub fn identifier_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 // QuotedSheetName ::= '$'? SingleQuoted
 pub fn sheet_name_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     recognize(many1(none_of("]. #$'")))(i)
+}
+
+// Row ::= '$'? [1-9] [0-9]*
+/// Row label
+pub fn row_nom(i: Span<'_>) -> IResult<Span<'_>, (Option<Span<'_>>, Span<'_>)> {
+    let (i, abs) = opt(tag("$"))(i)?;
+    let (i, row) = recognize(many1(one_of("0123456789")))(i)?;
+
+    Ok((i, (abs, row)))
+}
+
+// Column ::= '$'? [A-Z]+
+/// Column label
+pub fn col_nom(i: Span<'_>) -> IResult<Span<'_>, (Option<Span<'_>>, Span<'_>)> {
+    let (i, abs) = opt(tag("$"))(i)?;
+    let (i, col) = alpha1(i)?;
+    Ok((i, (abs, col)))
 }
