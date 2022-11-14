@@ -44,6 +44,7 @@ pub enum ParseOFError<'s> {
     ErrAlpha(Span<'s>),
     ErrRow(Span<'s>),
     ErrCol(Span<'s>),
+    ErrColon(Span<'s>),
 
     /// CellRange parsing error.
     ErrCellRange(Span<'s>),
@@ -84,6 +85,7 @@ impl<'s> ParseOFError<'s> {
             ParseOFError::ErrAlpha(s) => s,
             ParseOFError::ErrRow(s) => s,
             ParseOFError::ErrCol(s) => s,
+            ParseOFError::ErrColon(s) => s,
         }
     }
 
@@ -202,6 +204,10 @@ impl<'s> ParseOFError<'s> {
     pub fn digit(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::ErrDigit(span)
     }
+
+    pub fn colon(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrColon(span)
+    }
 }
 
 impl<'s> Error for ParseOFError<'s> {}
@@ -260,6 +266,7 @@ impl<'s> Display for ParseOFError<'s> {
             ParseOFError::ErrAlpha(_) => write!(f, "Alpha ")?,
             ParseOFError::ErrRow(_) => write!(f, "Row ")?,
             ParseOFError::ErrCol(_) => write!(f, "Col ")?,
+            ParseOFError::ErrColon(_) => write!(f, "Colon ")?,
         }
         Self::fmt_span(self.span(), f)?;
         Ok(())

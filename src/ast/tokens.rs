@@ -505,6 +505,9 @@ pub fn quoted_sheet_name(rest: Span<'_>) -> TokenResult<'_, (Option<Span<'_>>, S
     };
     let (rest, name) = match single_quoted(rest) {
         Ok((rest, tok)) => (rest, tok),
+        Err(e @ TokenError::TokStartSingleQuote(_)) => return Err(e),
+        Err(e @ TokenError::TokString(_)) => return Err(e),
+        Err(e @ TokenError::TokEndSingleQuote(_)) => return Err(e),
         Err(e) => return Err(e),
     };
 

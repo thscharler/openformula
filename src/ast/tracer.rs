@@ -305,6 +305,32 @@ impl<'span> Tracer<'span> {
         self.map_nom(ParseOFError::err, nom)
     }
 
+    /// Notes the error, dumps everything and panics.
+    pub fn panic_tok(&self, tok: TokenError<'span>) -> ! {
+        let error_span = *tok.span();
+
+        // Keep track.
+        let func = self.func.borrow_mut().pop().unwrap();
+        self.tracks.borrow_mut().push(Track::Error(
+            func,
+            self.in_optional(),
+            tok.to_string(),
+            error_span,
+        ));
+
+        eprintln!("{:?}", self);
+        eprintln!(
+            "found '{}' expected {} suggest {}",
+            error_span,
+            self.expectations(),
+            self.suggestions()
+        );
+        eprintln!();
+        eprintln!("=> {}", tok);
+
+        unreachable!();
+    }
+
     /// Maps a nom error to some wellknown error. Only maps nom::Err::Error not the others.
     pub fn map_tok(
         &self,

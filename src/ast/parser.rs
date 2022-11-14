@@ -8,7 +8,7 @@
 //! The look-ahead functions are called internally at certain branching points.
 
 use crate::ast::nomtokens::eat_space;
-use crate::ast::tokens::{col, empty, row, TokenError};
+use crate::ast::tokens::{col, colon, empty, row, TokenError};
 use crate::ast::tracer::Suggest;
 use crate::ast::{
     conv, span_union, span_union_opt, tokens, tracer::Tracer, Node, OFAddOp, OFAst, OFCellRange,
@@ -18,7 +18,6 @@ use crate::ast::{
 use crate::error::{LocateError, ParseOFError};
 use spreadsheet_ods_cellref::parser as refs_parser;
 use spreadsheet_ods_cellref::tokens as refs_tokens;
-use spreadsheet_ods_cellref::{CellRange, ColRange, RowRange};
 
 // Expression ::=
 // Whitespace* (
@@ -742,52 +741,33 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
     }
 }
 
-struct ColRowTerm;
+struct ColTerm;
 
-impl<'s> GeneralTerm<'s, (OFCol<'s>, OFRow<'s>)> for ColRowTerm {
+impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
     fn name() -> &'static str {
-        "ColRow"
+        "Col"
     }
 
     fn lah(_i: Span<'s>) -> bool {
         todo!()
     }
 
-    fn parse<'t>(
-        trace: &'t Tracer<'s>,
-        rest: Span<'s>,
-    ) -> ParseResult<'s, 't, (OFCol<'s>, OFRow<'s>)> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, OFCol<'s>> {
         trace.enter(Self::name(), rest);
 
         let (rest, col) = match col(rest) {
             Ok((rest, col)) => (rest, col),
-            Err(TokenError::TokDollar(s)) => {
+            Err(e @ TokenError::TokDollar(_)) => {
                 trace.expect(Suggest::Dollar);
-                return Err(ParseOFError::dollar(s));
+                return Err(trace.map_tok(ParseOFError::dollar, e));
             }
-            Err(TokenError::TokAlpha(s)) => {
+            Err(e @ TokenError::TokAlpha(_)) => {
                 trace.expect(Suggest::Alpha);
-                return Err(ParseOFError::alpha(s));
+                return Err(trace.map_tok(ParseOFError::alpha, e));
             }
             Err(e) => {
                 trace.expect(Suggest::Col);
-                return Err(ParseOFError::col(*e.span()));
-            }
-        };
-
-        let (rest, row) = match row(rest) {
-            Ok((rest, row)) => (rest, row),
-            Err(TokenError::TokDollar(s)) => {
-                trace.expect(Suggest::Dollar);
-                return Err(ParseOFError::dollar(s));
-            }
-            Err(TokenError::TokDigit(s)) => {
-                trace.expect(Suggest::Digit);
-                return Err(ParseOFError::digit(s));
-            }
-            Err(e) => {
-                trace.expect(Suggest::Row);
-                return Err(ParseOFError::row(*e.span()));
+                trace.panic_tok(e);
             }
         };
 
@@ -796,13 +776,48 @@ impl<'s> GeneralTerm<'s, (OFCol<'s>, OFRow<'s>)> for ColRowTerm {
             refs_parser::try_u32_from_colname(col.1).locate_err(rest)?,
             unsafe { span_union_opt(col.0, col.1) },
         );
+
+        Ok((rest, col))
+    }
+}
+
+struct RowTerm;
+
+impl<'s> GeneralTerm<'s, OFRow<'s>> for RowTerm {
+    fn name() -> &'static str {
+        "Row"
+    }
+
+    fn lah(_i: Span<'s>) -> bool {
+        todo!()
+    }
+
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, OFRow<'s>> {
+        trace.enter(Self::name(), rest);
+
+        let (rest, row) = match row(rest) {
+            Ok((rest, row)) => (rest, row),
+            Err(e @ TokenError::TokDollar(_)) => {
+                trace.expect(Suggest::Dollar);
+                return Err(trace.map_tok(ParseOFError::dollar, e));
+            }
+            Err(e @ TokenError::TokDigit(_)) => {
+                trace.expect(Suggest::Digit);
+                return Err(trace.map_tok(ParseOFError::digit, e));
+            }
+            Err(e) => {
+                trace.expect(Suggest::Row);
+                trace.panic_tok(e);
+            }
+        };
+
         let row = OFAst::row(
             refs_parser::try_bool_from_abs_flag(row.0),
             refs_parser::try_u32_from_rowname(row.1).locate_err(rest)?,
             unsafe { span_union_opt(row.0, row.1) },
         );
 
-        Ok((rest, (col, row)))
+        Ok((rest, row))
     }
 }
 
@@ -845,7 +860,8 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
 
         let (rest, iri) = IriTerm::parse(trace, rest)?;
         let (rest, sheet) = SheetNameTerm::parse(trace, rest)?;
-        let (rest, (col, row)) = ColRowTerm::parse(trace, rest)?;
+        let (rest, col) = ColTerm::parse(trace, rest)?;
+        let (rest, row) = RowTerm::parse(trace, rest)?;
 
         let tok = if let Some(iri) = &iri {
             unsafe { span_union(iri.span(), row.span()) }
@@ -867,17 +883,17 @@ impl CellRangeExpr {
     /// Parses the full string as CellRange.
     pub fn parse_full<'s, 't>(
         trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, CellRange> {
-        trace.enter(Self::name(), i);
+        rest: Span<'s>,
+    ) -> ParseResult<'s, 't, OFCellRange<'s>> {
+        trace.enter(Self::name(), rest);
 
-        match CellRangeExpr::parse(trace, i) {
+        match CellRangeExpr::parse(trace, rest) {
             Ok((rest, expr)) => {
                 check_eof(rest, ParseOFError::cell_range)?;
-                let OFAst::NodeCellRange(OFCellRange(cell_range, span)) = *expr else {
+                let OFAst::NodeCellRange(cell_range) = *expr else {
                     panic!("Expected a CellRange");
                 };
-                Ok(trace.ok(span, rest, cell_range))
+                Ok(trace.ok(cell_range.span, rest, cell_range))
             }
             Err(e) => Err(trace.parse(e)),
         }
@@ -894,16 +910,35 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
     }
 
     #[allow(clippy::manual_map)]
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
-        match refs_parser::parse_cell_range(i) {
-            Ok((rest, (cell_range, tok))) => {
-                let ast = OFAst::cell_range(cell_range, tok);
-                Ok(trace.ok(tok, rest, ast))
-            }
-            Err(e) => Err(trace.reference(i, e)),
-        }
+        // TODO: ? operator and trace don't cooperate
+        let (rest, iri) = IriTerm::parse(trace, rest)?;
+        let (rest, sheet) = SheetNameTerm::parse(trace, rest)?;
+        let (rest, col) = ColTerm::parse(trace, rest)?;
+        let (rest, row) = RowTerm::parse(trace, rest)?;
+
+        let rest = match colon(rest) {
+            Ok((rest, _)) => rest,
+            Err(e @ TokenError::TokColon(_)) => return Err(trace.map_tok(ParseOFError::colon, e)),
+            Err(e) => trace.panic_tok(e),
+        };
+
+        let (rest, to_sheet) = SheetNameTerm::parse(trace, rest)?;
+        let (rest, to_col) = ColTerm::parse(trace, rest)?;
+        let (rest, to_row) = RowTerm::parse(trace, rest)?;
+
+        let tok = if let Some(iri) = &iri {
+            unsafe { span_union(iri.span(), to_row.span()) }
+        } else if let Some(sheet_name) = &sheet {
+            unsafe { span_union(sheet_name.span(), to_row.span()) }
+        } else {
+            unsafe { span_union(col.span(), to_row.span()) }
+        };
+
+        let ast = OFAst::cell_range(iri, sheet, row, col, to_sheet, to_row, to_col, tok);
+        Ok(trace.ok(tok, rest, ast))
     }
 }
 
@@ -912,16 +947,19 @@ pub struct ColRangeExpr;
 
 impl ColRangeExpr {
     /// Parses the full string as ColRange.
-    pub fn parse_full<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, ColRange> {
-        trace.enter("parse_colrange", i);
+    pub fn parse_full<'s, 't>(
+        trace: &'t Tracer<'s>,
+        rest: Span<'s>,
+    ) -> ParseResult<'s, 't, OFColRange<'s>> {
+        trace.enter(Self::name(), rest);
 
-        match Self::parse(trace, i) {
+        match Self::parse(trace, rest) {
             Ok((rest, expr)) => {
                 check_eof(rest, ParseOFError::col_range)?;
-                let OFAst::NodeColRange(OFColRange(col_range, span)) = *expr else {
+                let OFAst::NodeColRange(col_range) = *expr else {
                     panic!("Expected a ColRange");
                 };
-                Ok(trace.ok(span, rest, col_range))
+                Ok(trace.ok(col_range.span(), rest, col_range))
             }
             Err(e) => Err(trace.parse(e)),
         }
@@ -938,15 +976,32 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
     }
 
     #[allow(clippy::manual_map)]
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
-        match refs_parser::parse_col_range(i) {
-            Ok((rest, (col_range, tok))) => {
-                let ast = OFAst::col_range(col_range, tok);
-                Ok(trace.ok(tok, rest, ast))
-            }
-            Err(e) => Err(trace.reference(i, e)),
-        }
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
+
+        let (rest, iri) = IriTerm::parse(trace, rest)?;
+        let (rest, sheet) = SheetNameTerm::parse(trace, rest)?;
+        let (rest, col) = ColTerm::parse(trace, rest)?;
+
+        let rest = match colon(rest) {
+            Ok((rest, _)) => rest,
+            Err(e @ TokenError::TokColon(_)) => return Err(trace.map_tok(ParseOFError::colon, e)),
+            Err(e) => trace.panic_tok(e),
+        };
+
+        let (rest, to_sheet) = SheetNameTerm::parse(trace, rest)?;
+        let (rest, to_col) = ColTerm::parse(trace, rest)?;
+
+        let tok = if let Some(iri) = &iri {
+            unsafe { span_union(iri.span(), to_col.span()) }
+        } else if let Some(sheet_name) = &sheet {
+            unsafe { span_union(sheet_name.span(), to_col.span()) }
+        } else {
+            unsafe { span_union(col.span(), to_col.span()) }
+        };
+
+        let ast = OFAst::col_range(iri, sheet, col, to_sheet, to_col, tok);
+        Ok(trace.ok(tok, rest, ast))
     }
 }
 
@@ -955,16 +1010,19 @@ pub struct RowRangeExpr;
 
 impl RowRangeExpr {
     /// Parses the full string as ColRange.
-    pub fn parse_full<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, RowRange> {
+    pub fn parse_full<'s, 't>(
+        trace: &'t Tracer<'s>,
+        i: Span<'s>,
+    ) -> ParseResult<'s, 't, OFRowRange<'s>> {
         trace.enter(Self::name(), i);
 
         match Self::parse(trace, i) {
             Ok((rest, expr)) => {
                 check_eof(rest, ParseOFError::row_range)?;
-                let OFAst::NodeRowRange(OFRowRange(row_range, span)) = *expr else {
+                let OFAst::NodeRowRange(row_range) = *expr else {
                     panic!("Expected a RowRange");
                 };
-                Ok(trace.ok(span, rest, row_range))
+                Ok(trace.ok(row_range.span(), rest, row_range))
             }
             Err(e) => Err(trace.parse(e)),
         }
@@ -981,16 +1039,33 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
     }
 
     #[allow(clippy::manual_map)]
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
-        match refs_parser::parse_row_range(i) {
-            Ok((rest, (row_range, tok))) => {
-                let ast = OFAst::row_range(row_range, tok);
-                Ok(trace.ok(tok, rest, ast))
-            }
-            Err(e) => Err(trace.reference(i, e)),
-        }
+        // TODO: ? operator and trace don't cooperate
+        let (rest, iri) = IriTerm::parse(trace, rest)?;
+        let (rest, sheet) = SheetNameTerm::parse(trace, rest)?;
+        let (rest, row) = RowTerm::parse(trace, rest)?;
+
+        let rest = match colon(rest) {
+            Ok((rest, _)) => rest,
+            Err(e @ TokenError::TokColon(_)) => return Err(trace.map_tok(ParseOFError::colon, e)),
+            Err(e) => trace.panic_tok(e),
+        };
+
+        let (rest, to_sheet) = SheetNameTerm::parse(trace, rest)?;
+        let (rest, to_row) = RowTerm::parse(trace, rest)?;
+
+        let tok = if let Some(iri) = &iri {
+            unsafe { span_union(iri.span(), to_row.span()) }
+        } else if let Some(sheet_name) = &sheet {
+            unsafe { span_union(sheet_name.span(), to_row.span()) }
+        } else {
+            unsafe { span_union(row.span(), to_row.span()) }
+        };
+
+        let ast = OFAst::row_range(iri, sheet, row, to_sheet, to_row, tok);
+        Ok(trace.ok(tok, rest, ast))
     }
 }
 

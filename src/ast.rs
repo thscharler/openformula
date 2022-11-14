@@ -7,7 +7,6 @@ use crate::error::ParseOFError;
 use nom::Offset;
 use nom_locate::LocatedSpan;
 use spreadsheet_ods_cellref::format::{fmt_abs, fmt_col_name, fmt_row_name};
-use spreadsheet_ods_cellref::{CellRange, ColRange, RowRange};
 use std::fmt::{Debug, Display, Formatter};
 use std::str::from_utf8_unchecked;
 use std::{fmt, mem, slice};
@@ -227,21 +226,64 @@ impl<'a> OFAst<'a> {
     }
 
     /// CellRange variant
-    // TODO:
-    pub fn cell_range(v: CellRange, s: Span<'a>) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodeCellRange(OFCellRange(v, s)))
+    pub fn cell_range(
+        iri: Option<OFIri<'a>>,
+        table: Option<OFSheetName<'a>>,
+        row: OFRow<'a>,
+        col: OFCol<'a>,
+        to_table: Option<OFSheetName<'a>>,
+        to_row: OFRow<'a>,
+        to_col: OFCol<'a>,
+        span: Span<'a>,
+    ) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeCellRange(OFCellRange {
+            iri,
+            table,
+            row,
+            col,
+            to_table,
+            to_row,
+            to_col,
+            span,
+        }))
     }
 
     /// ColRange variant
-    // TODO:
-    pub fn col_range(v: ColRange, s: Span<'a>) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodeColRange(OFColRange(v, s)))
+    pub fn col_range(
+        iri: Option<OFIri<'a>>,
+        table: Option<OFSheetName<'a>>,
+        col: OFCol<'a>,
+        to_table: Option<OFSheetName<'a>>,
+        to_col: OFCol<'a>,
+        span: Span<'a>,
+    ) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeColRange(OFColRange {
+            iri,
+            table,
+            col,
+            to_table,
+            to_col,
+            span,
+        }))
     }
 
     /// RowRange variant
-    // TODO:
-    pub fn row_range(v: RowRange, s: Span<'a>) -> Box<OFAst<'a>> {
-        Box::new(OFAst::NodeRowRange(OFRowRange(v, s)))
+    pub fn row_range(
+        iri: Option<OFIri<'a>>,
+        table: Option<OFSheetName<'a>>,
+        row: OFRow<'a>,
+        to_table: Option<OFSheetName<'a>>,
+        to_row: OFRow<'a>,
+        span: Span<'a>,
+    ) -> Box<OFAst<'a>> {
+        Box::new(OFAst::NodeRowRange(OFRowRange {
+            iri,
+            table,
+            row,
+            to_table,
+            to_row,
+            span,
+        }))
     }
 
     /// Parens variant
@@ -1460,7 +1502,16 @@ impl<'a> PartialEq for OFCellRef<'a> {
 // OFCellRange **********************************************************
 
 /// CellRange
-pub struct OFCellRange<'a>(pub CellRange, pub Span<'a>);
+pub struct OFCellRange<'a> {
+    pub iri: Option<OFIri<'a>>,
+    pub table: Option<OFSheetName<'a>>,
+    pub row: OFRow<'a>,
+    pub col: OFCol<'a>,
+    pub to_table: Option<OFSheetName<'a>>,
+    pub to_row: OFRow<'a>,
+    pub to_col: OFCol<'a>,
+    pub span: Span<'a>,
+}
 
 impl<'a> Node<'a> for OFCellRange<'a> {
     fn name(&self) -> &str {
@@ -1468,11 +1519,23 @@ impl<'a> Node<'a> for OFCellRange<'a> {
     }
 
     fn span(&self) -> Span<'a> {
-        self.1
+        self.span
     }
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        if let Some(iri) = &self.iri {
+            write!(f, "{}", iri.enc())?;
+        }
+        if let Some(table) = &self.table {
+            write!(f, "{}", table.enc())?;
+        }
+        write!(f, "{}{}", self.col.enc(), self.row.enc())?;
+        write!(f, ":")?;
+        if let Some(to_table) = &self.to_table {
+            write!(f, "{}", to_table.enc())?;
+        }
+        write!(f, "{}{}", self.to_col.enc(), self.to_row.enc())?;
+        Ok(())
     }
 }
 
@@ -1484,20 +1547,51 @@ impl<'a> Debug for OFCellRange<'a> {
 
 impl<'a> Display for OFCellRange<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        if let Some(iri) = &self.iri {
+            write!(f, "{}", iri)?;
+        }
+        if let Some(table) = &self.table {
+            write!(f, "{}", table)?;
+        }
+        write!(f, "{}{}", self.col, self.row)?;
+        write!(f, ":")?;
+        if let Some(to_table) = &self.to_table {
+            write!(f, "{}", to_table)?;
+        }
+        write!(f, "{}{}", self.to_col, self.to_row)?;
+        Ok(())
     }
 }
 
 impl<'a> PartialEq for OFCellRange<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.iri == other.iri
+            && self.table == other.table
+            && self.col == other.col
+            && self.row == other.row
+            && self.to_table == other.to_table
+            && self.to_col == other.to_col
+            && self.to_row == other.to_row
     }
 }
 
 // OFRowRange ************************************************************
 
 /// RowRange
-pub struct OFRowRange<'a>(pub RowRange, pub Span<'a>);
+pub struct OFRowRange<'a> {
+    /// External source
+    pub iri: Option<OFIri<'a>>,
+    /// Sheet for reference.
+    pub table: Option<OFSheetName<'a>>,
+    /// Row
+    pub row: OFRow<'a>,
+    /// Sheet for reference.
+    pub to_table: Option<OFSheetName<'a>>,
+    /// Row
+    pub to_row: OFRow<'a>,
+    /// Span of the complete reference.
+    pub span: Span<'a>,
+}
 
 impl<'a> Node<'a> for OFRowRange<'a> {
     fn name(&self) -> &str {
@@ -1505,11 +1599,23 @@ impl<'a> Node<'a> for OFRowRange<'a> {
     }
 
     fn span(&self) -> Span<'a> {
-        self.1
+        self.span
     }
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        if let Some(iri) = &self.iri {
+            write!(f, "{}", iri.enc())?;
+        }
+        if let Some(table) = &self.table {
+            write!(f, "{}", table.enc())?;
+        }
+        write!(f, "{}", self.row.enc())?;
+        write!(f, ":")?;
+        if let Some(to_table) = &self.to_table {
+            write!(f, "{}", to_table.enc())?;
+        }
+        write!(f, "{}", self.to_row.enc())?;
+        Ok(())
     }
 }
 
@@ -1521,20 +1627,49 @@ impl<'a> Debug for OFRowRange<'a> {
 
 impl<'a> Display for OFRowRange<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        if let Some(iri) = &self.iri {
+            write!(f, "{}", iri)?;
+        }
+        if let Some(table) = &self.table {
+            write!(f, "{}", table)?;
+        }
+        write!(f, "{}", self.row)?;
+        write!(f, ":")?;
+        if let Some(to_table) = &self.to_table {
+            write!(f, "{}", to_table)?;
+        }
+        write!(f, "{}", self.to_row)?;
+        Ok(())
     }
 }
 
 impl<'a> PartialEq for OFRowRange<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.iri == other.iri
+            && self.table == other.table
+            && self.row == other.row
+            && self.to_table == other.to_table
+            && self.to_row == other.to_row
     }
 }
 
 // ColRange **************************************************************
 
 /// ColRange
-pub struct OFColRange<'a>(pub ColRange, pub Span<'a>);
+pub struct OFColRange<'a> {
+    /// External source
+    pub iri: Option<OFIri<'a>>,
+    /// Sheet for reference.
+    pub table: Option<OFSheetName<'a>>,
+    /// Col
+    pub col: OFCol<'a>,
+    /// Sheet for reference.
+    pub to_table: Option<OFSheetName<'a>>,
+    /// Col
+    pub to_col: OFCol<'a>,
+    /// Span of the complete reference.
+    pub span: Span<'a>,
+}
 
 impl<'a> Node<'a> for OFColRange<'a> {
     fn name(&self) -> &str {
@@ -1542,11 +1677,23 @@ impl<'a> Node<'a> for OFColRange<'a> {
     }
 
     fn span(&self) -> Span<'a> {
-        self.1
+        self.span
     }
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        if let Some(iri) = &self.iri {
+            write!(f, "{}", iri.enc())?;
+        }
+        if let Some(table) = &self.table {
+            write!(f, "{}", table.enc())?;
+        }
+        write!(f, "{}", self.col.enc())?;
+        write!(f, ":")?;
+        if let Some(to_table) = &self.to_table {
+            write!(f, "{}", to_table.enc())?;
+        }
+        write!(f, "{}", self.to_col.enc())?;
+        Ok(())
     }
 }
 
@@ -1558,13 +1705,29 @@ impl<'a> Debug for OFColRange<'a> {
 
 impl<'a> Display for OFColRange<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        if let Some(iri) = &self.iri {
+            write!(f, "{}", iri)?;
+        }
+        if let Some(table) = &self.table {
+            write!(f, "{}", table)?;
+        }
+        write!(f, "{}", self.col)?;
+        write!(f, ":")?;
+        if let Some(to_table) = &self.to_table {
+            write!(f, "{}", to_table)?;
+        }
+        write!(f, "{}", self.to_col)?;
+        Ok(())
     }
 }
 
 impl<'a> PartialEq for OFColRange<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.iri == other.iri
+            && self.table == other.table
+            && self.col == other.col
+            && self.to_table == other.to_table
+            && self.to_col == other.to_col
     }
 }
 
