@@ -2,14 +2,21 @@
 //! Contains all token parsers. Operates on and returns only spans.
 //!
 
+use crate::ast::nomtokens::{
+    add_op_nom, brackets_close_nom, brackets_open_nom, colon_nom, comparison_op_nom, decimal,
+    dollar_dollar_nom, dollar_nom, dot_nom, fn_name_nom, hashtag_nom, identifier_nom, mul_op_nom,
+    parentheses_close_nom, parentheses_open_nom, postfix_op_nom, pow_op_nom, prefix_op_nom,
+    ref_concat_op_nom, ref_intersection_op_nom, reference_op_nom, semikolon_nom, sheet_name_nom,
+    string_op_nom,
+};
 use crate::ast::Span;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_while, take_while1};
+use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{char as nchar, none_of, one_of};
 use nom::combinator::{opt, recognize};
-use nom::multi::{count, many0, many1};
-use nom::sequence::{delimited, tuple};
-use nom::IResult;
+use nom::multi::{count, many0};
+use nom::sequence::tuple;
+use nom::InputTake;
 use std::fmt::{Display, Formatter};
 
 type TokenResult<'a, O> = Result<(Span<'a>, O), TokenError<'a>>;
@@ -43,6 +50,14 @@ pub enum TokenError<'s> {
     TokAddOp(Span<'s>),
     TokMulOp(Span<'s>),
     TokPowOp(Span<'s>),
+    TokStringOp(Span<'s>),
+    TokReferenceOp(Span<'s>),
+    TokRefIntersectionOp(Span<'s>),
+    TokRefConcatOp(Span<'s>),
+    TokHashtag(Span<'s>),
+    TokColon(Span<'s>),
+    TokBracketsOpen(Span<'s>),
+    TokBracketsClose(Span<'s>),
 }
 
 impl<'s> TokenError<'s> {
@@ -72,6 +87,14 @@ impl<'s> TokenError<'s> {
             TokenError::TokAddOp(s) => s,
             TokenError::TokMulOp(s) => s,
             TokenError::TokPowOp(s) => s,
+            TokenError::TokStringOp(s) => s,
+            TokenError::TokReferenceOp(s) => s,
+            TokenError::TokRefIntersectionOp(s) => s,
+            TokenError::TokRefConcatOp(s) => s,
+            TokenError::TokHashtag(s) => s,
+            TokenError::TokColon(s) => s,
+            TokenError::TokBracketsOpen(s) => s,
+            TokenError::TokBracketsClose(s) => s,
         }
     }
 }
@@ -103,8 +126,21 @@ impl<'s> Display for TokenError<'s> {
             TokenError::TokAddOp(s) => write!(f, "AddOp {}", s),
             TokenError::TokMulOp(s) => write!(f, "MulOp {}", s),
             TokenError::TokPowOp(s) => write!(f, "PowOp {}", s),
+            TokenError::TokStringOp(s) => write!(f, "StringOp {}", s),
+            TokenError::TokReferenceOp(s) => write!(f, "ReferenceOp {}", s),
+            TokenError::TokRefIntersectionOp(s) => write!(f, "RefIntersectionOp {}", s),
+            TokenError::TokRefConcatOp(s) => write!(f, "RefConcatOp {}", s),
+            TokenError::TokHashtag(s) => write!(f, "Hashtag {}", s),
+            TokenError::TokColon(s) => write!(f, "Colon {}", s),
+            TokenError::TokBracketsOpen(s) => write!(f, "BracketsOpen {}", s),
+            TokenError::TokBracketsClose(s) => write!(f, "BracketsClose {}", s),
         }
     }
+}
+
+/// Returns an empty token. But still technically a slice of the given span.
+pub fn empty<'a>(i: Span<'a>) -> Span<'a> {
+    i.take(0)
 }
 
 /// Lookahead for a number
@@ -144,11 +180,6 @@ pub fn number<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(_) => Err(TokenError::TokNumber(rest)),
     }
-}
-
-/// Sequence of digits.
-fn decimal<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    recognize(many1(one_of("0123456789")))(input)
 }
 
 /// Lookahead for a string.
@@ -201,32 +232,11 @@ pub fn lah_fn_name<'a>(i: Span<'a>) -> bool {
 
 // LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
 /// Function name.
-fn fn_name_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    recognize(tuple((
-        take_while1(unicode_ident::is_xid_start),
-        take_while(|c: char| unicode_ident::is_xid_continue(c) || c == '_' || c == '.'),
-    )))(i)
-}
-
-// LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
-/// Function name.
 pub fn fn_name<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
     match fn_name_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(_) => Err(TokenError::TokFnName(rest)),
     }
-}
-
-/// Parse comparison operators.
-fn comparison_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    alt((
-        tag("="),
-        tag("<>"),
-        tag("<"),
-        tag(">"),
-        tag("<="),
-        tag(">="),
-    ))(i)
 }
 
 /// Parse comparison operators.
@@ -238,33 +248,40 @@ pub fn comparison_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
 }
 
 /// Parse string operators.
-pub fn string_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("&")(i)
+pub fn string_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match string_op_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokStringOp(rest)),
+    }
 }
 
 /// Parse reference operators.
-pub fn reference_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("&")(i)
+pub fn reference_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match reference_op_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokReferenceOp(rest)),
+    }
 }
 
 /// Parse reference intersection.
-pub fn ref_intersection_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("!")(i)
+pub fn ref_intersection_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match ref_intersection_op_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokRefIntersectionOp(rest)),
+    }
 }
 
 /// Parse concat operator..
-pub fn ref_concatenation_op<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("~")(i)
+pub fn ref_concat_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match ref_concat_op_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokRefConcatOp(rest)),
+    }
 }
 
 /// Parse separator char for function args.
 pub fn lah_dollar_dollar<'a>(rest: Span<'a>) -> bool {
     tag::<&str, Span<'a>, nom::error::Error<_>>("$$")(rest).is_ok()
-}
-
-/// Parse separator char for function args.
-fn dollar_dollar_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("$$")(rest)
 }
 
 /// Parse separator char for function args.
@@ -281,26 +298,19 @@ pub fn lah_dollar<'a>(rest: Span<'a>) -> bool {
 }
 
 /// Parse separator char for function args.
-fn dollar_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("$")(rest)
-}
-
-/// Parse separator char for function args.
 pub fn dollar<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
-    match dollar_nom(rest) {
+    match dollar_dollar_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(_) => Err(TokenError::TokDollar(rest)),
     }
 }
 
 /// Hashtag
-fn hashtag_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("#")(rest)
-}
-
-/// Parse separator char for function args.
-fn semikolon_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag(";")(rest)
+pub fn hashtag<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match hashtag_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokHashtag(rest)),
+    }
 }
 
 /// Parse separator char for function args.
@@ -317,11 +327,6 @@ pub fn lah_dot<'a>(i: Span<'a>) -> bool {
 }
 
 /// Parse dot
-fn dot_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag(".")(i)
-}
-
-/// Parse dot
 pub fn dot<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
     match dot_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
@@ -330,18 +335,16 @@ pub fn dot<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
 }
 
 /// Parse colon
-pub fn colon<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag(":")(i)
+pub fn colon<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match colon_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokColon(rest)),
+    }
 }
 
 /// Lookahead for opening parentheses.
 pub fn lah_parentheses_open<'a>(i: Span<'a>) -> bool {
     nchar::<Span<'a>, nom::error::Error<_>>('(')(i).is_ok()
-}
-
-/// Parse open parentheses.
-fn parentheses_open_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("(")(i)
 }
 
 /// Parse open parentheses.
@@ -353,11 +356,6 @@ pub fn parentheses_open<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
 }
 
 /// Parse closing parentheses.
-fn parentheses_close_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag(")")(rest)
-}
-
-/// Parse closing parentheses.
 pub fn parentheses_close<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
     match parentheses_close_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
@@ -366,18 +364,19 @@ pub fn parentheses_close<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
 }
 
 /// Parse open brackets.
-pub fn brackets_open<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("[")(i)
+pub fn brackets_open<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match brackets_open_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokBracketsOpen(rest)),
+    }
 }
 
 /// Parse closing brackets.
-pub fn brackets_close<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("]")(i)
-}
-
-/// Tries to parses any additive operator.
-fn add_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    alt((tag("+"), tag("-")))(i)
+pub fn brackets_close<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+    match brackets_close_nom(rest) {
+        Ok((rest, tok)) => Ok((rest, tok)),
+        Err(_) => Err(TokenError::TokBracketsClose(rest)),
+    }
 }
 
 /// Tries to parses any additive operator.
@@ -389,21 +388,11 @@ pub fn add_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
 }
 
 /// Tries to parses any multiplicative operator.
-fn mul_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    alt((tag("*"), tag("/")))(i)
-}
-
-/// Tries to parses any multiplicative operator.
 pub fn mul_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
     match mul_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(_) => Err(TokenError::TokMulOp(rest)),
     }
-}
-
-/// Tries to parses the power operator.
-fn pow_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("^")(i)
 }
 
 /// Tries to parses the power operator.
@@ -420,11 +409,6 @@ pub fn lah_prefix_op<'a>(i: Span<'a>) -> bool {
 }
 
 /// Tries to ast any prefix operator.
-fn prefix_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    alt((tag("+"), tag("-")))(i)
-}
-
-/// Tries to ast any prefix operator.
 pub fn prefix_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
     match prefix_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
@@ -435,11 +419,6 @@ pub fn prefix_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
 /// Tries to ast any postfix operator.
 pub fn lah_postfix_op<'a>(i: Span<'a>) -> bool {
     one_of::<Span<'a>, _, nom::error::Error<_>>("%")(i).is_ok()
-}
-
-/// Tries to ast any postfix operator.
-fn postfix_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    tag("%")(i)
 }
 
 /// Tries to ast any postfix operator.
@@ -463,14 +442,6 @@ pub fn lah_identifier<'a>(i: Span<'a>) -> bool {
 //                      - ( [A-Za-z]+[0-9]+ )  # means no cell reference
 //                      - ([Tt][Rr][Uu][Ee]) - ([Ff][Aa][Ll][Ss][Ee]) # true and false
 /// Identifier.
-fn identifier_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    recognize(tuple((
-        take_while1(unicode_ident::is_xid_start),
-        take_while(unicode_ident::is_xid_continue),
-    )))(i)
-}
-
-/// Identifier.
 pub fn identifier<'a>(i: Span<'a>) -> TokenResult<'a, Span<'a>> {
     match identifier_nom(i) {
         Ok((rest, tok)) => Ok((rest, tok)),
@@ -487,20 +458,15 @@ pub fn lah_sheet_name(i: Span<'_>) -> bool {
 
 // SheetName ::= QuotedSheetName | '$'? [^\]\. #$']+
 // QuotedSheetName ::= '$'? SingleQuoted
-
-fn sheet_name_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    recognize(many1(none_of("]. #$'")))(i)
-}
-
 // TODO: sync with spreadsheet_ods_cellref
 /// Sheet name
 pub fn sheet_name(rest: Span<'_>) -> TokenResult<'_, (Option<Span<'_>>, Span<'_>)> {
     let (rest, abs) = match opt(dollar_nom)(rest) {
-        Ok((rest, tok)) => (rest, tok),
+        Ok((rest, abs)) => (rest, abs),
         Err(_) => return Err(TokenError::TokDollar(rest)),
     };
     let (rest, name) = match single_quoted(rest) {
-        Ok((rest, tok)) => (rest, Some(tok)),
+        Ok((rest, name)) => (rest, Some(name)),
         Err(TokenError::TokStartSingleQuote(_)) => (rest, None),
         Err(e) => return Err(e),
     };
@@ -551,25 +517,6 @@ pub fn iri(rest: Span<'_>) -> TokenResult<'_, Span<'_>> {
 /// Parse a quoted string. A double quote within is an escaped quote.
 /// Returns the string within the outer quotes. The double quotes are not
 /// reduced.
-// TODO: remove
-pub fn quoted<'a>(quote: char) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    move |i| {
-        let (i, r) = delimited(
-            nchar(quote),
-            recognize(many0(alt((
-                take_while1(|v| v != quote),
-                recognize(count(nchar(quote), 2)),
-            )))),
-            nchar(quote),
-        )(i)?;
-
-        Ok((i, r))
-    }
-}
-
-/// Parse a quoted string. A double quote within is an escaped quote.
-/// Returns the string within the outer quotes. The double quotes are not
-/// reduced.
 pub fn single_quoted<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
     const QUOTE: char = '\'';
 
@@ -607,11 +554,10 @@ pub fn single_quoted<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
+    use crate::ast::nomtokens::eat_space;
+    use crate::ast::tokens;
     use crate::ast::tokens::{identifier, iri, TokenError};
     use crate::ast::Span;
-    use crate::ast::{parser, tokens};
-    use nom::error::ErrorKind;
-    use nom::error::ParseError;
     use spreadsheet_ods_cellref::tokens as refs_tokens;
 
     #[test]
@@ -619,67 +565,67 @@ mod tests {
         println!("{:?}", identifier(Span::new("Name")));
     }
 
-    #[test]
-    fn test_quoted() {
-        unsafe {
-            assert_eq!(
-                tokens::quoted('\'')(Span::new("'")),
-                Err(nom::Err::Error(nom::error::Error::from_error_kind(
-                    Span::new_from_raw_offset(1, 1, "", ()),
-                    ErrorKind::Char
-                )))
-            );
-            assert_eq!(
-                tokens::quoted('\'')(Span::new("''")),
-                Ok((
-                    Span::new_from_raw_offset(2, 1, "", ()),
-                    Span::new_from_raw_offset(1, 1, "", ())
-                ))
-            );
-            assert_eq!(
-                tokens::quoted('\'')(Span::new("'''")),
-                Err(nom::Err::Error(nom::error::Error::from_error_kind(
-                    Span::new_from_raw_offset(3, 1, "", ()),
-                    ErrorKind::Char
-                )))
-            );
-            assert_eq!(
-                tokens::quoted('\'')(Span::new("''''")),
-                Ok((
-                    Span::new_from_raw_offset(4, 1, "", ()),
-                    Span::new_from_raw_offset(1, 1, "''", ())
-                ))
-            );
-            assert_eq!(
-                tokens::quoted('\'')(Span::new("'text'")),
-                Ok((
-                    Span::new_from_raw_offset(6, 1, "", ()),
-                    Span::new_from_raw_offset(1, 1, "text", ())
-                ))
-            );
-            assert_eq!(
-                tokens::quoted('\'')(Span::new("'t'ext'")),
-                Ok((
-                    Span::new_from_raw_offset(3, 1, "ext'", ()),
-                    Span::new_from_raw_offset(1, 1, "t", ())
-                ))
-            );
-            assert_eq!(
-                tokens::quoted('\'')(Span::new("'t''ext'")),
-                Ok((
-                    Span::new_from_raw_offset(8, 1, "", ()),
-                    Span::new_from_raw_offset(1, 1, "t''ext", ())
-                ))
-            );
-            assert_eq!(
-                tokens::quoted('\'')(Span::new("'t'''ext'")),
-                Ok((
-                    Span::new_from_raw_offset(5, 1, "ext'", ()),
-                    Span::new_from_raw_offset(1, 1, "t''", ())
-                ))
-            );
-        }
-    }
+    // #[test]
+    // fn test_quoted() {
+    //     unsafe {
+    //         assert_eq!(
+    //             tokens::quoted('\'')(Span::new("'")),
+    //             Err(nom::Err::Error(nom::error::Error::from_error_kind(
+    //                 Span::new_from_raw_offset(1, 1, "", ()),
+    //                 ErrorKind::Char
+    //             )))
+    //         );
+    //         assert_eq!(
+    //             tokens::quoted('\'')(Span::new("''")),
+    //             Ok((
+    //                 Span::new_from_raw_offset(2, 1, "", ()),
+    //                 Span::new_from_raw_offset(1, 1, "", ())
+    //             ))
+    //         );
+    //         assert_eq!(
+    //             tokens::quoted('\'')(Span::new("'''")),
+    //             Err(nom::Err::Error(nom::error::Error::from_error_kind(
+    //                 Span::new_from_raw_offset(3, 1, "", ()),
+    //                 ErrorKind::Char
+    //             )))
+    //         );
+    //         assert_eq!(
+    //             tokens::quoted('\'')(Span::new("''''")),
+    //             Ok((
+    //                 Span::new_from_raw_offset(4, 1, "", ()),
+    //                 Span::new_from_raw_offset(1, 1, "''", ())
+    //             ))
+    //         );
+    //         assert_eq!(
+    //             tokens::quoted('\'')(Span::new("'text'")),
+    //             Ok((
+    //                 Span::new_from_raw_offset(6, 1, "", ()),
+    //                 Span::new_from_raw_offset(1, 1, "text", ())
+    //             ))
+    //         );
+    //         assert_eq!(
+    //             tokens::quoted('\'')(Span::new("'t'ext'")),
+    //             Ok((
+    //                 Span::new_from_raw_offset(3, 1, "ext'", ()),
+    //                 Span::new_from_raw_offset(1, 1, "t", ())
+    //             ))
+    //         );
+    //         assert_eq!(
+    //             tokens::quoted('\'')(Span::new("'t''ext'")),
+    //             Ok((
+    //                 Span::new_from_raw_offset(8, 1, "", ()),
+    //                 Span::new_from_raw_offset(1, 1, "t''ext", ())
+    //             ))
+    //         );
+    //         assert_eq!(
+    //             tokens::quoted('\'')(Span::new("'t'''ext'")),
+    //             Ok((
+    //                 Span::new_from_raw_offset(5, 1, "ext'", ()),
+    //                 Span::new_from_raw_offset(1, 1, "t''", ())
+    //             ))
+    //         );
+    //     }
+    // }
 
     #[test]
     fn test_single_quoted() {
@@ -925,7 +871,7 @@ mod tests {
         dbg!(tokens::lah_number(Span::new("222")));
         dbg!(tokens::lah_number(Span::new("ABC")));
         dbg!(tokens::lah_parentheses_open(Span::new("()")));
-        let rest = parser::eat_space(Span::new("  ()"));
+        let rest = eat_space(Span::new("  ()"));
         dbg!(tokens::lah_parentheses_open(rest));
     }
 }

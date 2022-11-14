@@ -7,15 +7,14 @@
 //!
 //! The look-ahead functions are called internally at certain branching points.
 
-use crate::ast::tokens::TokenError;
+use crate::ast::nomtokens::eat_space;
+use crate::ast::tokens::{empty, TokenError};
 use crate::ast::tracer::Suggest;
 use crate::ast::{
     conv, span_union_opt, tokens, tracer::Tracer, Node, OFAddOp, OFAst, OFCellRange, OFCellRef,
     OFColRange, OFCompOp, OFMulOp, OFPostfixOp, OFPowOp, OFPrefixOp, OFRowRange, ParseResult, Span,
 };
 use crate::error::{LocateError, ParseOFError};
-use nom::character::complete::multispace0;
-use nom::InputTake;
 use spreadsheet_ods_cellref::parser as refs_parser;
 use spreadsheet_ods_cellref::tokens as refs_tokens;
 use spreadsheet_ods_cellref::{CellRange, ColRange, RowRange};
@@ -1026,7 +1025,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         trace.step("initial arg", Span::new(""));
                         trace.step("initial separator", sep1);
 
-                        let ast = OFAst::empty(sep1.take(0));
+                        let ast = OFAst::empty(empty(sep1));
                         args.push(*ast);
                     }
                     Err(TokenError::TokSemikolon(_)) => {
@@ -1084,25 +1083,25 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                     let parens = if let Some(expr) = expr {
                         if let Some(sep1) = sep1 {
                             // argument and separator.
-                            trace.step("expr+sep", sep1.take(0));
+                            trace.step("expr+sep", empty(sep1));
                             args.push(*expr);
                             Parens::Optional
                         } else {
                             // argument but no separator.
-                            trace.step("expr+none", expr.span().take(0));
+                            trace.step("expr+none", empty(expr.span()));
                             args.push(*expr);
                             Parens::Needed
                         }
                     } else {
                         if let Some(sep1) = sep1 {
                             // no argument but a separator.
-                            trace.step("none+sep", sep1.take(0));
-                            let ast = OFAst::empty(sep1.take(0));
+                            trace.step("none+sep", empty(sep1));
+                            let ast = OFAst::empty(empty(sep1));
                             args.push(*ast);
                             Parens::Optional
                         } else {
                             // no argument and no separator. empty argument lists are ok.
-                            trace.step("None+None", loop_rest.take(0));
+                            trace.step("None+None", empty(loop_rest));
                             Parens::Needed
                         }
                     };
@@ -1273,16 +1272,6 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
 
         let ast = OFAst::named(iri, sheet_name, named);
         Ok(trace.ok(ast.span(), rest, ast))
-    }
-}
-
-/// Eats the leading whitespace.
-pub fn eat_space<'a>(i: Span<'a>) -> Span<'a> {
-    match multispace0::<Span<'a>, nom::error::Error<_>>(i) {
-        Ok((rest, _white)) => rest,
-        Err(nom::Err::Error(_)) => i,
-        Err(nom::Err::Failure(_)) => i,
-        Err(nom::Err::Incomplete(_)) => unreachable!(),
     }
 }
 
