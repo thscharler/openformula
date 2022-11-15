@@ -282,7 +282,7 @@ impl<'span> Tracer<'span> {
     /// If the error is a nom::Err::Incomplete.
     /// Panics if there was no call to enter() before.
     ///
-    pub fn map_nom<'trace, T>(
+    pub fn err_map_nom<'trace, T>(
         &'trace self,
         err_fn: fn(span: Span<'span>) -> ParseOFError<'span>,
         nom: nom::Err<nom::error::Error<Span<'span>>>,
@@ -333,11 +333,11 @@ impl<'span> Tracer<'span> {
     ///
     /// If the error is a nom::Err::Incomplete.
     /// Panics if there was no call to enter() before.
-    pub fn nom<'trace, T>(
+    pub fn err_nom<'trace, T>(
         &'trace self,
         nom: nom::Err<nom::error::Error<Span<'span>>>,
     ) -> ParseResult<'span, 'trace, T> {
-        self.map_nom(ParseOFError::err, nom)
+        self.err_map_nom(ParseOFError::err, nom)
     }
 
     /// Notes the error, dumps everything and panics.
@@ -385,7 +385,7 @@ impl<'span> Tracer<'span> {
     ///
     /// If the error is a nom::Err::Incomplete.
     /// Panics if there was no call to enter() before.
-    pub fn map_tok<'trace, T>(
+    pub fn err_map_tok<'trace, T>(
         &'trace self,
         err_fn: fn(span: Span<'span>) -> ParseOFError<'span>,
         tok: TokenError<'span>,
@@ -424,8 +424,11 @@ impl<'span> Tracer<'span> {
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
-    pub fn tok<'trace, T>(&'trace self, tok: TokenError<'span>) -> ParseResult<'span, 'trace, T> {
-        self.map_tok(ParseOFError::err, tok)
+    pub fn err_tok<'trace, T>(
+        &'trace self,
+        tok: TokenError<'span>,
+    ) -> ParseResult<'span, 'trace, T> {
+        self.err_map_tok(ParseOFError::err, tok)
     }
 }
 
@@ -434,11 +437,11 @@ impl<'span> Tracer<'span> {
 ///
 /// Makes sure the tracer can keep track of the complete parse call tree.
 pub trait TrackParseResult<'s, 't, O> {
-    fn track(self, trace: &'t Tracer<'s>) -> ParseResult<'s, 't, O>;
+    fn result(self, trace: &'t Tracer<'s>) -> ParseResult<'s, 't, O>;
 }
 
 impl<'s, 't, O> TrackParseResult<'s, 't, O> for ParseResult<'s, 't, O> {
-    fn track(self, trace: &'t Tracer<'s>) -> ParseResult<'s, 't, O> {
+    fn result(self, trace: &'t Tracer<'s>) -> ParseResult<'s, 't, O> {
         match self {
             Ok(_) => return self,
             Err(e) => trace.parse(e),
