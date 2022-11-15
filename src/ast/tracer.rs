@@ -7,7 +7,6 @@
 use crate::ast::tokens::TokenError;
 use crate::ast::Span;
 use crate::error::ParseOFError;
-use spreadsheet_ods_cellref::CellRefError;
 use std::cell::RefCell;
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
@@ -15,39 +14,37 @@ use std::fmt::{Debug, Formatter};
 ///
 #[derive(Debug)]
 pub enum Suggest {
-    StartQuote,
-    EndQuote,
-    StartSingleQuote,
-    EndSingleQuote,
-    DollarDollar,
-    Identifier,
-    Iri,
-    SheetName,
-    Dot,
-
-    SingleQuoted,
-    String,
-
-    Reference,
-    FnCall,
-    FnName,
-    PostfixOp,
-    PrefixOp,
-    MulOp,
     AddOp,
-    CompOp,
-    PowOp,
-    Number,
-    Parentheses,
-    ParenthesesOpen,
-    ParenthesesClose,
-    Separator,
-    Expr,
-    Dollar,
-    Digit,
     Alpha,
     Col,
+    CompOp,
+    Digit,
+    Dollar,
+    DollarDollar,
+    Dot,
+    EndQuote,
+    EndSingleQuote,
+    Expr,
+    FnCall,
+    FnName,
+    Identifier,
+    Iri,
+    MulOp,
+    Number,
+    Parentheses,
+    ParenthesesClose,
+    ParenthesesOpen,
+    PostfixOp,
+    PowOp,
+    PrefixOp,
+    Reference,
     Row,
+    Separator,
+    SheetName,
+    SingleQuoted,
+    StartQuote,
+    StartSingleQuote,
+    String,
 }
 
 /// Follows the parsing.
@@ -112,6 +109,17 @@ impl<'span> Tracer<'span> {
     }
 
     /// Entering a parser.
+    ///
+    /// For the tracing to work, all exit-points of a function have to
+    /// be accounted for.
+    ///
+    /// That means at each exit point you have to call either:
+    /// * ok
+    /// * parse
+    /// * map_nom
+    /// * nom
+    /// * map_tok
+    /// * tok  
     pub fn enter(&self, func: &'static str, span: Span<'span>) {
         self.func.borrow_mut().push(func);
         self.tracks.borrow_mut().push(Track::Enter(func, span));
@@ -119,7 +127,7 @@ impl<'span> Tracer<'span> {
 
     /// Extra step.
     ///
-    /// Panic
+    /// Panics
     ///
     /// Panics if there was no call to enter() before.
     pub fn step(&self, step: &'static str, span: Span<'span>) {
@@ -129,7 +137,7 @@ impl<'span> Tracer<'span> {
 
     /// Extra information.
     ///
-    /// Panic
+    /// Panics
     ///
     /// Panics if there was no call to enter() before.
     pub fn detail<T: Into<String>>(&self, step: T) {
@@ -140,16 +148,23 @@ impl<'span> Tracer<'span> {
     }
 
     /// About to enter an optional part of the parser.
+    ///
+    /// All calls to optional are noted in a stack, so recursion
+    /// works fine. The stack is cleaned up if a function with
+    /// this name is exited via one of the exit functions.
+    ///
+    /// This can savely be called before and after enter of the function.
     pub fn optional(&self, func: &'static str) {
         self.optional.borrow_mut().push(func);
     }
 
-    /// In an optional branch
+    /// In an optional branch.
     pub fn in_optional(&self) -> bool {
         self.optional.borrow().last().is_some()
     }
 
     /// Looses one optional layer if the function matches.
+    /// Called by each exit function.
     fn maybe_drop_optional(&self, func: &'static str) {
         let mut b_optional = self.optional.borrow_mut();
         if let Some(opt) = b_optional.last() {
@@ -160,13 +175,15 @@ impl<'span> Tracer<'span> {
     }
 
     /// Suggested tokens.
+    ///
+    /// Keeps a list of suggestions that can be used for user interaction.
+    /// This list accumulates endlessly until clear_suggestions is called.
     pub fn suggest(&self, suggest: Suggest) {
         self.detail(format!("suggest {:?}", suggest));
-
         self.suggest.borrow_mut().push(suggest);
     }
 
-    /// Suggestions
+    /// Return the suggestions as a String.
     pub fn suggestions(&self) -> String {
         let mut buf = String::new();
         for s in &*self.suggest.borrow() {
@@ -175,7 +192,11 @@ impl<'span> Tracer<'span> {
         buf
     }
 
+    /// Remove all suggestions and expectations.
     ///
+    /// Call this any time when the parser reaches a point where the
+    /// former suggestions from the parser are voided.
+    /// This are usually tokens that prevent backtracking before this point.
     pub fn clear_suggestions(&self) {
         self.detail("clear suggestions");
         self.suggest.borrow_mut().clear();
@@ -183,13 +204,17 @@ impl<'span> Tracer<'span> {
     }
 
     /// Expected tokens.
+    ///
+    /// Collect information about mandatory expected tokens. There can
+    /// be any number of these, if at least one of many options is required.
     pub fn expect(&self, suggest: Suggest) {
         self.detail(format!("suggest {:?}", suggest));
-
         self.expect.borrow_mut().push(suggest);
     }
 
-    /// Suggestions
+    /// Expected tokens.
+    ///
+    /// Returns the list of expected tokens as a String.
     pub fn expectations(&self) -> String {
         let mut buf = String::new();
         for s in &*self.expect.borrow() {
@@ -200,7 +225,10 @@ impl<'span> Tracer<'span> {
 
     /// Ok in a parser.
     ///
-    /// Panic
+    /// Returns the given value for ease of use. Records the success with
+    /// function, parsed span and rest span.
+    ///
+    /// Panics
     ///
     /// Panics if there was no call to enter() before.
     pub fn ok<T>(&self, span: Span<'span>, rest: Span<'span>, val: T) -> (Span<'span>, T) {
@@ -212,31 +240,12 @@ impl<'span> Tracer<'span> {
         (rest, val)
     }
 
-    /// Erring in a parser. Handles CellRefError.
+    /// Error in a parser.
     ///
-    /// Panic
+    /// Returns with a ParseOFError. Records the information in the error with the
+    /// current function.
     ///
-    /// Panics if there was no call to enter() before.
-    pub fn reference(&self, span: Span<'span>, err: CellRefError) -> ParseOFError<'span> {
-        // TODO: remove this one
-        let err = match err {
-            CellRefError::ErrNomError(_, _) => ParseOFError::ErrNomError(span),
-            CellRefError::ErrNomFailure(_, _) => ParseOFError::ErrNomFailure(span),
-            //CellRefError::ErrCellRef(_) => ParseOFError::ErrCellRef(span),
-            CellRefError::ErrCellRange(_) => ParseOFError::ErrCellRange(span),
-            CellRefError::ErrColRange(_) => ParseOFError::ErrColRange(span),
-            CellRefError::ErrRowRange(_) => ParseOFError::ErrRowRange(span),
-            CellRefError::ErrRowname(_, _) => ParseOFError::ErrRowname(span),
-            CellRefError::ErrColname(_, _) => ParseOFError::ErrColname(span),
-            _ => todo!(),
-        };
-
-        self.parse(err)
-    }
-
-    /// Error in a Parser.
-    ///
-    /// Panic
+    /// Panics
     ///
     /// Panics if there was no call to enter() before.
     pub fn parse(&self, err: ParseOFError<'span>) -> ParseOFError<'span> {
@@ -253,7 +262,17 @@ impl<'span> Tracer<'span> {
         err
     }
 
-    /// Maps a nom error to some wellknown error. Only maps nom::Err::Error not the others.
+    /// Error in a parser.
+    ///
+    /// Maps a nom::Err::Error to one of the ParseOFErrors.
+    /// If the error is a nom::Err::Failure it is mapped to ParseOFError::ErrNomFailure.
+    /// Records the information in the error with the current function.
+    ///
+    /// Panics
+    ///
+    /// If the error is a nom::Err::Incomplete.
+    /// Panics if there was no call to enter() before.
+    ///
     pub fn map_nom(
         &self,
         err_fn: fn(span: Span<'span>) -> ParseOFError<'span>,
@@ -296,16 +315,25 @@ impl<'span> Tracer<'span> {
         }
     }
 
-    /// Erring in a parser. Handles all nom errors.
+    /// Error in a parser.
     ///
-    /// Panic
+    /// Maps nom::Err::Error to ParseOFError::ErrNomError and calls it a day.
+    /// Uses map_nom, see there.
     ///
+    /// Panics
+    ///
+    /// If the error is a nom::Err::Incomplete.
     /// Panics if there was no call to enter() before.
     pub fn nom(&self, nom: nom::Err<nom::error::Error<Span<'span>>>) -> ParseOFError<'span> {
         self.map_nom(ParseOFError::err, nom)
     }
 
     /// Notes the error, dumps everything and panics.
+    /// Might be useful, if a unexpected TokenError occurs.
+    ///
+    /// Panics
+    ///
+    /// Always.
     pub fn panic_tok(&self, tok: TokenError<'span>) -> ! {
         let error_span = *tok.span();
 
@@ -331,7 +359,20 @@ impl<'span> Tracer<'span> {
         unreachable!();
     }
 
-    /// Maps a nom error to some wellknown error. Only maps nom::Err::Error not the others.
+    /// Error in a parser.
+    ///
+    /// Maps a TokenError to one of the ParseOFErrors.
+    /// If the error is a TokenError::TokNomFailure it is mapped to ParseOFError::ErrNomFailure.
+    /// If the error is a TokenError::TokNomError it is mapped to ParseOFError::ErrNomError.
+    /// If the error is a TokenError::TokUnexpected it is mapped to ParseOFError::ErrUnexpected.
+    /// Anything else uses the conversion provided.
+    ///
+    /// Records the information in the error with the current function.
+    ///
+    /// Panics
+    ///
+    /// If the error is a nom::Err::Incomplete.
+    /// Panics if there was no call to enter() before.
     pub fn map_tok(
         &self,
         err_fn: fn(span: Span<'span>) -> ParseOFError<'span>,
@@ -341,6 +382,12 @@ impl<'span> Tracer<'span> {
         //
         let err = if let TokenError::TokNomFailure(_) = &tok {
             ParseOFError::fail(error_span)
+        } else if let TokenError::TokNomError(_) = &tok {
+            ParseOFError::err(error_span)
+        } else if let TokenError::TokUnexpected(_, e) = &tok {
+            // Lost in the detail, but that's a bug anyway.
+            self.detail(e.to_string());
+            ParseOFError::unexpected(error_span)
         } else {
             err_fn(error_span)
         };

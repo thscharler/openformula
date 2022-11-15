@@ -10,82 +10,83 @@ pub enum ParseOFError<'s> {
     ErrNomError(Span<'s>),
     /// Nom failure.
     ErrNomFailure(Span<'s>),
-    /// Error converting a row-name part of any Ref to an u32.
-    ErrRowname(Span<'s>),
-    /// Error converting a col-name part of any Ref to an u32.
-    ErrColname(Span<'s>),
-
-    /// Parsing didn't ast all of the string.
+    /// Unexpected token.
+    ErrUnexpected(Span<'s>),
+    /// Parsing didn't parse all of the string.
     ErrParseIncomplete(Span<'s>),
 
-    /// Error when parsing an expression in parenthesis.
-    ErrParenthesis(Span<'s>),
-    /// Error when parsing a function call
-    ErrFnCall(Span<'s>),
-    /// Error when parsing a named expression
-    ErrNamed(Span<'s>),
-
-    /// Elementary expression fails.
-    ErrElementary(Span<'s>),
-    /// Reference expression fails.
-    ErrReference(Span<'s>),
-
-    ErrString(Span<'s>),
-    ErrNumber(Span<'s>),
-    ErrFnName(Span<'s>),
-    ErrComparisonOp(Span<'s>),
-    ErrPrefixOp(Span<'s>),
-    ErrPostfixOp(Span<'s>),
     ErrAddOp(Span<'s>),
-    ErrMulOp(Span<'s>),
-    ErrPowOp(Span<'s>),
-    ErrDollar(Span<'s>),
-    ErrDigit(Span<'s>),
     ErrAlpha(Span<'s>),
-    ErrRow(Span<'s>),
-    ErrCol(Span<'s>),
-    ErrColon(Span<'s>),
-
     /// CellRange parsing error.
     ErrCellRange(Span<'s>),
+    ErrCol(Span<'s>),
     /// ColRange parsing error.
     ErrColRange(Span<'s>),
+    /// Error converting a column-name to an u32.
+    ErrColname(Span<'s>),
+    ErrColon(Span<'s>),
+    ErrComparisonOp(Span<'s>),
+    ErrDigit(Span<'s>),
+    ErrDollar(Span<'s>),
+    /// Elementary expression fails.
+    ErrElementary(Span<'s>),
+    /// Error when parsing a function call
+    ErrFnCall(Span<'s>),
+    ErrFnName(Span<'s>),
+    ErrIri(Span<'s>),
+    ErrMulOp(Span<'s>),
+    /// Error when parsing a named expression
+    ErrNamed(Span<'s>),
+    ErrNumber(Span<'s>),
+    /// Error when parsing an expression in parenthesis.
+    ErrParenthesis(Span<'s>),
+    ErrPostfixOp(Span<'s>),
+    ErrPowOp(Span<'s>),
+    ErrPrefixOp(Span<'s>),
+    /// Reference expression fails.
+    ErrReference(Span<'s>),
+    ErrRow(Span<'s>),
     /// Rowrange parsing error.
     ErrRowRange(Span<'s>),
+    /// Error converting a row-name to an u32.
+    ErrRowname(Span<'s>),
+    ErrString(Span<'s>),
 }
 
 impl<'s> ParseOFError<'s> {
     /// Return the errspan of any variant.
     pub fn span(&self) -> &Span<'s> {
         match self {
+            ParseOFError::ErrAddOp(s) => s,
+            ParseOFError::ErrAlpha(s) => s,
+            ParseOFError::ErrCellRange(s) => s,
+            ParseOFError::ErrCol(s) => s,
+            ParseOFError::ErrColRange(s) => s,
+            ParseOFError::ErrColname(s) => s,
+            ParseOFError::ErrColon(s) => s,
+            ParseOFError::ErrComparisonOp(s) => s,
+            ParseOFError::ErrDigit(s) => s,
+            ParseOFError::ErrDollar(s) => s,
+            ParseOFError::ErrElementary(s) => s,
+            ParseOFError::ErrFnCall(s) => s,
+            ParseOFError::ErrFnName(s) => s,
+            ParseOFError::ErrMulOp(s) => s,
+            ParseOFError::ErrNamed(s) => s,
             ParseOFError::ErrNomError(s) => s,
             ParseOFError::ErrNomFailure(s) => s,
+            ParseOFError::ErrNumber(s) => s,
+            ParseOFError::ErrParenthesis(s) => s,
             ParseOFError::ErrParseIncomplete(s) => s,
-            ParseOFError::ErrElementary(s) => s,
+            ParseOFError::ErrPostfixOp(s) => s,
+            ParseOFError::ErrPowOp(s) => s,
+            ParseOFError::ErrPrefixOp(s) => s,
             ParseOFError::ErrReference(s) => s,
-            ParseOFError::ErrCellRange(s) => s,
-            ParseOFError::ErrColRange(s) => s,
+            ParseOFError::ErrRow(s) => s,
             ParseOFError::ErrRowRange(s) => s,
             ParseOFError::ErrRowname(s) => s,
-            ParseOFError::ErrColname(s) => s,
-            ParseOFError::ErrParenthesis(s) => s,
-            ParseOFError::ErrFnCall(s) => s,
             ParseOFError::ErrString(s) => s,
-            ParseOFError::ErrNumber(s) => s,
-            ParseOFError::ErrFnName(s) => s,
-            ParseOFError::ErrComparisonOp(s) => s,
-            ParseOFError::ErrNamed(s) => s,
-            ParseOFError::ErrPrefixOp(s) => s,
-            ParseOFError::ErrPostfixOp(s) => s,
-            ParseOFError::ErrAddOp(s) => s,
-            ParseOFError::ErrMulOp(s) => s,
-            ParseOFError::ErrPowOp(s) => s,
-            ParseOFError::ErrDollar(s) => s,
-            ParseOFError::ErrDigit(s) => s,
-            ParseOFError::ErrAlpha(s) => s,
-            ParseOFError::ErrRow(s) => s,
-            ParseOFError::ErrCol(s) => s,
-            ParseOFError::ErrColon(s) => s,
+            ParseOFError::ErrUnexpected(s) => s,
+            ParseOFError::ErrIri(s) => s,
         }
     }
 
@@ -111,6 +112,11 @@ impl<'s> ParseOFError<'s> {
         ParseOFError::ErrNomFailure(span)
     }
 
+    /// Unexpected variant.
+    pub fn unexpected(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrUnexpected(span)
+    }
+
     /// ParseIncomplete variant.
     pub fn parse_incomplete(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::ErrParseIncomplete(span)
@@ -132,6 +138,11 @@ impl<'s> ParseOFError<'s> {
     /// Reference
     pub fn reference(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::ErrReference(span)
+    }
+
+    /// Iri
+    pub fn iri(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::ErrIri(span)
     }
 
     /// CellRange variant.
@@ -239,34 +250,36 @@ impl<'s, T> LocateError<'s, T, ParseColnameError> for Result<T, ParseColnameErro
 impl<'s> Display for ParseOFError<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            ParseOFError::ErrAddOp(_) => write!(f, "AddOp ")?,
+            ParseOFError::ErrAlpha(_) => write!(f, "Alpha ")?,
+            ParseOFError::ErrCellRange(_) => write!(f, "CellRange ")?,
+            ParseOFError::ErrCol(_) => write!(f, "Col ")?,
+            ParseOFError::ErrColRange(_) => write!(f, "ColRange ")?,
+            ParseOFError::ErrColname(_) => write!(f, "ParseColname ")?,
+            ParseOFError::ErrColon(_) => write!(f, "Colon ")?,
+            ParseOFError::ErrComparisonOp(_) => write!(f, "ComparisonOp ")?,
+            ParseOFError::ErrDigit(_) => write!(f, "Digit ")?,
+            ParseOFError::ErrDollar(_) => write!(f, "Dollar ")?,
+            ParseOFError::ErrElementary(_) => write!(f, "Elementary ")?,
+            ParseOFError::ErrFnCall(_) => write!(f, "FnCall ")?,
+            ParseOFError::ErrFnName(_) => write!(f, "FnName ")?,
+            ParseOFError::ErrMulOp(_) => write!(f, "MulOp ")?,
+            ParseOFError::ErrNamed(_) => write!(f, "Named ")?,
             ParseOFError::ErrNomError(_) => write!(f, "NomError ")?,
             ParseOFError::ErrNomFailure(_) => write!(f, "NomFailure ")?,
-            ParseOFError::ErrRowname(_) => write!(f, "ParseRowname ")?,
-            ParseOFError::ErrColname(_) => write!(f, "ParseColname ")?,
-            ParseOFError::ErrParseIncomplete(_) => write!(f, "ParseIncomplete ")?,
-            ParseOFError::ErrElementary(_) => write!(f, "Elementary ")?,
-            ParseOFError::ErrReference(_) => write!(f, "Reference ")?,
-            ParseOFError::ErrCellRange(_) => write!(f, "CellRange ")?,
-            ParseOFError::ErrColRange(_) => write!(f, "ColRange ")?,
-            ParseOFError::ErrRowRange(_) => write!(f, "RowRange ")?,
-            ParseOFError::ErrParenthesis(_) => write!(f, "Parenthesis ")?,
-            ParseOFError::ErrFnCall(_) => write!(f, "FnCall ")?,
-            ParseOFError::ErrString(_) => write!(f, "String ")?,
             ParseOFError::ErrNumber(_) => write!(f, "Number ")?,
-            ParseOFError::ErrFnName(_) => write!(f, "FnName ")?,
-            ParseOFError::ErrComparisonOp(_) => write!(f, "ComparisonOp ")?,
-            ParseOFError::ErrNamed(_) => write!(f, "Named ")?,
-            ParseOFError::ErrPrefixOp(_) => write!(f, "PrefixOp ")?,
+            ParseOFError::ErrParenthesis(_) => write!(f, "Parenthesis ")?,
+            ParseOFError::ErrParseIncomplete(_) => write!(f, "ParseIncomplete ")?,
             ParseOFError::ErrPostfixOp(_) => write!(f, "PostfixOp ")?,
-            ParseOFError::ErrAddOp(_) => write!(f, "AddOp ")?,
-            ParseOFError::ErrMulOp(_) => write!(f, "MulOp ")?,
             ParseOFError::ErrPowOp(_) => write!(f, "PowOp ")?,
-            ParseOFError::ErrDollar(_) => write!(f, "Dollar ")?,
-            ParseOFError::ErrDigit(_) => write!(f, "Digit ")?,
-            ParseOFError::ErrAlpha(_) => write!(f, "Alpha ")?,
+            ParseOFError::ErrPrefixOp(_) => write!(f, "PrefixOp ")?,
+            ParseOFError::ErrReference(_) => write!(f, "Reference ")?,
             ParseOFError::ErrRow(_) => write!(f, "Row ")?,
-            ParseOFError::ErrCol(_) => write!(f, "Col ")?,
-            ParseOFError::ErrColon(_) => write!(f, "Colon ")?,
+            ParseOFError::ErrRowRange(_) => write!(f, "RowRange ")?,
+            ParseOFError::ErrRowname(_) => write!(f, "ParseRowname ")?,
+            ParseOFError::ErrString(_) => write!(f, "String ")?,
+            ParseOFError::ErrUnexpected(_) => write!(f, "Unexpected ")?,
+            ParseOFError::ErrIri(_) => write!(f, "Iri ")?,
         }
         Self::fmt_span(self.span(), f)?;
         Ok(())

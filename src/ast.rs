@@ -54,13 +54,10 @@ pub enum OFAst<'a> {
     /// CellRef
     NodeCellRef(OFCellRef<'a>),
     /// CellRange
-    // TODO: replace CellRange
     NodeCellRange(OFCellRange<'a>),
     /// ColRange
-    // TODO: replace ColRange
     NodeColRange(OFColRange<'a>),
     /// RowRange
-    // TODO: replace RowRange
     NodeRowRange(OFRowRange<'a>),
 
     /// Expression in parentheses.
@@ -73,22 +70,22 @@ impl<'a> OFAst<'a> {
     /// Returns the contained value as a &dyn Node.
     pub fn node(&self) -> &dyn Node<'a> {
         match self {
-            OFAst::NodeEmpty(v) => v,
-            OFAst::NodeCompare(v) => v,
             OFAst::NodeAdd(v) => v,
+            OFAst::NodeCellRange(v) => v,
+            OFAst::NodeCellRef(v) => v,
+            OFAst::NodeColRange(v) => v,
+            OFAst::NodeCompare(v) => v,
+            OFAst::NodeEmpty(v) => v,
+            OFAst::NodeFnCall(v) => v,
             OFAst::NodeMul(v) => v,
+            OFAst::NodeNamed(v) => v,
+            OFAst::NodeNumber(v) => v,
+            OFAst::NodeParens(v) => v,
+            OFAst::NodePostfix(v) => v,
             OFAst::NodePow(v) => v,
             OFAst::NodePrefix(v) => v,
-            OFAst::NodePostfix(v) => v,
-            OFAst::NodeNumber(v) => v,
-            OFAst::NodeString(v) => v,
-            OFAst::NodeCellRef(v) => v,
-            OFAst::NodeCellRange(v) => v,
-            OFAst::NodeColRange(v) => v,
             OFAst::NodeRowRange(v) => v,
-            OFAst::NodeParens(v) => v,
-            OFAst::NodeFnCall(v) => v,
-            OFAst::NodeNamed(v) => v,
+            OFAst::NodeString(v) => v,
         }
     }
 }
@@ -1435,8 +1432,6 @@ impl<'a> PartialEq for OFNamed<'a> {
 }
 
 // OFCellRef *************************************************************
-
-// TODO: don't use CellRef etc
 
 /// CellRef
 pub struct OFCellRef<'a> {

@@ -12,7 +12,6 @@
 #![warn(missing_abi)]
 // NOT_ACCURATE #![warn(missing_copy_implementations)]
 // #![warn(missing_debug_implementations)]
-#![warn(missing_docs)]
 #![warn(non_ascii_idents)]
 #![warn(noop_method_call)]
 // NO #![warn(or_patterns_back_compat)]
@@ -34,8 +33,11 @@
 #![warn(variant_size_differences)]
 #![allow(dead_code)]
 #![allow(clippy::needless_lifetimes)]
+// TODO: documentation
+#![allow(missing_docs)]
 
-mod ast;
+pub mod ast;
+pub mod cellref;
 mod dbg_ast;
-mod error;
-mod refs;
+pub mod error;
+pub mod refs;
