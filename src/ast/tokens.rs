@@ -17,13 +17,13 @@ use nom::combinator::{opt, recognize};
 use nom::multi::{count, many0};
 use nom::sequence::tuple;
 use nom::InputTake;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 use nom::error::ErrorKind::*;
 
 pub type TokenResult<'a, O> = Result<(Span<'a>, O), TokenError<'a>>;
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub enum TokenError<'s> {
     /// Nom ast error.
     TokNomError(Span<'s>),
@@ -69,15 +69,46 @@ pub enum TokenError<'s> {
 }
 
 impl<'s> TokenError<'s> {
-    pub fn unexpected(e: TokenError<'s>) -> TokenError<'s> {
-        TokenError::TokUnexpected(*e.span(), Box::new(e))
-    }
+    pub fn name(&self) -> &str {
+        match self {
+            TokenError::TokNomError(_) => "NomError",
+            TokenError::TokNomFailure(_) => "NomFailure",
+            TokenError::TokUnexpected(_, _) => "Unexpected",
 
-    pub fn nom(e: nom::Err<nom::error::Error<Span<'s>>>) -> TokenError<'s> {
-        match e {
-            nom::Err::Error(e) => TokenError::TokNomError(e.input),
-            nom::Err::Failure(e) => TokenError::TokNomFailure(e.input),
-            nom::Err::Incomplete(_) => unreachable!(),
+            TokenError::TokAddOp(_) => "AddOp",
+            TokenError::TokAlpha(_) => "Alpha",
+            TokenError::TokBracketsClose(_) => "BracketsClose",
+            TokenError::TokBracketsOpen(_) => "BracketsOpen",
+            TokenError::TokCol(_) => "Col",
+            TokenError::TokColon(_) => "Colon",
+            TokenError::TokComparisonOp(_) => "CompOp",
+            TokenError::TokDigit(_) => "Digit",
+            TokenError::TokDollar(_) => "Dollar",
+            TokenError::TokDollarDollar(_) => "DollarDollar",
+            TokenError::TokDot(_) => "Dot",
+            TokenError::TokEndQuote(_) => "QuoteEnd",
+            TokenError::TokEndSingleQuote(_) => "SingleQuoteEnd",
+            TokenError::TokFnName(_) => "FnName",
+            TokenError::TokHash(_) => "SheetName",
+            TokenError::TokHashtag(_) => "Hashtag",
+            TokenError::TokIdentifier(_) => "DollarDollar",
+            TokenError::TokMulOp(_) => "MulOp",
+            TokenError::TokNumber(_) => "Number",
+            TokenError::TokParenthesesClose(_) => "ParenthesesClose",
+            TokenError::TokParenthesesOpen(_) => "ParenthesesOpen",
+            TokenError::TokPostfixOp(_) => "PostfixOp",
+            TokenError::TokPowOp(_) => "PowOp",
+            TokenError::TokPrefixOp(_) => "PrefixOp",
+            TokenError::TokRefConcatOp(_) => "RefConcatOp",
+            TokenError::TokRefIntersectionOp(_) => "RefIntersectionOp",
+            TokenError::TokReferenceOp(_) => "ReferenceOp",
+            TokenError::TokRow(_) => "Row",
+            TokenError::TokSemikolon(_) => "Semikolon",
+            TokenError::TokSheetName(_) => "SheetName",
+            TokenError::TokStartQuote(_) => "QuoteStart",
+            TokenError::TokStartSingleQuote(_) => "SingleQuoteStart",
+            TokenError::TokString(_) => "String",
+            TokenError::TokStringOp(_) => "StringOp",
         }
     }
 
@@ -125,47 +156,41 @@ impl<'s> TokenError<'s> {
     }
 }
 
+impl<'s> TokenError<'s> {
+    pub fn unexpected(e: TokenError<'s>) -> TokenError<'s> {
+        TokenError::TokUnexpected(*e.span(), Box::new(e))
+    }
+
+    pub fn nom(e: nom::Err<nom::error::Error<Span<'s>>>) -> TokenError<'s> {
+        match e {
+            nom::Err::Error(e) => TokenError::TokNomError(e.input),
+            nom::Err::Failure(e) => TokenError::TokNomFailure(e.input),
+            nom::Err::Incomplete(_) => unreachable!(),
+        }
+    }
+}
+
+impl<'s> Debug for TokenError<'s> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?} ", self.name())?;
+        let span = self.span();
+        write!(
+            f,
+            "{}::{}:{} '{}'",
+            span.location_offset(),
+            span.location_line(),
+            span.get_column(),
+            span.fragment()
+        )?;
+        Ok(())
+    }
+}
+
 impl<'s> Display for TokenError<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            TokenError::TokNomError(s) => write!(f, "NomError {}", s),
-            TokenError::TokNomFailure(s) => write!(f, "NomFailure {}", s),
-            TokenError::TokUnexpected(s, t) => write!(f, "Unexpected {} {:?}", s, t),
-
-            TokenError::TokAddOp(s) => write!(f, "AddOp {}", s),
-            TokenError::TokAlpha(s) => write!(f, "Alpha {}", s),
-            TokenError::TokBracketsClose(s) => write!(f, "BracketsClose {}", s),
-            TokenError::TokBracketsOpen(s) => write!(f, "BracketsOpen {}", s),
-            TokenError::TokCol(s) => write!(f, "Col {}", s),
-            TokenError::TokColon(s) => write!(f, "Colon {}", s),
-            TokenError::TokComparisonOp(s) => write!(f, "CompOp {}", s),
-            TokenError::TokDigit(s) => write!(f, "Digit {}", s),
-            TokenError::TokDollar(s) => write!(f, "Dollar {}", s),
-            TokenError::TokDollarDollar(s) => write!(f, "DollarDollar {}", s),
-            TokenError::TokDot(s) => write!(f, "Dot {}", s),
-            TokenError::TokEndQuote(s) => write!(f, "QuoteEnd {}", s),
-            TokenError::TokEndSingleQuote(s) => write!(f, "SingleQuoteEnd {}", s),
-            TokenError::TokFnName(s) => write!(f, "FnName {}", s),
-            TokenError::TokHash(s) => write!(f, "SheetName {}", s),
-            TokenError::TokHashtag(s) => write!(f, "Hashtag {}", s),
-            TokenError::TokIdentifier(s) => write!(f, "DollarDollar {}", s),
-            TokenError::TokMulOp(s) => write!(f, "MulOp {}", s),
-            TokenError::TokNumber(s) => write!(f, "Number {}", s),
-            TokenError::TokParenthesesClose(s) => write!(f, "ParenthesesClose {}", s),
-            TokenError::TokParenthesesOpen(s) => write!(f, "ParenthesesOpen {}", s),
-            TokenError::TokPostfixOp(s) => write!(f, "PostfixOp {}", s),
-            TokenError::TokPowOp(s) => write!(f, "PowOp {}", s),
-            TokenError::TokPrefixOp(s) => write!(f, "PrefixOp {}", s),
-            TokenError::TokRefConcatOp(s) => write!(f, "RefConcatOp {}", s),
-            TokenError::TokRefIntersectionOp(s) => write!(f, "RefIntersectionOp {}", s),
-            TokenError::TokReferenceOp(s) => write!(f, "ReferenceOp {}", s),
-            TokenError::TokRow(s) => write!(f, "Row {}", s),
-            TokenError::TokSemikolon(s) => write!(f, "Semikolon {}", s),
-            TokenError::TokSheetName(s) => write!(f, "SheetName {}", s),
-            TokenError::TokStartQuote(s) => write!(f, "QuoteStart {}", s),
-            TokenError::TokStartSingleQuote(s) => write!(f, "SingleQuoteStart {}", s),
-            TokenError::TokString(s) => write!(f, "String {}", s),
-            TokenError::TokStringOp(s) => write!(f, "StringOp {}", s),
+            TokenError::TokUnexpected(s, t) => write!(f, "{} '{}' {:?}", self.name(), s, t),
+            _ => write!(f, "{} '{}'", self.name(), self.span()),
         }
     }
 }

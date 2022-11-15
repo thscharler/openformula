@@ -380,7 +380,7 @@ impl<'span> Tracer<'span> {
     ) -> ParseOFError<'span> {
         let error_span = *tok.span();
         //
-        let err = if let TokenError::TokNomFailure(_) = &tok {
+        let mut err = if let TokenError::TokNomFailure(_) = &tok {
             ParseOFError::fail(error_span)
         } else if let TokenError::TokNomError(_) = &tok {
             ParseOFError::err(error_span)
@@ -403,6 +403,7 @@ impl<'span> Tracer<'span> {
 
         self.maybe_drop_optional(func);
 
+        err.tok.push(tok);
         err
     }
 
