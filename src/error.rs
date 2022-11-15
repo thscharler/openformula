@@ -37,6 +37,7 @@ pub enum OFError {
     ErrComparisonOp,
     ErrDigit,
     ErrDollar,
+    ErrDollarDollar,
     /// Elementary expression fails.
     ErrElementary,
     /// Error when parsing a function call
@@ -60,6 +61,8 @@ pub enum OFError {
     /// Error converting a row-name to an u32.
     ErrRowname,
     ErrString,
+    ErrSheetName,
+    ErrSingleQuoted,
 }
 
 impl<'s> ParseOFError<'s> {
@@ -124,6 +127,11 @@ impl<'s> ParseOFError<'s> {
         ParseOFError::new(ErrIri, span)
     }
 
+    /// Sheet name
+    pub fn sheet_name(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrSheetName, span)
+    }
+
     /// CellRange variant.
     pub fn cell_range(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrCellRange, span)
@@ -177,6 +185,14 @@ impl<'s> ParseOFError<'s> {
 
     pub fn dollar(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrDollar, span)
+    }
+
+    pub fn dollardollar(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrDollarDollar, span)
+    }
+
+    pub fn single_quoted(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrSingleQuoted, span)
     }
 
     pub fn alpha(span: Span<'s>) -> ParseOFError<'s> {

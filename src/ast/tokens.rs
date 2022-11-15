@@ -591,7 +591,7 @@ pub fn sheet_name(rest: Span<'_>) -> TokenResult<'_, (Option<Span<'_>>, Span<'_>
 pub fn quoted_sheet_name(rest: Span<'_>) -> TokenResult<'_, (Option<Span<'_>>, Span<'_>)> {
     let (rest, abs) = match opt(dollar_nom)(rest) {
         Ok((rest, tok)) => (rest, tok),
-        Err(_) => return Err(TokenError::TokDollar(rest)),
+        Err(e) => return Err(TokenError::nom(e)),
     };
     let (rest, name) = match single_quoted(rest) {
         Ok((rest, tok)) => (rest, tok),

@@ -10,6 +10,7 @@
 use crate::ast::nomtokens::eat_space;
 use crate::ast::tokens::{col, colon, empty, row, TokenError};
 use crate::ast::tracer::Suggest;
+use crate::ast::tracer::TrackParseResult;
 use crate::ast::{
     conv, span_union, span_union_opt, tokens, tracer::Tracer, Node, OFAddOp, OFAst, OFCellRange,
     OFCellRef, OFCol, OFColRange, OFCompOp, OFIri, OFMulOp, OFPostfixOp, OFPowOp, OFPrefixOp,
@@ -1297,25 +1298,27 @@ impl<'s> GeneralTerm<'s, Option<OFIri<'s>>> for IriTerm {
 
         // (IRI '#')?
         trace.suggest(Suggest::Iri);
-        let (rest, iri) = match tokens::iri(rest) {
-            Ok((rest1, iri)) => (rest1, Some(OFAst::iri(conv::unquote_single(iri), iri))),
+        match tokens::iri(rest) {
+            Ok((rest1, iri)) => {
+                let term = OFAst::iri(conv::unquote_single(iri), iri);
+                Ok(trace.ok(iri, rest1, Some(term)))
+            }
 
             // Fail to start any of these
-            Err(TokenError::TokStartSingleQuote(_)) => (rest, None),
-            Err(TokenError::TokHash(_)) => (rest, None),
+            Err(TokenError::TokStartSingleQuote(_)) | Err(TokenError::TokHash(_)) => {
+                Ok(trace.ok(empty(rest), rest, None))
+            }
 
             Err(e @ TokenError::TokString(_)) | Err(e @ TokenError::TokEndSingleQuote(_)) => {
-                return Err(trace.map_tok(ParseOFError::iri, e));
+                Err(trace.map_tok(ParseOFError::iri, e))
             }
 
             Err(e) => trace.panic_tok(e),
-        };
-
-        Ok((rest, iri))
+        }
     }
 }
 
-struct SheetNameTerm;
+pub struct SheetNameTerm;
 
 impl<'s> GeneralTerm<'s, Option<OFSheetName<'s>>> for SheetNameTerm {
     fn name() -> &'static str {
@@ -1334,39 +1337,47 @@ impl<'s> GeneralTerm<'s, Option<OFSheetName<'s>>> for SheetNameTerm {
 
         // QuotedSheetName ::= '$'? SingleQuoted "."
         trace.suggest(Suggest::SheetName);
-        let (rest, sheet_name) = match tokens::quoted_sheet_name(rest) {
+        let (span, rest, sheet_name) = match tokens::quoted_sheet_name(rest) {
             Ok((rest1, (abs, sheet_name))) => {
                 let span = unsafe { span_union_opt(abs, sheet_name) };
-                (
-                    rest1,
-                    Some(OFAst::sheet_name(
-                        refs_parser::try_bool_from_abs_flag(abs),
-                        conv::unquote_single(sheet_name),
-                        span,
-                    )),
-                )
+                let term = OFAst::sheet_name(
+                    refs_parser::try_bool_from_abs_flag(abs),
+                    conv::unquote_single(sheet_name),
+                    span,
+                );
+
+                (span, rest1, Some(term))
             }
-            Err(TokenError::TokStartSingleQuote(_)) => (rest, None),
-            Err(e) => return Err(trace.tok(e)),
+            Err(TokenError::TokStartSingleQuote(_)) => (empty(rest), rest, None),
+
+            Err(e @ TokenError::TokString(_)) | Err(e @ TokenError::TokEndSingleQuote(_)) => {
+                return Err(trace.map_tok(ParseOFError::sheet_name, e));
+            }
+
+            Err(e) => trace.panic_tok(e),
         };
 
+        // require dot
         let rest = if sheet_name.is_some() {
             match tokens::dot(rest) {
                 Ok((rest1, _dot)) => rest1,
-                Err(e) => {
+
+                Err(e @ TokenError::TokDot(_)) => {
                     trace.expect(Suggest::Dot);
-                    return Err(trace.tok(e));
+                    return Err(trace.map_tok(ParseOFError::sheet_name, e));
                 }
+
+                Err(e) => trace.panic_tok(e),
             }
         } else {
             rest
         };
 
-        Ok((rest, sheet_name))
+        Ok(trace.ok(span, rest, sheet_name))
     }
 }
 
-struct NamedExpr;
+pub struct NamedExpr;
 
 impl<'s> GeneralExpr<'s> for NamedExpr {
     fn name() -> &'static str {
@@ -1388,10 +1399,12 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
         trace.enter(Self::name(), rest);
 
         // (IRI '#')?
-        let (rest, iri) = IriTerm::parse(trace, rest)?;
+        trace.optional(IriTerm::name());
+        let (rest, iri) = IriTerm::parse(trace, rest).track(trace)?;
 
         // QuotedSheetName ::= '$'? SingleQuoted "."
-        let (rest, sheet_name) = SheetNameTerm::parse(trace, rest)?;
+        trace.optional(SheetNameTerm::name());
+        let (rest, sheet_name) = SheetNameTerm::parse(trace, rest).track(trace)?;
 
         // (Identifier | '$$' (Identifier | SingleQuoted)
 
@@ -1399,11 +1412,12 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
         trace.suggest(Suggest::Identifier);
         let (rest, named) = match tokens::identifier(rest) {
             Ok((rest1, ident)) => {
-                // Identifier
-                (rest1, Some(OFAst::simple_named(ident.to_string(), ident)))
+                let term = OFAst::simple_named(ident.to_string(), ident);
+                (rest1, Some(term))
             }
             Err(TokenError::TokIdentifier(_)) => (rest, None),
-            Err(e) => return Err(trace.tok(e)),
+
+            Err(e) => trace.panic_tok(e),
         };
 
         // If we found a name we're good.
@@ -1416,18 +1430,24 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
             trace.suggest(Suggest::DollarDollar);
             let (rest, _) = match tokens::dollar_dollar(rest) {
                 Ok((rest1, tag)) => (rest1, tag),
-                Err(e) => return Err(trace.tok(e)),
+
+                Err(e @ TokenError::TokDollarDollar(_)) => {
+                    return Err(trace.map_tok(ParseOFError::dollardollar, e));
+                }
+
+                Err(e) => trace.panic_tok(e),
             };
 
             // Identifier
             trace.suggest(Suggest::Identifier);
             let (rest, named) = match tokens::identifier(rest) {
                 Ok((rest1, ident)) => {
-                    //
-                    (rest1, Some(OFAst::simple_named(ident.to_string(), ident)))
+                    let term = OFAst::simple_named(ident.to_string(), ident);
+                    (rest1, Some(term))
                 }
                 Err(TokenError::TokIdentifier(_)) => (rest, None),
-                Err(e) => return Err(trace.tok(e)),
+
+                Err(e) => trace.panic_tok(e),
             };
 
             // SingleQuoted
@@ -1437,23 +1457,25 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                 trace.suggest(Suggest::SingleQuoted);
                 match tokens::single_quoted(rest) {
                     Ok((rest1, ident)) => {
-                        //
                         let named_str = conv::unquote_single(ident);
-                        (rest1, OFAst::simple_named(named_str, ident))
+                        let term = OFAst::simple_named(named_str, ident);
+                        (rest1, term)
                     }
+
                     Err(e @ TokenError::TokStartQuote(_)) => {
-                        trace.suggest(Suggest::StartSingleQuote);
-                        return Err(trace.tok(e));
+                        trace.expect(Suggest::StartSingleQuote);
+                        return Err(trace.map_tok(ParseOFError::single_quoted, e));
                     }
                     Err(e @ TokenError::TokString(_)) => {
-                        trace.suggest(Suggest::String);
-                        return Err(trace.tok(e));
+                        trace.expect(Suggest::SingleQuoted);
+                        return Err(trace.map_tok(ParseOFError::single_quoted, e));
                     }
                     Err(e @ TokenError::TokEndQuote(_)) => {
-                        trace.suggest(Suggest::EndSingleQuote);
-                        return Err(trace.tok(e));
+                        trace.expect(Suggest::EndSingleQuote);
+                        return Err(trace.map_tok(ParseOFError::single_quoted, e));
                     }
-                    Err(e) => return Err(trace.tok(e)),
+
+                    Err(e) => trace.panic_tok(e),
                 }
             };
 

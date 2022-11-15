@@ -5,7 +5,7 @@
 //!
 
 use crate::ast::tokens::TokenError;
-use crate::ast::Span;
+use crate::ast::{ParseResult, Span};
 use crate::error::ParseOFError;
 use std::cell::RefCell;
 use std::fmt::Write;
@@ -414,6 +414,23 @@ impl<'span> Tracer<'span> {
     /// Panics if there was no call to enter() before.
     pub fn tok(&self, tok: TokenError<'span>) -> ParseOFError<'span> {
         self.map_tok(ParseOFError::err, tok)
+    }
+}
+
+/// Helps with keeping tracks in the parsers. This can be squeezed between
+/// the call to another parser and the ?-operator to resolve the result.
+///
+/// Makes sure the tracer can keep track of the complete parse call tree.
+pub trait TrackParseResult<'s, 't, O> {
+    fn track(self, trace: &'t Tracer<'s>) -> ParseResult<'s, 't, O>;
+}
+
+impl<'s, 't, O> TrackParseResult<'s, 't, O> for ParseResult<'s, 't, O> {
+    fn track(self, trace: &'t Tracer<'s>) -> ParseResult<'s, 't, O> {
+        match self {
+            Ok(_) => return self,
+            Err(e) => Err(trace.parse(e)),
+        }
     }
 }
 

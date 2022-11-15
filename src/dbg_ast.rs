@@ -53,7 +53,7 @@ where
 }
 
 pub fn debug_span(span: Span<'_>, f: &mut Formatter<'_>) -> fmt::Result {
-    write!(f, "offset:{}, '{}'", span.location_offset(), *span)
+    write!(f, "off:{}:'{}'", span.location_offset(), *span)
 }
 
 pub fn debug_ast<'a, 'b>(ast: &OFAst<'a>, indent: u32, f: &mut Formatter<'b>) -> fmt::Result {
