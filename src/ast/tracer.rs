@@ -231,13 +231,19 @@ impl<'span> Tracer<'span> {
     /// Panics
     ///
     /// Panics if there was no call to enter() before.
-    pub fn ok<T>(&self, span: Span<'span>, rest: Span<'span>, val: T) -> (Span<'span>, T) {
+    // ParseResult<'s, 't, OFAddOp<'s>>
+    pub fn ok<'trace, T>(
+        &'trace self,
+        span: Span<'span>,
+        rest: Span<'span>,
+        val: T,
+    ) -> ParseResult<'span, 'trace, T> {
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks.borrow_mut().push(Track::Ok(func, span, rest));
 
         self.maybe_drop_optional(func);
 
-        (rest, val)
+        Ok((rest, val))
     }
 
     /// Error in a parser.
@@ -248,7 +254,10 @@ impl<'span> Tracer<'span> {
     /// Panics
     ///
     /// Panics if there was no call to enter() before.
-    pub fn parse(&self, err: ParseOFError<'span>) -> ParseOFError<'span> {
+    pub fn parse<'trace, T>(
+        &'trace self,
+        err: ParseOFError<'span>,
+    ) -> ParseResult<'span, 'trace, T> {
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks.borrow_mut().push(Track::ErrorSpan(
             func,
@@ -259,7 +268,7 @@ impl<'span> Tracer<'span> {
 
         self.maybe_drop_optional(func);
 
-        err
+        Err(err)
     }
 
     /// Error in a parser.
@@ -273,11 +282,11 @@ impl<'span> Tracer<'span> {
     /// If the error is a nom::Err::Incomplete.
     /// Panics if there was no call to enter() before.
     ///
-    pub fn map_nom(
-        &self,
+    pub fn map_nom<'trace, T>(
+        &'trace self,
         err_fn: fn(span: Span<'span>) -> ParseOFError<'span>,
         nom: nom::Err<nom::error::Error<Span<'span>>>,
-    ) -> ParseOFError<'span> {
+    ) -> ParseResult<'span, 'trace, T> {
         //
         // The nom error is just the span + error kind in a way.
         // Plus a few bits to differentiate between parsing error and complete failure.
@@ -300,7 +309,7 @@ impl<'span> Tracer<'span> {
 
         self.maybe_drop_optional(func);
 
-        err
+        Err(err)
     }
 
     /// Extracts the error kind and a flag to differentiate between
@@ -324,7 +333,10 @@ impl<'span> Tracer<'span> {
     ///
     /// If the error is a nom::Err::Incomplete.
     /// Panics if there was no call to enter() before.
-    pub fn nom(&self, nom: nom::Err<nom::error::Error<Span<'span>>>) -> ParseOFError<'span> {
+    pub fn nom<'trace, T>(
+        &'trace self,
+        nom: nom::Err<nom::error::Error<Span<'span>>>,
+    ) -> ParseResult<'span, 'trace, T> {
         self.map_nom(ParseOFError::err, nom)
     }
 
@@ -373,11 +385,11 @@ impl<'span> Tracer<'span> {
     ///
     /// If the error is a nom::Err::Incomplete.
     /// Panics if there was no call to enter() before.
-    pub fn map_tok(
-        &self,
+    pub fn map_tok<'trace, T>(
+        &'trace self,
         err_fn: fn(span: Span<'span>) -> ParseOFError<'span>,
         tok: TokenError<'span>,
-    ) -> ParseOFError<'span> {
+    ) -> ParseResult<'span, 'trace, T> {
         let error_span = *tok.span();
         //
         let mut err = if let TokenError::TokNomFailure(_) = &tok {
@@ -404,7 +416,7 @@ impl<'span> Tracer<'span> {
         self.maybe_drop_optional(func);
 
         err.tok.push(tok);
-        err
+        Err(err)
     }
 
     /// Erring in a parser. Handles all nom errors.
@@ -412,7 +424,7 @@ impl<'span> Tracer<'span> {
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
-    pub fn tok(&self, tok: TokenError<'span>) -> ParseOFError<'span> {
+    pub fn tok<'trace, T>(&'trace self, tok: TokenError<'span>) -> ParseResult<'span, 'trace, T> {
         self.map_tok(ParseOFError::err, tok)
     }
 }
@@ -429,7 +441,7 @@ impl<'s, 't, O> TrackParseResult<'s, 't, O> for ParseResult<'s, 't, O> {
     fn track(self, trace: &'t Tracer<'s>) -> ParseResult<'s, 't, O> {
         match self {
             Ok(_) => return self,
-            Err(e) => Err(trace.parse(e)),
+            Err(e) => trace.parse(e),
         }
     }
 }
