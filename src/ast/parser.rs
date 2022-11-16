@@ -116,9 +116,9 @@ impl<'s> GeneralExpr<'s> for Expr {
         CompareExpr::lah(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
-        match CompareExpr::parse(trace, i) {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
+        match CompareExpr::parse(trace, rest) {
             Ok((rest, expr)) => trace.ok(expr.span(), rest, expr),
             Err(e) => trace.parse(e),
         }
@@ -128,10 +128,10 @@ impl<'s> GeneralExpr<'s> for Expr {
 struct CompareExpr;
 
 impl<'s> CompareExpr {
-    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, OFCompOp<'s>> {
-        trace.enter("comp-operator", i);
+    fn operator<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFCompOp<'s>> {
+        trace.enter("comp-operator", rest);
         trace.optional("comp-operator");
-        match tokens::comparison_op(i) {
+        match tokens::comparison_op(rest) {
             Ok((rest, tok)) => match *tok {
                 "=" => trace.ok(tok, rest, OFCompOp::Equal(tok)),
                 "<>" => trace.ok(tok, rest, OFCompOp::Unequal(tok)),
@@ -157,10 +157,10 @@ impl<'s> GeneralExpr<'s> for CompareExpr {
     }
 
     /// Parses all the binary expressions.
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
-        match AddExpr::parse(trace, i) {
+        match AddExpr::parse(trace, rest) {
             Ok((mut loop_rest, mut expr1)) => {
                 //
                 loop {
@@ -192,10 +192,10 @@ impl<'s> GeneralExpr<'s> for CompareExpr {
 struct AddExpr;
 
 impl<'s> AddExpr {
-    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, OFAddOp<'s>> {
-        trace.enter("add-operator", i);
+    fn operator<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFAddOp<'s>> {
+        trace.enter("add-operator", rest);
         trace.optional("add-operator");
-        match tokens::add_op(i) {
+        match tokens::add_op(rest) {
             Ok((rest, tok)) => match *tok {
                 "+" => trace.ok(tok, rest, OFAddOp::Add(tok)),
                 "-" => trace.ok(tok, rest, OFAddOp::Subtract(tok)),
@@ -217,10 +217,10 @@ impl<'s> GeneralExpr<'s> for AddExpr {
     }
 
     /// Parses all the binary expressions.
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
-        match MulExpr::parse(trace, i) {
+        match MulExpr::parse(trace, rest) {
             Ok((mut loop_rest, mut expr1)) => {
                 //
                 loop {
@@ -252,10 +252,10 @@ impl<'s> GeneralExpr<'s> for AddExpr {
 struct MulExpr;
 
 impl<'s> MulExpr {
-    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, OFMulOp<'s>> {
-        trace.enter("mul-operator", i);
+    fn operator<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFMulOp<'s>> {
+        trace.enter("mul-operator", rest);
         trace.optional("mul-operator");
-        match tokens::mul_op(i) {
+        match tokens::mul_op(rest) {
             Ok((rest, tok)) => match *tok {
                 "*" => trace.ok(tok, rest, OFMulOp::Multiply(tok)),
                 "/" => trace.ok(tok, rest, OFMulOp::Divide(tok)),
@@ -277,10 +277,10 @@ impl<'s> GeneralExpr<'s> for MulExpr {
     }
 
     /// Parses all the binary expressions.
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
-        match PowExpr::parse(trace, i) {
+        match PowExpr::parse(trace, rest) {
             Ok((mut loop_rest, mut expr1)) => {
                 //
                 loop {
@@ -312,10 +312,10 @@ impl<'s> GeneralExpr<'s> for MulExpr {
 struct PowExpr;
 
 impl<'s> PowExpr {
-    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, OFPowOp<'s>> {
-        trace.enter("pow-operator", i);
+    fn operator<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFPowOp<'s>> {
+        trace.enter("pow-operator", rest);
         trace.optional("pow-operator");
-        match tokens::pow_op(i) {
+        match tokens::pow_op(rest) {
             Ok((rest, tok)) => match *tok {
                 "^" => trace.ok(tok, rest, OFPowOp::Power(tok)),
                 _ => unreachable!(),
@@ -336,10 +336,10 @@ impl<'s> GeneralExpr<'s> for PowExpr {
     }
 
     /// Parses all the binary expressions.
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
-        match PostfixExpr::parse(trace, i) {
+        match PostfixExpr::parse(trace, rest) {
             Ok((mut loop_rest, mut expr1)) => {
                 //
                 loop {
@@ -374,11 +374,11 @@ impl PostfixExpr {
     /// Parses and maps the Span to an OFPostfixOp
     pub fn operator<'s, 't>(
         trace: &'t Tracer<'s>,
-        i: Span<'s>,
+        rest: Span<'s>,
     ) -> ParseResult<'s, OFPostfixOp<'s>> {
-        trace.enter("postfix-operator", i);
+        trace.enter("postfix-operator", rest);
         trace.optional("postfix-operator");
-        match tokens::postfix_op(i) {
+        match tokens::postfix_op(rest) {
             Ok((rest, tok)) => match *tok {
                 "%" => trace.ok(tok, rest, OFPostfixOp::Percent(tok)),
                 _ => unreachable!(),
@@ -398,10 +398,10 @@ impl<'s> GeneralExpr<'s> for PostfixExpr {
         PrefixExpr::lah(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
-        let (rest, ast) = match PrefixExpr::parse(trace, i) {
+        let (rest, ast) = match PrefixExpr::parse(trace, rest) {
             Ok((mut loop_rest, mut expr)) => {
                 //
                 loop {
@@ -427,10 +427,13 @@ struct PrefixExpr;
 
 impl PrefixExpr {
     /// Parses and maps the Span to a OFPrefixOp.
-    pub fn operator<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, OFPrefixOp<'s>> {
-        trace.enter("prefix-operator", i);
+    pub fn operator<'s, 't>(
+        trace: &'t Tracer<'s>,
+        rest: Span<'s>,
+    ) -> ParseResult<'s, OFPrefixOp<'s>> {
+        trace.enter("prefix-operator", rest);
         trace.optional("prefix-operator");
-        match tokens::prefix_op(i) {
+        match tokens::prefix_op(rest) {
             Ok((rest, tok)) => match *tok {
                 "+" => trace.ok(tok, rest, OFPrefixOp::Plus(tok)),
                 "-" => trace.ok(tok, rest, OFPrefixOp::Minus(tok)),
@@ -506,13 +509,13 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
             || FnCallExpr::lah(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
         trace.suggest(Suggest::Number);
-        if NumberExpr::lah(i) {
+        if NumberExpr::lah(rest) {
             trace.optional(NumberExpr::name());
-            match NumberExpr::parse(trace, i) {
+            match NumberExpr::parse(trace, rest) {
                 Ok((rest, expr)) => {
                     return trace.ok(expr.span(), rest, expr);
                 }
@@ -524,25 +527,25 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
             }
         }
 
-        trace.suggest(Suggest::String);
-        if StringExpr::lah(i) {
+        trace.suggest(Suggest::StringContent);
+        if StringExpr::lah(rest) {
             trace.optional(StringExpr::name());
-            match StringExpr::parse(trace, i) {
+            match StringExpr::parse(trace, rest) {
                 Ok((rest, expr)) => {
                     return trace.ok(expr.span(), rest, expr);
                 }
                 Err(e) if e.code == ErrNomError => {
                     /* skip */
-                    trace.expect(Suggest::String);
+                    trace.expect(Suggest::StringContent);
                 }
                 Err(e) => return trace.parse(e),
             }
         }
 
         trace.suggest(Suggest::Parentheses);
-        if ParenthesisExpr::lah(i) {
+        if ParenthesisExpr::lah(rest) {
             trace.optional(ParenthesisExpr::name());
-            match ParenthesisExpr::parse(trace, i) {
+            match ParenthesisExpr::parse(trace, rest) {
                 Ok((rest, expr)) => {
                     return trace.ok(expr.span(), rest, expr);
                 }
@@ -552,9 +555,9 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
         }
 
         trace.suggest(Suggest::Reference);
-        if ReferenceExpr::lah(i) {
+        if ReferenceExpr::lah(rest) {
             trace.optional(ReferenceExpr::name());
-            match ReferenceExpr::parse(trace, i) {
+            match ReferenceExpr::parse(trace, rest) {
                 Ok((rest, expr)) => {
                     return trace.ok(expr.span(), rest, expr);
                 }
@@ -571,9 +574,9 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
         }
 
         trace.suggest(Suggest::FnCall);
-        if FnCallExpr::lah(i) {
+        if FnCallExpr::lah(rest) {
             trace.optional(FnCallExpr::name());
-            match FnCallExpr::parse(trace, i) {
+            match FnCallExpr::parse(trace, rest) {
                 Ok((rest, expr)) => {
                     return trace.ok(expr.span(), rest, expr);
                 }
@@ -585,7 +588,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
             }
         }
 
-        trace.parse(ParseOFError::elementary(i))
+        trace.parse(ParseOFError::elementary(rest))
     }
 }
 
@@ -652,11 +655,11 @@ impl<'s> GeneralExpr<'s> for StringExpr {
                 trace.err_map_tok(ParseOFError::string, e)
             }
             Err(e @ TokenError::TokString(_)) => {
-                trace.expect(Suggest::String);
+                trace.expect(Suggest::StringContent);
                 trace.err_map_tok(ParseOFError::string, e)
             }
             Err(e) => {
-                trace.expect(Suggest::String);
+                trace.expect(Suggest::StringContent);
                 trace.err_map_tok(ParseOFError::string, e)
             }
         }
@@ -696,11 +699,11 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
 
     /// Tries to ast a cell reference.
     #[allow(clippy::manual_map)]
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
-        trace.enter(Self::name(), i);
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
+        trace.enter(Self::name(), rest);
 
         trace.optional(CellRangeExpr::name());
-        match CellRangeExpr::parse(trace, i) {
+        match CellRangeExpr::parse(trace, rest) {
             Ok((rest, expr)) => {
                 return trace.ok(expr.span(), rest, expr);
             }
@@ -709,7 +712,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
         }
 
         trace.optional(CellRefExpr::name());
-        match CellRefExpr::parse(trace, i) {
+        match CellRefExpr::parse(trace, rest) {
             Ok((rest, expr)) => {
                 return trace.ok(expr.span(), rest, expr);
             }
@@ -718,7 +721,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
         }
 
         trace.optional(ColRangeExpr::name());
-        match ColRangeExpr::parse(trace, i) {
+        match ColRangeExpr::parse(trace, rest) {
             Ok((rest, expr)) => {
                 return trace.ok(expr.span(), rest, expr);
             }
@@ -727,7 +730,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
         }
 
         trace.optional(RowRangeExpr::name());
-        match RowRangeExpr::parse(trace, i) {
+        match RowRangeExpr::parse(trace, rest) {
             Ok((rest, expr)) => {
                 return trace.ok(expr.span(), rest, expr);
             }
@@ -736,7 +739,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
         }
 
         trace.expect(Suggest::Reference);
-        trace.parse(ParseOFError::reference(i))
+        trace.parse(ParseOFError::reference(rest))
     }
 }
 
@@ -1347,7 +1350,12 @@ impl<'s> GeneralTerm<'s, Option<OFSheetName<'s>>> for SheetNameTerm {
             }
             Err(TokenError::TokStartSingleQuote(_)) => (empty(rest), rest, None),
 
-            Err(e @ TokenError::TokString(_)) | Err(e @ TokenError::TokEndSingleQuote(_)) => {
+            Err(e @ TokenError::TokString(_)) => {
+                trace.expect(Suggest::StringContent);
+                return trace.err_map_tok(ParseOFError::sheet_name, e);
+            }
+            Err(e @ TokenError::TokEndSingleQuote(_)) => {
+                trace.expect(Suggest::EndSingleQuote);
                 return trace.err_map_tok(ParseOFError::sheet_name, e);
             }
 
@@ -1525,8 +1533,8 @@ mod tests {
                     println!(
                         "   Found '{}' expected {} suggest {}",
                         e.span(),
-                        tracer.expectations(),
-                        tracer.suggestions()
+                        tracer.expect_str(),
+                        tracer.suggest_str()
                     );
                 }
             }

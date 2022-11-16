@@ -12,7 +12,7 @@ use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
 
 ///
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Suggest {
     AddOp,
     Alpha,
@@ -44,7 +44,7 @@ pub enum Suggest {
     SingleQuoted,
     StartQuote,
     StartSingleQuote,
-    String,
+    StringContent,
 }
 
 /// Follows the parsing.
@@ -207,8 +207,14 @@ impl<'s> Tracer<'s> {
         self.suggest.borrow_mut().push(suggest);
     }
 
+    /// Returns the suggested tokens.
+    /// Leaves the contained vec empty!
+    pub fn suggest_vec(&self) -> Vec<Suggest> {
+        self.suggest.replace(Vec::new())
+    }
+
     /// Return the suggestions as a String.
-    pub fn suggestions(&self) -> String {
+    pub fn suggest_str(&self) -> String {
         let mut buf = String::new();
         for s in &*self.suggest.borrow() {
             let _ = write!(buf, "{:?}, ", s);
@@ -236,10 +242,16 @@ impl<'s> Tracer<'s> {
         self.expect.borrow_mut().push(suggest);
     }
 
+    /// Returns the expected tokens.
+    /// Leaves the contained vec empty!
+    pub fn expect_vec(&self) -> Vec<Suggest> {
+        self.expect.replace(Vec::new())
+    }
+
     /// Expected tokens.
     ///
     /// Returns the list of expected tokens as a String.
-    pub fn expectations(&self) -> String {
+    pub fn expect_str(&self) -> String {
         let mut buf = String::new();
         for s in &*self.expect.borrow() {
             let _ = write!(buf, "{:?}, ", s);
@@ -378,8 +390,8 @@ impl<'s> Tracer<'s> {
         eprintln!(
             "found '{}' expected {} suggest {}",
             error_span,
-            self.expectations(),
-            self.suggestions()
+            self.expect_str(),
+            self.suggest_str()
         );
         eprintln!();
         eprintln!("=> {}", tok);
