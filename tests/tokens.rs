@@ -72,7 +72,7 @@ pub fn test_sheet_name() {
     sheet_name(Span::new("")).ctok(TokenError::TokSheetName(nul()));
     sheet_name(Span::new("$")).ctok(TokenError::TokSheetName(nul()));
     sheet_name(Span::new("$'funinthesun'")).cok0(0, "$");
-    sheet_name(Span::new("$'funinthesun'")).cok1(2, "funinthesun");
+    sheet_name(Span::new("$'funinthesun'")).cok1(1, "'funinthesun'");
     sheet_name(Span::new("$'funinthesun")).ctok(TokenError::TokEndSingleQuote(nul()));
     sheet_name(Span::new("$funinthesun'")).cok1(1, "funinthesun");
     sheet_name(Span::new("$funinthesun")).cok1(1, "funinthesun");
@@ -88,7 +88,7 @@ pub fn test_quoted_sheet_name() {
     quoted_sheet_name(Span::new("")).ctok(TokenError::TokStartSingleQuote(nul()));
     quoted_sheet_name(Span::new("$")).ctok(TokenError::TokStartSingleQuote(nul()));
     quoted_sheet_name(Span::new("$'funinthesun'")).cok0(0, "$");
-    quoted_sheet_name(Span::new("$'funinthesun'")).cok1(2, "funinthesun");
+    quoted_sheet_name(Span::new("$'funinthesun'")).cok1(1, "'funinthesun'");
     quoted_sheet_name(Span::new("$'funinthesun")).ctok(TokenError::TokEndSingleQuote(nul()));
     quoted_sheet_name(Span::new("$funinthesun'")).ctok(TokenError::TokStartSingleQuote(nul()));
     quoted_sheet_name(Span::new("$funinthesun")).ctok(TokenError::TokStartSingleQuote(nul()));
@@ -98,7 +98,7 @@ pub fn test_quoted_sheet_name() {
 pub fn test_iri() {
     iri(Span::new("")).ctok(TokenError::TokStartSingleQuote(nul()));
     iri(Span::new("$")).ctok(TokenError::TokStartSingleQuote(nul()));
-    iri(Span::new("'funinthesun'#")).cok(1, "funinthesun");
+    iri(Span::new("'funinthesun'#")).cok(0, "'funinthesun'");
     iri(Span::new("'funinthesun'")).ctok(TokenError::TokHash(nul()));
     iri(Span::new("'funinthesun")).ctok(TokenError::TokEndSingleQuote(nul()));
     iri(Span::new("funinthesun'")).ctok(TokenError::TokStartSingleQuote(nul()));
@@ -138,10 +138,10 @@ pub fn test_col() {
 #[test]
 pub fn test_single_quoted() {
     single_quoted(Span::new("")).ctok(TokenError::TokStartSingleQuote(nul()));
-    single_quoted(Span::new("'aaa'")).cok(1, "aaa");
+    single_quoted(Span::new("'aaa'")).cok(0, "'aaa'");
     single_quoted(Span::new("'aaa")).ctok(TokenError::TokEndSingleQuote(nul()));
     single_quoted(Span::new("aaa'")).ctok(TokenError::TokStartSingleQuote(nul()));
-    single_quoted(Span::new("'aa''aa'")).cok(1, "aa''aa");
-    single_quoted(Span::new("'aa'''aa'")).cok(1, "aa''");
-    single_quoted(Span::new("'aa'aa'")).cok(1, "aa");
+    single_quoted(Span::new("'aa''aa'")).cok(0, "'aa''aa'");
+    single_quoted(Span::new("'aa'''aa'")).cok(0, "'aa'''");
+    single_quoted(Span::new("'aa'aa'")).cok(0, "'aa'");
 }
