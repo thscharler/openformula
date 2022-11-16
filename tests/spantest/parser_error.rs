@@ -198,6 +198,7 @@ where
 
     #[track_caller]
     pub fn q(&self) {
+        // self.dump();
         if *self.fail.borrow() {
             panic!()
         }

@@ -45,10 +45,7 @@ pub fn iri() {
         }
     }
 
-    TestRun::parse("'external", IriTerm::parse)
-        .err(ErrIri)
-        .dump()
-        .q();
+    TestRun::parse("'external", IriTerm::parse).err(ErrIri).q();
     TestRun::parse("'external'", IriTerm::parse).ok(None).q();
     TestRun::parse("'external'#", IriTerm::parse)
         .ok(Some("external"))
@@ -60,15 +57,12 @@ pub fn iri() {
 pub fn sheet_name() {
     impl<'a> TestResult<OFSheetName<'a>> for OFSheetName<'a> {
         type TestValue = &'a str;
-
         fn equal(result: &OFSheetName<'a>, testvalue: &Self::TestValue) -> bool {
             result.name == *testvalue
         }
-
         fn str(result: &OFSheetName<'a>) -> String {
             result.name.clone()
         }
-
         fn val_str(value: &Self::TestValue) -> String {
             value.to_string()
         }
@@ -106,23 +100,20 @@ pub fn sheet_name() {
         .expect(Dot)
         .q();
 }
-// TODO: NamedExpr
+
 #[test]
 fn test_named() {
     impl<'a> TestResult<Box<OFAst<'a>>> for Box<OFAst<'a>> {
         type TestValue = &'a str;
-
         fn equal(result: &Box<OFAst<'a>>, testvalue: &Self::TestValue) -> bool {
             match &**result {
                 OFAst::NodeNamed(result) => result.simple.ident == *testvalue,
                 _ => false,
             }
         }
-
         fn str(result: &Box<OFAst<'a>>) -> String {
             result.to_string()
         }
-
         fn val_str(value: &Self::TestValue) -> String {
             value.to_string()
         }
@@ -159,7 +150,6 @@ fn test_named() {
 
     TestRun::parse("Pi", NamedExpr::parse).ok("Pi").q();
     TestRun::parse("$$Tau", NamedExpr::parse).ok("Tau").q();
-
     TestRun::parse("'xref'#Rho", NamedExpr::parse)
         .okg(iri, "xref")
         .q();
@@ -167,7 +157,6 @@ fn test_named() {
         .okd(sheet_named, "hobo")
         .okg(iri, "xref")
         .q();
-
     TestRun::parse("'xref'.Rho", NamedExpr::parse)
         .ok("Rho")
         .okg(sheet_nameg, "xref")
