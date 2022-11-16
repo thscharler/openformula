@@ -2,7 +2,7 @@ use openformula::ast::tracer::{Suggest, Tracer};
 use openformula::ast::{ParseResult, Span};
 use openformula::error::OFError;
 use std::cell::RefCell;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 pub trait TestResult<O> {
     type TestValue;
@@ -74,6 +74,52 @@ where
             result,
             fail: RefCell::new(false),
         }
+    }
+
+    pub fn okg<V>(&'s self, field: fn(&'s O) -> V, test: V) -> &Self
+    where
+        V: Display,
+        V: PartialEq,
+    {
+        match &self.result {
+            Ok((rest, token)) => {
+                let token_field = field(token);
+                if token_field != test {
+                    println!("{:?}", &self.trace);
+                    println!("=> '{}' | rest='{}'", O::str(token), rest);
+                    println!("FAIL: Value mismatch: {} <> {}", token_field, test);
+                    *self.fail.borrow_mut() = true;
+                }
+            }
+            Err(e) => {
+                println!("{:?}", &self.trace);
+                println!("=> {}", e);
+                println!("FAIL: Expect ok, but was an error!");
+                *self.fail.borrow_mut() = true;
+            }
+        }
+        self
+    }
+
+    pub fn okd(&'s self, field: fn(&'s O, O::TestValue) -> bool, test: O::TestValue) -> &Self {
+        match &self.result {
+            Ok((rest, token)) => {
+                let test_str = O::val_str(&test);
+                if !field(token, test) {
+                    println!("{:?}", &self.trace);
+                    println!("=> '{}' | rest='{}'", O::str(token), rest);
+                    println!("FAIL: Value mismatch: {} <> {}", O::str(token), test_str);
+                    *self.fail.borrow_mut() = true;
+                }
+            }
+            Err(e) => {
+                println!("{:?}", &self.trace);
+                println!("=> {}", e);
+                println!("FAIL: Expect ok, but was an error!");
+                *self.fail.borrow_mut() = true;
+            }
+        }
+        self
     }
 
     pub fn ok(&self, test: O::TestValue) -> &Self {

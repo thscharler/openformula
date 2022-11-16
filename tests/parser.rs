@@ -2,7 +2,7 @@ mod spantest;
 
 use openformula::ast::parser::{GeneralExpr, GeneralTerm, IriTerm, NamedExpr, SheetNameTerm};
 use openformula::ast::tracer::Suggest::*;
-use openformula::ast::{OFIri, OFSheetName};
+use openformula::ast::{OFAst, OFIri, OFSheetName};
 use openformula::error::OFError::*;
 
 pub use spantest::*;
@@ -109,9 +109,74 @@ pub fn sheet_name() {
 // TODO: NamedExpr
 #[test]
 fn test_named() {
-    run_test2("Pi", NamedExpr::parse);
-    run_test2("$$Tau", NamedExpr::parse);
-    run_test2("'xref'.Rho", NamedExpr::parse);
-    run_test2("'xref'Foo", NamedExpr::parse);
-    run_test2("$$'nice and clean'", NamedExpr::parse);
+    impl<'a> TestResult<Box<OFAst<'a>>> for Box<OFAst<'a>> {
+        type TestValue = &'a str;
+
+        fn equal(result: &Box<OFAst<'a>>, testvalue: &Self::TestValue) -> bool {
+            match &**result {
+                OFAst::NodeNamed(result) => result.simple.ident == *testvalue,
+                _ => false,
+            }
+        }
+
+        fn str(result: &Box<OFAst<'a>>) -> String {
+            result.to_string()
+        }
+
+        fn val_str(value: &Self::TestValue) -> String {
+            value.to_string()
+        }
+    }
+    #[allow(dead_code)]
+    fn iri<'s>(result: &'s Box<OFAst<'s>>) -> &'s str {
+        match &**result {
+            OFAst::NodeNamed(result) => match &result.iri {
+                None => unreachable!(),
+                Some(iri) => &iri.iri,
+            },
+            _ => unreachable!(),
+        }
+    }
+    fn sheet_nameg<'s>(result: &'s Box<OFAst<'_>>) -> &'s str {
+        match &**result {
+            OFAst::NodeNamed(result) => match &result.sheet_name {
+                None => unreachable!(),
+                Some(sheet_name) => &sheet_name.name,
+            },
+            _ => unreachable!(),
+        }
+    }
+
+    fn sheet_named<'s>(result: &'s Box<OFAst<'s>>, testvalue: &'s str) -> bool {
+        match &**result {
+            OFAst::NodeNamed(result) => match &result.sheet_name {
+                None => unreachable!(),
+                Some(sheet_name) => &sheet_name.name == testvalue,
+            },
+            _ => unreachable!(),
+        }
+    }
+
+    TestRun::parse("Pi", NamedExpr::parse).ok("Pi").q();
+    TestRun::parse("$$Tau", NamedExpr::parse).ok("Tau").q();
+
+    TestRun::parse("'xref'#Rho", NamedExpr::parse)
+        .okg(iri, "xref")
+        .q();
+    TestRun::parse("'xref'#'hobo'.Rho", NamedExpr::parse)
+        .okd(sheet_named, "hobo")
+        .okg(iri, "xref")
+        .q();
+
+    TestRun::parse("'xref'.Rho", NamedExpr::parse)
+        .ok("Rho")
+        .okg(sheet_nameg, "xref")
+        .q();
+    TestRun::parse("'xref'Foo", NamedExpr::parse)
+        .err(ErrSheetName)
+        .expect(Dot)
+        .q();
+    TestRun::parse("$$'nice and clean'", NamedExpr::parse)
+        .ok("nice and clean")
+        .q();
 }
