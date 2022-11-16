@@ -14,8 +14,17 @@ pub fn quote_double(i: &str) -> String {
     (*i).replace('"', "\"\"")
 }
 
-/// Replaces two single quotes (') with a single on.
+/// Replaces two single quotes (') with a single on. Strips one leading and one trailing quote.
 pub fn unquote_single(i: Span<'_>) -> String {
+    let i = match i.strip_prefix('\'') {
+        None => *i,
+        Some(s) => s,
+    };
+    let i = match i.strip_suffix('\'') {
+        None => i,
+        Some(s) => s,
+    };
+
     (*i).replace("''", "'")
 }
 

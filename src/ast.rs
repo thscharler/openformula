@@ -1155,7 +1155,7 @@ impl<'a> Debug for OFIri<'a> {
 
 impl<'a> Display for OFIri<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.iri)
+        write!(f, "'{}'#", self.iri)
     }
 }
 

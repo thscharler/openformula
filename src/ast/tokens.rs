@@ -9,7 +9,7 @@ use crate::ast::nomtokens::{
     prefix_op_nom, ref_concat_op_nom, ref_intersection_op_nom, reference_op_nom, row_nom,
     semikolon_nom, sheet_name_nom, string_op_nom,
 };
-use crate::ast::Span;
+use crate::ast::{span_union, Span};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{char as nchar, none_of, one_of};
@@ -655,15 +655,16 @@ pub fn col(rest: Span<'_>) -> TokenResult<'_, (Option<Span<'_>>, Span<'_>)> {
 pub fn single_quoted<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
     const QUOTE: char = '\'';
 
-    let rest = match nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE)(rest) {
-        Ok((rest, _)) => rest,
-        Err(nom::Err::Error(e)) if e.code == Char => {
-            return Err(TokenError::TokStartSingleQuote(rest))
-        }
-        Err(e) => return Err(TokenError::nom(e)),
-    };
+    let (rest, first_quote) =
+        match recognize(nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE))(rest) {
+            Ok((rest, quote)) => (rest, quote),
+            Err(nom::Err::Error(e)) if e.code == Char => {
+                return Err(TokenError::TokStartSingleQuote(rest))
+            }
+            Err(e) => return Err(TokenError::nom(e)),
+        };
 
-    let (rest, string) = match recognize(many0(alt((
+    let (rest, _string) = match recognize(many0(alt((
         take_while1(|v| v != QUOTE),
         recognize(count(
             nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE),
@@ -677,13 +678,15 @@ pub fn single_quoted<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
         Err(e) => return Err(TokenError::nom(e)),
     };
 
-    let rest = match nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE)(rest) {
-        Ok((rest, _)) => rest,
-        Err(nom::Err::Error(e)) if e.code == Char => {
-            return Err(TokenError::TokEndSingleQuote(rest))
-        }
-        Err(e) => return Err(TokenError::nom(e)),
-    };
+    let (rest, last_quote) =
+        match recognize(nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE))(rest) {
+            Ok((rest, quote)) => (rest, quote),
+            Err(nom::Err::Error(e)) if e.code == Char => {
+                return Err(TokenError::TokEndSingleQuote(rest))
+            }
+            Err(e) => return Err(TokenError::nom(e)),
+        };
 
-    Ok((rest, string))
+    let token = unsafe { span_union(first_quote, last_quote) };
+    Ok((rest, token))
 }
