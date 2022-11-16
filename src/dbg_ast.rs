@@ -32,6 +32,11 @@ pub fn debug_self<'a>(node: &impl Node<'a>, f: &mut Formatter<'_>) -> fmt::Resul
     Ok(())
 }
 
+pub fn debug_none(f: &mut Formatter<'_>) -> fmt::Result {
+    writeln!(f, "None    ")?;
+    Ok(())
+}
+
 pub fn debug_op<'a>(op: &impl Operator<'a>, f: &mut Formatter<'_>) -> fmt::Result {
     write!(f, "{}    ", op)?;
     debug_span(op.span(), f)?;

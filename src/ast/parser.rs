@@ -89,7 +89,7 @@ pub trait GeneralExpr<'s> {
     fn lah(i: Span<'s>) -> bool;
 
     /// Parses the expression.
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>>;
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>>;
 }
 
 ///
@@ -101,7 +101,7 @@ pub trait GeneralTerm<'s, O> {
     fn lah(i: Span<'s>) -> bool;
 
     /// Parses the expression.
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, O>;
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, O>;
 }
 
 /// Any expression.
@@ -116,7 +116,7 @@ impl<'s> GeneralExpr<'s> for Expr {
         CompareExpr::lah(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
         match CompareExpr::parse(trace, i) {
             Ok((rest, expr)) => trace.ok(expr.span(), rest, expr),
@@ -128,7 +128,7 @@ impl<'s> GeneralExpr<'s> for Expr {
 struct CompareExpr;
 
 impl<'s> CompareExpr {
-    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, OFCompOp<'s>> {
+    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, OFCompOp<'s>> {
         trace.enter("comp-operator", i);
         trace.optional("comp-operator");
         match tokens::comparison_op(i) {
@@ -157,7 +157,7 @@ impl<'s> GeneralExpr<'s> for CompareExpr {
     }
 
     /// Parses all the binary expressions.
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         match AddExpr::parse(trace, i) {
@@ -192,7 +192,7 @@ impl<'s> GeneralExpr<'s> for CompareExpr {
 struct AddExpr;
 
 impl<'s> AddExpr {
-    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, OFAddOp<'s>> {
+    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, OFAddOp<'s>> {
         trace.enter("add-operator", i);
         trace.optional("add-operator");
         match tokens::add_op(i) {
@@ -217,7 +217,7 @@ impl<'s> GeneralExpr<'s> for AddExpr {
     }
 
     /// Parses all the binary expressions.
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         match MulExpr::parse(trace, i) {
@@ -252,7 +252,7 @@ impl<'s> GeneralExpr<'s> for AddExpr {
 struct MulExpr;
 
 impl<'s> MulExpr {
-    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, OFMulOp<'s>> {
+    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, OFMulOp<'s>> {
         trace.enter("mul-operator", i);
         trace.optional("mul-operator");
         match tokens::mul_op(i) {
@@ -277,7 +277,7 @@ impl<'s> GeneralExpr<'s> for MulExpr {
     }
 
     /// Parses all the binary expressions.
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         match PowExpr::parse(trace, i) {
@@ -312,7 +312,7 @@ impl<'s> GeneralExpr<'s> for MulExpr {
 struct PowExpr;
 
 impl<'s> PowExpr {
-    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, OFPowOp<'s>> {
+    fn operator<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, OFPowOp<'s>> {
         trace.enter("pow-operator", i);
         trace.optional("pow-operator");
         match tokens::pow_op(i) {
@@ -336,7 +336,7 @@ impl<'s> GeneralExpr<'s> for PowExpr {
     }
 
     /// Parses all the binary expressions.
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         match PostfixExpr::parse(trace, i) {
@@ -375,7 +375,7 @@ impl PostfixExpr {
     pub fn operator<'s, 't>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, OFPostfixOp<'s>> {
+    ) -> ParseResult<'s, OFPostfixOp<'s>> {
         trace.enter("postfix-operator", i);
         trace.optional("postfix-operator");
         match tokens::postfix_op(i) {
@@ -398,7 +398,7 @@ impl<'s> GeneralExpr<'s> for PostfixExpr {
         PrefixExpr::lah(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         let (rest, ast) = match PrefixExpr::parse(trace, i) {
@@ -427,10 +427,7 @@ struct PrefixExpr;
 
 impl PrefixExpr {
     /// Parses and maps the Span to a OFPrefixOp.
-    pub fn operator<'s, 't>(
-        trace: &'t Tracer<'s>,
-        i: Span<'s>,
-    ) -> ParseResult<'s, 't, OFPrefixOp<'s>> {
+    pub fn operator<'s, 't>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, OFPrefixOp<'s>> {
         trace.enter("prefix-operator", i);
         trace.optional("prefix-operator");
         match tokens::prefix_op(i) {
@@ -457,7 +454,7 @@ impl<'s> GeneralExpr<'s> for PrefixExpr {
         tokens::lah_prefix_op(i) || ElementaryExpr::lah(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
         trace.suggest(Suggest::PrefixOp);
@@ -509,7 +506,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
             || FnCallExpr::lah(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         trace.suggest(Suggest::Number);
@@ -604,7 +601,7 @@ impl<'s> GeneralExpr<'s> for NumberExpr {
         tokens::lah_number(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
         match tokens::number(rest) {
@@ -638,7 +635,7 @@ impl<'s> GeneralExpr<'s> for StringExpr {
         tokens::lah_string(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
         match tokens::string(rest) {
@@ -699,7 +696,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
 
     /// Tries to ast a cell reference.
     #[allow(clippy::manual_map)]
-    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), i);
 
         trace.optional(CellRangeExpr::name());
@@ -754,7 +751,7 @@ impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
         todo!()
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, OFCol<'s>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFCol<'s>> {
         trace.enter(Self::name(), rest);
 
         let (rest, col) = match col(rest) {
@@ -794,7 +791,7 @@ impl<'s> GeneralTerm<'s, OFRow<'s>> for RowTerm {
         todo!()
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, OFRow<'s>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFRow<'s>> {
         trace.enter(Self::name(), rest);
 
         let (rest, row) = match row(rest) {
@@ -831,7 +828,7 @@ impl CellRefExpr {
     pub fn parse_full<'s, 't>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, OFCellRef<'s>> {
+    ) -> ParseResult<'s, OFCellRef<'s>> {
         trace.enter(Self::name(), i);
 
         match CellRefExpr::parse(trace, i) {
@@ -857,7 +854,7 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
     }
 
     #[allow(clippy::manual_map)]
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
         let (rest, iri) = IriTerm::parse(trace, rest)?;
@@ -886,7 +883,7 @@ impl CellRangeExpr {
     pub fn parse_full<'s, 't>(
         trace: &'t Tracer<'s>,
         rest: Span<'s>,
-    ) -> ParseResult<'s, 't, OFCellRange<'s>> {
+    ) -> ParseResult<'s, OFCellRange<'s>> {
         trace.enter(Self::name(), rest);
 
         match CellRangeExpr::parse(trace, rest) {
@@ -912,7 +909,7 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
     }
 
     #[allow(clippy::manual_map)]
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
         // TODO: ? operator and trace don't cooperate
@@ -952,7 +949,7 @@ impl ColRangeExpr {
     pub fn parse_full<'s, 't>(
         trace: &'t Tracer<'s>,
         rest: Span<'s>,
-    ) -> ParseResult<'s, 't, OFColRange<'s>> {
+    ) -> ParseResult<'s, OFColRange<'s>> {
         trace.enter(Self::name(), rest);
 
         match Self::parse(trace, rest) {
@@ -978,7 +975,7 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
     }
 
     #[allow(clippy::manual_map)]
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
         let (rest, iri) = IriTerm::parse(trace, rest)?;
@@ -1015,7 +1012,7 @@ impl RowRangeExpr {
     pub fn parse_full<'s, 't>(
         trace: &'t Tracer<'s>,
         i: Span<'s>,
-    ) -> ParseResult<'s, 't, OFRowRange<'s>> {
+    ) -> ParseResult<'s, OFRowRange<'s>> {
         trace.enter(Self::name(), i);
 
         match Self::parse(trace, i) {
@@ -1041,7 +1038,7 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
     }
 
     #[allow(clippy::manual_map)]
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
         // TODO: ? operator and trace don't cooperate
@@ -1082,7 +1079,7 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
         tokens::lah_parentheses_open(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
         trace.suggest(Suggest::ParenthesesOpen);
@@ -1139,7 +1136,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
 
     #[allow(clippy::collapsible_else_if)]
     #[allow(clippy::needless_return)]
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
         trace.suggest(Suggest::FnName);
@@ -1293,7 +1290,7 @@ impl<'s> GeneralTerm<'s, Option<OFIri<'s>>> for IriTerm {
         refs_tokens::lah_iri(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Option<OFIri<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Option<OFIri<'s>>> {
         trace.enter(Self::name(), rest);
 
         // (IRI '#')?
@@ -1332,7 +1329,7 @@ impl<'s> GeneralTerm<'s, Option<OFSheetName<'s>>> for SheetNameTerm {
     fn parse<'t>(
         trace: &'t Tracer<'s>,
         rest: Span<'s>,
-    ) -> ParseResult<'s, 't, Option<OFSheetName<'s>>> {
+    ) -> ParseResult<'s, Option<OFSheetName<'s>>> {
         trace.enter(Self::name(), rest);
 
         // QuotedSheetName ::= '$'? SingleQuoted "."
@@ -1391,7 +1388,7 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
             || tokens::lah_identifier(i)
     }
 
-    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>> {
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         // NamedExpression := IRI?
         //                      (QuotedSheetName '.')?
         //                      (Identifier | '$$' (Identifier | SingleQuoted)
@@ -1510,7 +1507,7 @@ mod tests {
 
     fn run_test2<'s>(
         str: &'s str,
-        testfn: for<'t> fn(&'t Tracer<'s>, Span<'s>) -> ParseResult<'s, 't, Box<OFAst<'s>>>,
+        testfn: for<'t> fn(&'t Tracer<'s>, Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>>,
     ) {
         let tracer = Tracer::new();
         {

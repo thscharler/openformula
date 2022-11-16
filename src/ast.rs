@@ -22,7 +22,7 @@ pub mod tracer;
 pub type Span<'a> = LocatedSpan<&'a str>;
 
 /// Result type.
-pub type ParseResult<'s, 't, O> = Result<(Span<'s>, O), ParseOFError<'s>>;
+pub type ParseResult<'s, O> = Result<(Span<'s>, O), ParseOFError<'s>>;
 
 /// Defines the AST tree.
 #[allow(clippy::enum_variant_names)]
@@ -1129,8 +1129,8 @@ impl<'a> PartialEq for OFString<'a> {
 
 /// Represents an external source reference.
 pub struct OFIri<'a> {
-    iri: String,
-    span: Span<'a>,
+    pub iri: String,
+    pub span: Span<'a>,
 }
 
 impl<'a> Node<'a> for OFIri<'a> {
