@@ -2,63 +2,73 @@ use openformula::ast::tracer::{Suggest, Tracer};
 use openformula::ast::{ParseResult, Span};
 use openformula::error::OFError;
 use std::cell::RefCell;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
-pub trait TestResult<O> {
-    type TestValue;
-
-    fn equal(result: &O, testvalue: &Self::TestValue) -> bool;
-    fn str(result: &O) -> String;
-    fn val_str(value: &Self::TestValue) -> String;
+pub trait TestEq<Rhs = Self> {
+    fn eq(&self, other: &Rhs) -> bool;
 }
 
-impl<P> TestResult<Option<P>> for Option<P>
-where
-    P: TestResult<P>,
-{
-    type TestValue = Option<P::TestValue>;
-
-    fn equal(result: &Option<P>, testvalue: &Self::TestValue) -> bool {
-        match result {
-            None => match testvalue {
-                None => true,
-                Some(_) => false,
-            },
-            Some(result) => match testvalue {
-                None => false,
-                Some(testvalue) => P::equal(result, testvalue),
-            },
-        }
-    }
-
-    fn str(result: &Option<P>) -> String {
-        match result {
-            None => "".to_string(),
-            Some(result) => P::str(result),
-        }
-    }
-
-    fn val_str(value: &Self::TestValue) -> String {
-        match value {
-            None => "".to_string(),
-            Some(value) => P::val_str(value),
-        }
-    }
-}
-
-pub struct TestRun<'s, O>
-where
-    O: TestResult<O>,
-{
+pub struct TestRun<'s, O> {
     pub trace: Tracer<'s>,
     pub span: Span<'s>,
     pub result: ParseResult<'s, O>,
     pub fail: RefCell<bool>,
 }
 
+impl<'s, O> TestRun<'s, Option<O>>
+where
+    O: Debug,
+{
+    /// Checks for ok.
+    /// Uses TestResult::equal to test the result.
+    ///
+    /// Finish the test with q()
+    #[must_use]
+    pub fn okopt<V>(&self, test: Option<V>) -> &Self
+    where
+        V: Display,
+        for<'x> &'x O: TestEq<V>,
+    {
+        match &self.result {
+            Ok((_, token)) => {
+                match token {
+                    None => match test {
+                        None => {}
+                        Some(test) => {
+                            println!("FAIL: Value mismatch: None <> {}", test.to_string());
+                            self.flag_fail();
+                        }
+                    },
+                    Some(token) => match test {
+                        None => {
+                            println!("FAIL: Value mismatch: {:?} <> None", token);
+                            self.flag_fail();
+                        }
+                        Some(test) => {
+                            if !token.eq(&test) {
+                                println!(
+                                    "FAIL: Value mismatch: {:?} <> {}",
+                                    token,
+                                    test.to_string()
+                                );
+                                self.flag_fail();
+                            }
+                        }
+                    },
+                };
+            }
+            Err(_) => {
+                println!("FAIL: Expect ok, but was an error!");
+                self.flag_fail();
+            }
+        }
+        self
+    }
+}
+
 impl<'s, O> TestRun<'s, O>
 where
-    O: TestResult<O>,
+    O: Debug,
 {
     /// Runs the parser and records the results.
     /// Use ok(), err(), ... to check specifics.
@@ -88,42 +98,19 @@ where
     }
 
     /// Checks for ok.
-    /// Takes a test-function to check the result.
-    ///
-    /// Finish the test with q()
-    #[must_use]
-    pub fn okg<V>(&'s self, field: fn(&'s O) -> V, test: V) -> &Self
-    where
-        V: Display,
-        V: PartialEq,
-    {
-        match &self.result {
-            Ok((_, token)) => {
-                let token_field = field(token);
-                if token_field != test {
-                    println!("FAIL: Value mismatch: {} <> {}", token_field, test);
-                    self.flag_fail();
-                }
-            }
-            Err(_) => {
-                println!("FAIL: Expect ok, but was an error!");
-                self.flag_fail();
-            }
-        }
-        self
-    }
-
-    /// Checks for ok.
     /// Uses an extraction function to get the relevant result.
     ///
     /// Finish the test with q()
     #[must_use]
-    pub fn okd(&'s self, field: fn(&'s O, O::TestValue) -> bool, test: O::TestValue) -> &Self {
+    pub fn okeq<V>(&'s self, eq: fn(&'s O, &V) -> bool, test: &V) -> &Self
+    where
+        V: Display + ?Sized,
+        O: Display,
+    {
         match &self.result {
             Ok((_, token)) => {
-                let test_str = O::val_str(&test);
-                if !field(token, test) {
-                    println!("FAIL: Value mismatch: {} <> {}", O::str(token), test_str);
+                if !eq(token, &test) {
+                    println!("FAIL: Value mismatch: {} <> {}", token, test.to_string());
                     self.flag_fail();
                 }
             }
@@ -140,15 +127,15 @@ where
     ///
     /// Finish the test with q()
     #[must_use]
-    pub fn ok(&self, test: O::TestValue) -> &Self {
+    pub fn ok<V>(&self, test: V) -> &Self
+    where
+        V: Display,
+        for<'x> &'x O: TestEq<V>,
+    {
         match &self.result {
             Ok((_, token)) => {
-                if !O::equal(token, &test) {
-                    println!(
-                        "FAIL: Value mismatch: {} <> {}",
-                        O::str(token),
-                        O::val_str(&test)
-                    );
+                if !token.eq(&test) {
+                    println!("FAIL: Value mismatch: {:?} <> {}", token, test.to_string());
                     self.flag_fail();
                 }
             }
@@ -233,7 +220,7 @@ where
         match &self.result {
             Ok((rest, token)) => {
                 println!("{:?}", &self.trace);
-                println!("=> '{}' | rest='{}'", O::str(token), rest);
+                println!("=> '{:?}' | rest='{}'", token, rest);
             }
             Err(e) => {
                 println!("{:?}", &self.trace);

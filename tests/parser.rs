@@ -1,10 +1,10 @@
 mod spantest;
 
 use openformula::ast::parser::{
-    FnCallExpr, GeneralExpr, GeneralTerm, IriTerm, NamedExpr, SheetNameTerm,
+    FnCallExpr, GeneralExpr, GeneralTerm, IriTerm, NamedExpr, ParenthesesExpr, SheetNameTerm,
 };
 use openformula::ast::tracer::Suggest::*;
-use openformula::ast::{OFAst, OFFnCall, OFIri, OFSheetName};
+use openformula::ast::{OFAst, OFIri, OFSheetName};
 use openformula::error::OFError::*;
 
 pub use spantest::*;
@@ -27,20 +27,36 @@ pub use spantest::*;
 // TODO: ColRangeExpr
 // TODO: RowRangeExpr
 // TODO: ParenthesisExpr
-// TODO: FnCallExpr
+
+#[test]
+pub fn parentheses() {
+    fn always_eq<'s>(_result: &'s Box<OFAst<'s>>, _test: &'s str) -> bool {
+        true
+    }
+
+    TestRun::parse("(21)", ParenthesesExpr::parse)
+        .okeq(always_eq, "")
+        .q();
+    TestRun::parse("(21", ParenthesesExpr::parse)
+        .err(ErrParentheses)
+        .expect(ParenthesesClose)
+        .q();
+    TestRun::parse("21)", ParenthesesExpr::parse)
+        .err(ErrParentheses)
+        .expect(ParenthesesOpen)
+        .q();
+    TestRun::parse("21", ParenthesesExpr::parse)
+        .err(ErrParentheses)
+        .expect(ParenthesesOpen)
+        .q();
+}
 
 #[test]
 pub fn fncall() {
-    impl<'a> TestResult<OFFnCall<'a>> for OFFnCall<'a> {
-        type TestValue = &'a str;
-        fn equal(result: &OFFnCall<'a>, testvalue: &Self::TestValue) -> bool {
-            result.name.name == *testvalue
-        }
-        fn str(result: &OFFnCall<'a>) -> String {
-            result.to_string()
-        }
-        fn val_str(value: &Self::TestValue) -> String {
-            value.to_string()
+    fn name<'s>(result: &'s Box<OFAst<'s>>, test: &'s str) -> bool {
+        match &**result {
+            OFAst::NodeFnCall(result) => result.name.name == test,
+            _ => unreachable!(),
         }
     }
 
@@ -64,57 +80,46 @@ pub fn fncall() {
         .err(ErrFnCall)
         .expect(ParenthesesOpen)
         .q();
-    TestRun::parse("FUN(   ;;66)", FnCallExpr::parse).ok("").q();
-    TestRun::parse(" FUN(;;66)", FnCallExpr::parse).ok("").q();
-    TestRun::parse("FUN(   ;;X)", FnCallExpr::parse).dump();
+    TestRun::parse("FUN(   ;;66)", FnCallExpr::parse)
+        .okeq(name, "FUN")
+        .q();
+    TestRun::parse(" FUN(;;66)", FnCallExpr::parse)
+        .okeq(name, "FUN")
+        .q();
+    TestRun::parse("FUN", FnCallExpr::parse).dump();
 }
 
 #[test]
 pub fn iri() {
-    impl<'a> TestResult<OFIri<'a>> for OFIri<'a> {
-        type TestValue = &'a str;
-
-        fn equal(result: &OFIri<'a>, testvalue: &Self::TestValue) -> bool {
-            result.iri == *testvalue
-        }
-
-        fn str(result: &OFIri<'a>) -> String {
-            result.iri.to_string()
-        }
-
-        fn val_str(value: &Self::TestValue) -> String {
-            value.to_string()
+    impl<'a> TestEq<&str> for &OFIri<'a> {
+        fn eq(&self, other: &&str) -> bool {
+            self.iri == *other
         }
     }
 
     TestRun::parse("'external", IriTerm::parse).err(ErrIri).q();
-    TestRun::parse("'external'", IriTerm::parse).ok(None).q();
+    TestRun::parse("'external'", IriTerm::parse).okopt(None).q();
     TestRun::parse("'external'#", IriTerm::parse)
-        .ok(Some("external"))
+        .okopt(Some("external"))
         .q();
-    TestRun::parse("'external'$", IriTerm::parse).ok(None).q()
+    TestRun::parse("'external'$", IriTerm::parse)
+        .okopt(None)
+        .q()
 }
 
 #[test]
 pub fn sheet_name() {
-    impl<'a> TestResult<OFSheetName<'a>> for OFSheetName<'a> {
-        type TestValue = &'a str;
-        fn equal(result: &OFSheetName<'a>, testvalue: &Self::TestValue) -> bool {
-            result.name == *testvalue
-        }
-        fn str(result: &OFSheetName<'a>) -> String {
-            result.name.clone()
-        }
-        fn val_str(value: &Self::TestValue) -> String {
-            value.to_string()
+    impl<'a> TestEq<&str> for &OFSheetName<'a> {
+        fn eq(&self, other: &&str) -> bool {
+            self.name == *other
         }
     }
 
     TestRun::parse("'sheetname'.", SheetNameTerm::parse)
-        .ok(Some("sheetname"))
+        .okopt(Some("sheetname"))
         .q();
     TestRun::parse("'sheet''name'.", SheetNameTerm::parse)
-        .ok(Some("sheet'name"))
+        .okopt(Some("sheet'name"))
         .q();
     TestRun::parse("'sheetname'", SheetNameTerm::parse)
         .err(ErrSheetName)
@@ -125,13 +130,13 @@ pub fn sheet_name() {
         .expect(EndSingleQuote)
         .q();
     TestRun::parse("sheetname'.", SheetNameTerm::parse)
-        .ok(None)
+        .okopt(None)
         .q();
     TestRun::parse("$'sheetname'.", SheetNameTerm::parse)
-        .ok(Some("sheetname"))
+        .okopt(Some("sheetname"))
         .q();
     TestRun::parse("$sheetname'.", SheetNameTerm::parse)
-        .ok(None)
+        .okopt(None)
         .q();
     TestRun::parse("$'sheetname.", SheetNameTerm::parse)
         .err(ErrSheetName)
@@ -145,69 +150,51 @@ pub fn sheet_name() {
 
 #[test]
 fn test_named() {
-    impl<'a> TestResult<Box<OFAst<'a>>> for Box<OFAst<'a>> {
-        type TestValue = &'a str;
-        fn equal(result: &Box<OFAst<'a>>, testvalue: &Self::TestValue) -> bool {
-            match &**result {
-                OFAst::NodeNamed(result) => result.simple.ident == *testvalue,
-                _ => false,
-            }
-        }
-        fn str(result: &Box<OFAst<'a>>) -> String {
-            result.to_string()
-        }
-        fn val_str(value: &Self::TestValue) -> String {
-            value.to_string()
-        }
-    }
-    #[allow(dead_code)]
-    fn iri<'s>(result: &'s Box<OFAst<'s>>) -> &'s str {
+    fn iri<'s>(result: &'s Box<OFAst<'s>>, test: &'s str) -> bool {
         match &**result {
             OFAst::NodeNamed(result) => match &result.iri {
                 None => unreachable!(),
-                Some(iri) => &iri.iri,
+                Some(iri) => &iri.iri == test,
             },
             _ => unreachable!(),
         }
     }
-    fn sheet_nameg<'s>(result: &'s Box<OFAst<'_>>) -> &'s str {
+    fn sheet_name<'s>(result: &'s Box<OFAst<'s>>, test: &'s str) -> bool {
         match &**result {
             OFAst::NodeNamed(result) => match &result.sheet_name {
                 None => unreachable!(),
-                Some(sheet_name) => &sheet_name.name,
+                Some(sheet_name) => &sheet_name.name == test,
             },
+            _ => unreachable!(),
+        }
+    }
+    fn ident<'s>(result: &'s Box<OFAst<'s>>, test: &'s str) -> bool {
+        match &**result {
+            OFAst::NodeNamed(result) => result.simple.ident == test,
             _ => unreachable!(),
         }
     }
 
-    fn sheet_named<'s>(result: &'s Box<OFAst<'s>>, testvalue: &'s str) -> bool {
-        match &**result {
-            OFAst::NodeNamed(result) => match &result.sheet_name {
-                None => unreachable!(),
-                Some(sheet_name) => &sheet_name.name == testvalue,
-            },
-            _ => unreachable!(),
-        }
-    }
-
-    TestRun::parse("Pi", NamedExpr::parse).ok("Pi").q();
-    TestRun::parse("$$Tau", NamedExpr::parse).ok("Tau").q();
+    TestRun::parse("Pi", NamedExpr::parse).okeq(ident, "Pi").q();
+    TestRun::parse("$$Tau", NamedExpr::parse)
+        .okeq(ident, "Tau")
+        .q();
     TestRun::parse("'xref'#Rho", NamedExpr::parse)
-        .okg(iri, "xref")
+        .okeq(iri, "xref")
         .q();
     TestRun::parse("'xref'#'hobo'.Rho", NamedExpr::parse)
-        .okd(sheet_named, "hobo")
-        .okg(iri, "xref")
+        .okeq(sheet_name, &"hobo")
+        .okeq(iri, "xref")
         .q();
     TestRun::parse("'xref'.Rho", NamedExpr::parse)
-        .ok("Rho")
-        .okg(sheet_nameg, "xref")
+        .okeq(ident, "Rho")
+        .okeq(sheet_name, "xref")
         .q();
     TestRun::parse("'xref'Foo", NamedExpr::parse)
-        .err(ErrSheetName)
+        .err(ErrNamed)
         .expect(Dot)
         .q();
     TestRun::parse("$$'nice and clean'", NamedExpr::parse)
-        .ok("nice and clean")
+        .okeq(ident, "nice and clean")
         .q();
 }
