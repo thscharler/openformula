@@ -18,7 +18,7 @@ use crate::ast::{
     OFRow, OFRowRange, OFSheetName, ParseResult, Span,
 };
 use crate::error::OFError::*;
-use crate::error::{LocateError, ParseOFError};
+use crate::error::{LocateError, OFError, ParseOFError};
 use spreadsheet_ods_cellref::parser as refs_parser;
 use spreadsheet_ods_cellref::tokens as refs_tokens;
 
@@ -461,7 +461,7 @@ impl<'s> GeneralExpr<'s> for PrefixExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
-        trace.suggest(Suggest::PrefixOp);
+        // TODO: check this: trace.suggest(Suggest::PrefixOp);
         let mut op_vec = Vec::new();
         let mut loop_rest = rest;
         // eat all prefix ops and keep them save.
@@ -505,7 +505,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
     fn lah(i: Span<'s>) -> bool {
         NumberExpr::lah(i)
             || StringExpr::lah(i)
-            || ParenthesisExpr::lah(i)
+            || ParenthesesExpr::lah(i)
             || ReferenceExpr::lah(i)
             || FnCallExpr::lah(i)
     }
@@ -544,9 +544,9 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
         }
 
         trace.suggest(Suggest::Parentheses);
-        if ParenthesisExpr::lah(rest) {
-            trace.optional(ParenthesisExpr::name());
-            match ParenthesisExpr::parse(trace, rest) {
+        if ParenthesesExpr::lah(rest) {
+            trace.optional(ParenthesesExpr::name());
+            match ParenthesesExpr::parse(trace, rest) {
                 Ok((rest, expr)) => {
                     return trace.ok(expr.span(), rest, expr);
                 }
@@ -704,33 +704,14 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
         trace.optional(CellRangeExpr::name());
         CellRangeExpr::parse(trace, rest).trace(trace, ErrReference)?;
 
-        // TODO:continue
         trace.optional(CellRefExpr::name());
-        match CellRefExpr::parse(trace, rest) {
-            Ok((rest, expr)) => {
-                return trace.ok(expr.span(), rest, expr);
-            }
-            Err(e) if e.code == ErrNomError => { /* skip */ }
-            Err(e) => return trace.err_parse_(e),
-        }
+        CellRefExpr::parse(trace, rest).trace(trace, ErrReference)?;
 
         trace.optional(ColRangeExpr::name());
-        match ColRangeExpr::parse(trace, rest) {
-            Ok((rest, expr)) => {
-                return trace.ok(expr.span(), rest, expr);
-            }
-            Err(e) if e.code == ErrNomError => { /* skip */ }
-            Err(e) => return trace.err_parse_(e),
-        }
+        ColRangeExpr::parse(trace, rest).trace(trace, ErrReference)?;
 
         trace.optional(RowRangeExpr::name());
-        match RowRangeExpr::parse(trace, rest) {
-            Ok((rest, expr)) => {
-                return trace.ok(expr.span(), rest, expr);
-            }
-            Err(e) if e.code == ErrNomError => { /* skip */ }
-            Err(e) => return trace.err_parse_(e),
-        }
+        RowRangeExpr::parse(trace, rest).trace(trace, ErrReference)?;
 
         trace.expect(Suggest::Reference);
         trace.err_parse_(ParseOFError::reference(rest))
@@ -854,10 +835,10 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
-        let (rest, iri) = IriTerm::parse(trace, rest)?;
-        let (rest, sheet) = SheetNameTerm::parse(trace, rest)?;
-        let (rest, col) = ColTerm::parse(trace, rest)?;
-        let (rest, row) = RowTerm::parse(trace, rest)?;
+        let (rest, iri) = IriTerm::parse(trace, rest).trace(trace, ErrCellRef)?;
+        let (rest, sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrCellRef)?;
+        let (rest, col) = ColTerm::parse(trace, rest).trace(trace, ErrCellRef)?;
+        let (rest, row) = RowTerm::parse(trace, rest).trace(trace, ErrCellRef)?;
 
         let tok = if let Some(iri) = &iri {
             unsafe { span_union(iri.span(), row.span()) }
@@ -978,18 +959,21 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
-        let (rest, iri) = IriTerm::parse(trace, rest)?;
-        let (rest, sheet) = SheetNameTerm::parse(trace, rest)?;
-        let (rest, col) = ColTerm::parse(trace, rest)?;
+        let (rest, iri) = IriTerm::parse(trace, rest).trace(trace, ErrColRange)?;
+        let (rest, sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrColRange)?;
+        let (rest, col) = ColTerm::parse(trace, rest).trace(trace, ErrColRange)?;
 
         let rest = match colon(rest) {
             Ok((rest, _)) => rest,
-            Err(e @ TokenError::TokColon(_)) => return trace.err_map_tok(ParseOFError::colon, e),
+            Err(e @ TokenError::TokColon(_)) => {
+                trace.expect(Suggest::Colon);
+                return trace.err_map_tok(ParseOFError::col_range, e);
+            }
             Err(e) => trace.panic_tok(e),
         };
 
-        let (rest, to_sheet) = SheetNameTerm::parse(trace, rest)?;
-        let (rest, to_col) = ColTerm::parse(trace, rest)?;
+        let (rest, to_sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrColRange)?;
+        let (rest, to_col) = ColTerm::parse(trace, rest).trace(trace, ErrColRange)?;
 
         let tok = if let Some(iri) = &iri {
             unsafe { span_union(iri.span(), to_col.span()) }
@@ -1042,18 +1026,21 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
         trace.enter(Self::name(), rest);
 
         // TODO: ? operator and trace don't cooperate
-        let (rest, iri) = IriTerm::parse(trace, rest)?;
-        let (rest, sheet) = SheetNameTerm::parse(trace, rest)?;
-        let (rest, row) = RowTerm::parse(trace, rest)?;
+        let (rest, iri) = IriTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
+        let (rest, sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
+        let (rest, row) = RowTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
 
         let rest = match colon(rest) {
             Ok((rest, _)) => rest,
-            Err(e @ TokenError::TokColon(_)) => return trace.err_map_tok(ParseOFError::colon, e),
+            Err(e @ TokenError::TokColon(_)) => {
+                trace.expect(Suggest::Colon);
+                return trace.err_map_tok(ParseOFError::row_range, e);
+            }
             Err(e) => trace.panic_tok(e),
         };
 
-        let (rest, to_sheet) = SheetNameTerm::parse(trace, rest)?;
-        let (rest, to_row) = RowTerm::parse(trace, rest)?;
+        let (rest, to_sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
+        let (rest, to_row) = RowTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
 
         let tok = if let Some(iri) = &iri {
             unsafe { span_union(iri.span(), to_row.span()) }
@@ -1068,9 +1055,9 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
     }
 }
 
-struct ParenthesisExpr;
+pub struct ParenthesesExpr;
 
-impl<'s> GeneralExpr<'s> for ParenthesisExpr {
+impl<'s> GeneralExpr<'s> for ParenthesesExpr {
     fn name() -> &'static str {
         "parentheses"
     }
@@ -1082,29 +1069,26 @@ impl<'s> GeneralExpr<'s> for ParenthesisExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
-        trace.suggest(Suggest::ParenthesesOpen);
         let (rest, par1) = match tokens::parentheses_open(rest) {
             Ok((rest1, par1)) => (rest1, par1),
-            Err(e) => {
+            Err(e @ TokenError::TokParenthesesOpen(_)) => {
                 trace.expect(Suggest::ParenthesesOpen);
-                return trace.err_tok(e);
+                return trace.err_map_tok(ParseOFError::parens, e);
             }
+            Err(e) => trace.panic_tok(e),
         };
         trace.clear_suggestions();
 
-        trace.suggest(Suggest::Expr);
-        let (rest, expr) = match Expr::parse(trace, eat_space(rest)) {
-            Ok((rest1, expr)) => (rest1, expr),
-            Err(e) => return trace.err_parse_(e),
-        };
+        let (rest, expr) =
+            Expr::parse(trace, eat_space(rest)).trace(trace, OFError::ErrParentheses)?;
 
         let (rest, par2) = match tokens::parentheses_close(eat_space(rest)) {
             Ok((rest1, par2)) => (rest1, par2),
             Err(e @ TokenError::TokParenthesesClose(_)) => {
                 trace.expect(Suggest::ParenthesesClose);
-                return trace.err_tok(e);
+                return trace.err_map_tok(ParseOFError::parens, e);
             }
-            Err(e) => return trace.err_tok(e),
+            Err(e) => trace.panic_tok(e),
         };
 
         let ast = OFAst::parens(par1, expr, par2);
@@ -1526,7 +1510,7 @@ pub fn check_eof<'s>(
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
-    use crate::ast::parser::{ElementaryExpr, Expr, ParenthesisExpr};
+    use crate::ast::parser::{ElementaryExpr, Expr, ParenthesesExpr};
     use crate::ast::parser::{GeneralExpr, StringExpr};
     use crate::ast::parser::{NamedExpr, NumberExpr};
     use crate::ast::tracer::Tracer;
@@ -1601,7 +1585,7 @@ mod tests {
     fn test_parentheses() {
         let tests = ["(21)", "21", "(21"];
         for test in tests {
-            run_test2(test, ParenthesisExpr::parse);
+            run_test2(test, ParenthesesExpr::parse);
         }
     }
 

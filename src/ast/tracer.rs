@@ -25,6 +25,7 @@ pub enum Suggest {
     CompOp,
     Digit,
     Colon,
+    CellRef,
     Dollar,
     DollarDollar,
     CellRange,

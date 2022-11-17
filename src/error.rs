@@ -29,6 +29,7 @@ pub enum OFError {
     ErrAlpha,
     /// CellRange parsing error.
     ErrCellRange,
+    ErrCellRef,
     ErrCol,
     /// ColRange parsing error.
     ErrColRange,
@@ -41,6 +42,7 @@ pub enum OFError {
     ErrDollarDollar,
     /// Elementary expression fails.
     ErrElementary,
+    ErrExpr,
     /// Error when parsing a function call
     ErrFnCall,
     ErrFnName,
@@ -49,8 +51,8 @@ pub enum OFError {
     /// Error when parsing a named expression
     ErrNamed,
     ErrNumber,
-    /// Error when parsing an expression in parenthesis.
-    ErrParenthesis, // todo: spellcheck
+    /// Error when parsing an expression in parentheses.
+    ErrParentheses,
     ErrPostfixOp,
     ErrPowOp,
     ErrPrefixOp,
@@ -91,7 +93,7 @@ impl OFError {
             ErrMulOp => Some(Suggest::MulOp),
             ErrNamed => Some(Suggest::Named),
             ErrNumber => Some(Suggest::Number),
-            ErrParenthesis => Some(Suggest::Parentheses),
+            ErrParentheses => Some(Suggest::Parentheses),
             ErrPostfixOp => Some(Suggest::PostfixOp),
             ErrPowOp => Some(Suggest::PowOp),
             ErrPrefixOp => Some(Suggest::PrefixOp),
@@ -102,6 +104,8 @@ impl OFError {
             ErrString => Some(Suggest::StringContent),
             ErrSheetName => Some(Suggest::SheetName),
             ErrSingleQuoted => Some(Suggest::SingleQuoted),
+            ErrCellRef => Some(Suggest::CellRef),
+            ErrExpr => Some(Suggest::Expr),
         }
     }
 }
@@ -146,7 +150,7 @@ impl<'s> ParseOFError<'s> {
     }
 
     pub fn parens(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrParenthesis, span)
+        ParseOFError::new(ErrParentheses, span)
     }
 
     pub fn fn_call(span: Span<'s>) -> ParseOFError<'s> {
