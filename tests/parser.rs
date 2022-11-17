@@ -1,8 +1,10 @@
 mod spantest;
 
-use openformula::ast::parser::{GeneralExpr, GeneralTerm, IriTerm, NamedExpr, SheetNameTerm};
+use openformula::ast::parser::{
+    FnCallExpr, GeneralExpr, GeneralTerm, IriTerm, NamedExpr, SheetNameTerm,
+};
 use openformula::ast::tracer::Suggest::*;
-use openformula::ast::{OFAst, OFIri, OFSheetName};
+use openformula::ast::{OFAst, OFFnCall, OFIri, OFSheetName};
 use openformula::error::OFError::*;
 
 pub use spantest::*;
@@ -26,6 +28,46 @@ pub use spantest::*;
 // TODO: RowRangeExpr
 // TODO: ParenthesisExpr
 // TODO: FnCallExpr
+
+#[test]
+pub fn fncall() {
+    impl<'a> TestResult<OFFnCall<'a>> for OFFnCall<'a> {
+        type TestValue = &'a str;
+        fn equal(result: &OFFnCall<'a>, testvalue: &Self::TestValue) -> bool {
+            result.name.name == *testvalue
+        }
+        fn str(result: &OFFnCall<'a>) -> String {
+            result.to_string()
+        }
+        fn val_str(value: &Self::TestValue) -> String {
+            value.to_string()
+        }
+    }
+
+    TestRun::parse("$FUN()", FnCallExpr::parse)
+        .err(ErrFnCall)
+        .expect(FnName)
+        .q();
+    TestRun::parse("FUN ( 77  ", FnCallExpr::parse)
+        .err(ErrFnCall)
+        .expect(ParenthesesClose)
+        .q();
+    TestRun::parse("FUN 77 ) ", FnCallExpr::parse)
+        .err(ErrFnCall)
+        .expect(ParenthesesOpen)
+        .q();
+    TestRun::parse("FUN(", FnCallExpr::parse)
+        .err(ErrFnCall)
+        .expect(ParenthesesClose)
+        .q();
+    TestRun::parse("FUN  )", FnCallExpr::parse)
+        .err(ErrFnCall)
+        .expect(ParenthesesOpen)
+        .q();
+    TestRun::parse("FUN(   ;;66)", FnCallExpr::parse).ok("").q();
+    TestRun::parse(" FUN(;;66)", FnCallExpr::parse).ok("").q();
+    TestRun::parse("FUN(   ;;X)", FnCallExpr::parse).dump();
+}
 
 #[test]
 pub fn iri() {

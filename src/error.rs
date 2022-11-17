@@ -1,4 +1,5 @@
 use crate::ast::tokens::TokenError;
+use crate::ast::tracer::Suggest;
 use crate::ast::Span;
 use crate::error::OFError::*;
 use spreadsheet_ods_cellref::parser::{ParseColnameError, ParseRownameError};
@@ -49,7 +50,7 @@ pub enum OFError {
     ErrNamed,
     ErrNumber,
     /// Error when parsing an expression in parenthesis.
-    ErrParenthesis,
+    ErrParenthesis, // todo: spellcheck
     ErrPostfixOp,
     ErrPowOp,
     ErrPrefixOp,
@@ -63,6 +64,46 @@ pub enum OFError {
     ErrString,
     ErrSheetName,
     ErrSingleQuoted,
+}
+
+impl OFError {
+    pub fn expect(&self) -> Option<Suggest> {
+        match self {
+            ErrNomError => None,
+            ErrNomFailure => None,
+            ErrUnexpected => None,
+            ErrParseIncomplete => None,
+            ErrAddOp => Some(Suggest::AddOp),
+            ErrAlpha => Some(Suggest::Alpha),
+            ErrCellRange => Some(Suggest::CellRange),
+            ErrCol => Some(Suggest::Col),
+            ErrColRange => Some(Suggest::ColRange),
+            ErrColname => Some(Suggest::Colname),
+            ErrColon => Some(Suggest::Colon),
+            ErrComparisonOp => Some(Suggest::CompOp),
+            ErrDigit => Some(Suggest::Digit),
+            ErrDollar => Some(Suggest::Dollar),
+            ErrDollarDollar => Some(Suggest::DollarDollar),
+            ErrElementary => Some(Suggest::Elementary),
+            ErrFnCall => Some(Suggest::FnCall),
+            ErrFnName => Some(Suggest::FnName),
+            ErrIri => Some(Suggest::Iri),
+            ErrMulOp => Some(Suggest::MulOp),
+            ErrNamed => Some(Suggest::Named),
+            ErrNumber => Some(Suggest::Number),
+            ErrParenthesis => Some(Suggest::Parentheses),
+            ErrPostfixOp => Some(Suggest::PostfixOp),
+            ErrPowOp => Some(Suggest::PowOp),
+            ErrPrefixOp => Some(Suggest::PrefixOp),
+            ErrReference => Some(Suggest::Reference),
+            ErrRow => Some(Suggest::Row),
+            ErrRowRange => Some(Suggest::RowRange),
+            ErrRowname => Some(Suggest::Rowname),
+            ErrString => Some(Suggest::StringContent),
+            ErrSheetName => Some(Suggest::SheetName),
+            ErrSingleQuoted => Some(Suggest::SingleQuoted),
+        }
+    }
 }
 
 impl<'s> ParseOFError<'s> {

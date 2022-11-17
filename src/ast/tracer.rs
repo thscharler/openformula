@@ -6,7 +6,7 @@
 
 use crate::ast::tokens::TokenError;
 use crate::ast::{ParseResult, Span};
-use crate::error::ParseOFError;
+use crate::error::{OFError, ParseOFError};
 use std::cell::RefCell;
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
@@ -16,11 +16,18 @@ use std::fmt::{Debug, Formatter};
 pub enum Suggest {
     AddOp,
     Alpha,
+    Colname,
+    Elementary,
+    RowRange,
+    Rowname,
+    ColRange,
     Col,
     CompOp,
     Digit,
+    Colon,
     Dollar,
     DollarDollar,
+    CellRange,
     Dot,
     EndQuote,
     EndSingleQuote,
@@ -28,6 +35,7 @@ pub enum Suggest {
     FnCall,
     FnName,
     Identifier,
+    Named,
     Iri,
     MulOp,
     Number,
@@ -39,6 +47,7 @@ pub enum Suggest {
     PrefixOp,
     Reference,
     Row,
+    Semikolon,
     Separator,
     SheetName,
     SingleQuoted,
@@ -279,13 +288,54 @@ impl<'s> Tracer<'s> {
 
     /// Error in a parser.
     ///
-    /// Returns with a ParseOFError. Records the information in the error with the
-    /// current function.
+    /// Keeps track of the error.
+    /// Marks the current function as complete.
     ///
     /// Panics
     ///
     /// Panics if there was no call to enter() before.
-    pub fn parse<'t, T>(&'t self, err: ParseOFError<'s>) -> ParseResult<'s, T> {
+    pub fn err_parse_<'t, T>(&'t self, err: ParseOFError<'s>) -> ParseResult<'s, T> {
+        let func = self.func.borrow_mut().pop().unwrap();
+        self.tracks.borrow_mut().push(Track::ErrorSpan(
+            func,
+            self.in_optional(),
+            err.to_string(),
+            *err.span(),
+        ));
+
+        self.maybe_drop_optional(func);
+
+        Err(err)
+    }
+
+    /// Error in a parser.
+    ///
+    /// Translates a ParseError to our own code.
+    /// Keeps track of the error.
+    /// Marks the current function as complete.
+    ///
+    /// Panics
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn err_parse<'t, T>(
+        &'t self,
+        mut err: ParseOFError<'s>,
+        code: OFError,
+    ) -> ParseResult<'s, T> {
+        // Translates the code with some exceptions.
+        if err.code != OFError::ErrNomError
+            && err.code != OFError::ErrNomFailure
+            && err.code != OFError::ErrUnexpected
+            && err.code != OFError::ErrParseIncomplete
+        {
+            err.code = code;
+        }
+        // Auto expect.
+        if let Some(expect) = code.expect() {
+            self.expect(expect);
+        }
+
+        // Cleanup function and keep tracks.
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks.borrow_mut().push(Track::ErrorSpan(
             func,
@@ -457,19 +507,22 @@ impl<'s> Tracer<'s> {
     }
 }
 
-/// Helps with keeping tracks in the parsers. This can be squeezed between
-/// the call to another parser and the ?-operator to resolve the result.
+/// Helps with keeping tracks in the parsers.
+///
+/// This can be squeezed between the call to another parser and the ?-operator.
 ///
 /// Makes sure the tracer can keep track of the complete parse call tree.
 pub trait TrackParseResult<'s, 't, O> {
-    fn result(self, trace: &'t Tracer<'s>) -> ParseResult<'s, O>;
+    /// Translates the error code and adds the standard expect value.
+    /// Then tracks the error and marks the current function as finished.
+    fn trace(self, trace: &'t Tracer<'s>, code: OFError) -> Self;
 }
 
 impl<'s, 't, O> TrackParseResult<'s, 't, O> for ParseResult<'s, O> {
-    fn result(self, trace: &'t Tracer<'s>) -> ParseResult<'s, O> {
+    fn trace(self, trace: &'t Tracer<'s>, code: OFError) -> Self {
         match self {
-            Ok(_) => return self,
-            Err(e) => trace.parse(e),
+            Ok(_) => self,
+            Err(e) => trace.err_parse(e, code),
         }
     }
 }

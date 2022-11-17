@@ -2,7 +2,7 @@ use openformula::ast::tracer::{Suggest, Tracer};
 use openformula::ast::{ParseResult, Span};
 use openformula::error::OFError;
 use std::cell::RefCell;
-use std::fmt::{Debug, Display};
+use std::fmt::Display;
 
 pub trait TestResult<O> {
     type TestValue;
@@ -60,10 +60,17 @@ impl<'s, O> TestRun<'s, O>
 where
     O: TestResult<O>,
 {
+    /// Runs the parser and records the results.
+    /// Use ok(), err(), ... to check specifics.
+    ///
+    /// Finish the test with q().
+    #[must_use]
     pub fn parse(
         span: &'s str,
         fn_test: for<'t> fn(&'t Tracer<'s>, Span<'s>) -> ParseResult<'s, O>,
     ) -> Self {
+        println!();
+
         let span = Span::new(span);
         let trace = Tracer::new();
         let result = fn_test(&trace, span);
@@ -76,134 +83,152 @@ where
         }
     }
 
+    fn flag_fail(&self) {
+        *self.fail.borrow_mut() = true;
+    }
+
+    /// Checks for ok.
+    /// Takes a test-function to check the result.
+    ///
+    /// Finish the test with q()
+    #[must_use]
     pub fn okg<V>(&'s self, field: fn(&'s O) -> V, test: V) -> &Self
     where
         V: Display,
         V: PartialEq,
     {
         match &self.result {
-            Ok((rest, token)) => {
+            Ok((_, token)) => {
                 let token_field = field(token);
                 if token_field != test {
-                    println!("{:?}", &self.trace);
-                    println!("=> '{}' | rest='{}'", O::str(token), rest);
                     println!("FAIL: Value mismatch: {} <> {}", token_field, test);
-                    *self.fail.borrow_mut() = true;
+                    self.flag_fail();
                 }
             }
-            Err(e) => {
-                println!("{:?}", &self.trace);
-                println!("=> {}", e);
+            Err(_) => {
                 println!("FAIL: Expect ok, but was an error!");
-                *self.fail.borrow_mut() = true;
+                self.flag_fail();
             }
         }
         self
     }
 
+    /// Checks for ok.
+    /// Uses an extraction function to get the relevant result.
+    ///
+    /// Finish the test with q()
+    #[must_use]
     pub fn okd(&'s self, field: fn(&'s O, O::TestValue) -> bool, test: O::TestValue) -> &Self {
         match &self.result {
-            Ok((rest, token)) => {
+            Ok((_, token)) => {
                 let test_str = O::val_str(&test);
                 if !field(token, test) {
-                    println!("{:?}", &self.trace);
-                    println!("=> '{}' | rest='{}'", O::str(token), rest);
                     println!("FAIL: Value mismatch: {} <> {}", O::str(token), test_str);
-                    *self.fail.borrow_mut() = true;
+                    self.flag_fail();
                 }
             }
-            Err(e) => {
-                println!("{:?}", &self.trace);
-                println!("=> {}", e);
+            Err(_) => {
                 println!("FAIL: Expect ok, but was an error!");
-                *self.fail.borrow_mut() = true;
+                self.flag_fail();
             }
         }
         self
     }
 
+    /// Checks for ok.
+    /// Uses TestResult::equal to test the result.
+    ///
+    /// Finish the test with q()
+    #[must_use]
     pub fn ok(&self, test: O::TestValue) -> &Self {
         match &self.result {
-            Ok((rest, token)) => {
+            Ok((_, token)) => {
                 if !O::equal(token, &test) {
-                    println!("{:?}", &self.trace);
-                    println!("=> '{}' | rest='{}'", O::str(token), rest);
                     println!(
                         "FAIL: Value mismatch: {} <> {}",
                         O::str(token),
                         O::val_str(&test)
                     );
-                    *self.fail.borrow_mut() = true;
+                    self.flag_fail();
                 }
             }
-            Err(e) => {
-                println!("{:?}", &self.trace);
-                println!("=> {}", e);
+            Err(_) => {
                 println!("FAIL: Expect ok, but was an error!");
-                *self.fail.borrow_mut() = true;
+                self.flag_fail();
             }
         }
         self
     }
 
+    /// Tests the remaining string after parsing.
+    ///
+    /// Finish the test with q()
+    #[must_use]
     pub fn rest(&self, test: &str) -> &Self {
         match &self.result {
-            Ok((rest, token)) => {
+            Ok((rest, _)) => {
                 if **rest != test {
-                    println!("{:?}", &self.trace);
-                    println!("=> '{}' | rest='{}'", O::str(token), rest);
                     println!("FAIL: Rest mismatch {} <> {}", **rest, test);
-                    *self.fail.borrow_mut() = true;
+                    self.flag_fail();
                 }
             }
-            Err(e) => {
-                println!("{:?}", &self.trace);
-                println!("=> {}", e);
+            Err(_) => {
                 println!("FAIL: Expect ok, but was an error!");
-                *self.fail.borrow_mut() = true;
+                self.flag_fail();
             }
         }
         self
     }
 
+    /// Checks for and error.
+    ///
+    /// Finish the test with q()
+    #[must_use]
     pub fn err(&self, code: OFError) -> &Self {
         match &self.result {
-            Ok((rest, token)) => {
-                println!("{:?}", &self.trace);
-                println!("=> '{}' | rest='{}'", O::str(token), rest);
+            Ok((_, _)) => {
                 println!("FAIL: Expected error, but was ok!");
-                *self.fail.borrow_mut() = true;
+                self.flag_fail();
             }
             Err(e) => {
                 if e.code != code {
-                    println!("{:?}", &self.trace);
-                    println!("=> {}", e);
                     println!("FAIL: {:?} <> {:?}", e.code, code);
-                    *self.fail.borrow_mut() = true;
+                    self.flag_fail();
                 }
             }
         }
         self
     }
 
+    /// Checks for an expect value.
+    ///
+    /// Finish the test with q()
+    #[must_use]
     pub fn expect(&self, suggest: Suggest) -> &Self {
         let vec = self.trace.expect_vec();
         if !vec.contains(&suggest) {
             println!("FAIL: {:?} is not an expected token. [{:?}]", suggest, vec);
-            *self.fail.borrow_mut() = true;
+            self.flag_fail();
         }
 
         self
     }
 
+    /// Fails the test if any of the checks before failed.
+    ///
+    /// Panic
+    ///
+    /// Panics if any test failed.
     #[track_caller]
     pub fn q(&self) {
         // self.dump();
         if *self.fail.borrow() {
+            self.dump();
             panic!()
         }
     }
 
+    /// Dump the result.
     pub fn dump(&self) -> &Self {
         match &self.result {
             Ok((rest, token)) => {
@@ -216,33 +241,5 @@ where
             }
         }
         self
-    }
-}
-
-pub fn run_test2<'s, O>(
-    str: &'s str,
-    testfn: for<'t> fn(&'t Tracer<'s>, Span<'s>) -> ParseResult<'s, O>,
-) where
-    O: Debug,
-{
-    let tracer = Tracer::new();
-    {
-        println!("### parse '{}'", str);
-        match testfn(&tracer, Span::new(str)) {
-            Ok((rest, tok)) => {
-                println!("{:?}", &tracer);
-                println!("=> {:?} | rest='{}'", tok, rest);
-            }
-            Err(e) => {
-                println!("{:?}", &tracer);
-                println!("=> {}", e);
-                println!(
-                    "   Found '{}' expected [{}] suggest [{}]",
-                    e.span(),
-                    tracer.expect_str(),
-                    tracer.suggest_str()
-                );
-            }
-        }
     }
 }
