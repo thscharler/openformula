@@ -7,7 +7,7 @@
 use crate::ast::tokens::TokenError;
 use crate::ast::{ParseResult, Span};
 use crate::error::{OFError, ParseOFError};
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
 
@@ -74,7 +74,7 @@ pub struct Tracer<'s> {
 
 impl<'s> Debug for Tracer<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Tracer:")?;
+        writeln!(f, "trace")?;
         let tracks = self.tracks.borrow();
 
         let mut indent = String::new();
@@ -219,8 +219,8 @@ impl<'s> Tracer<'s> {
 
     /// Returns the suggested tokens.
     /// Leaves the contained vec empty!
-    pub fn suggest_vec(&self) -> Vec<Suggest> {
-        self.suggest.replace(Vec::new())
+    pub fn suggest_vec(&self) -> Ref<'_, Vec<Suggest>> {
+        self.suggest.borrow()
     }
 
     /// Return the suggestions as a String.
@@ -237,9 +237,18 @@ impl<'s> Tracer<'s> {
     /// Call this any time when the parser reaches a point where the
     /// former suggestions from the parser are voided.
     /// This are usually tokens that prevent backtracking before this point.
-    pub fn clear_suggestions(&self) {
+    pub fn clear_suggest(&self) {
         self.detail("clear suggestions");
         self.suggest.borrow_mut().clear();
+    }
+
+    /// Remove all expectations.
+    ///
+    /// Call this any time when the parser reaches a point where the
+    /// former suggestions from the parser are voided.
+    /// This are usually tokens that prevent backtracking before this point.
+    pub fn clear_expect(&self) {
+        self.detail("clear expectations");
         self.expect.borrow_mut().clear();
     }
 
@@ -248,14 +257,14 @@ impl<'s> Tracer<'s> {
     /// Collect information about mandatory expected tokens. There can
     /// be any number of these, if at least one of many options is required.
     pub fn expect(&self, suggest: Suggest) {
-        self.detail(format!("suggest {:?}", suggest));
+        self.detail(format!("expect {:?}", suggest));
         self.expect.borrow_mut().push(suggest);
     }
 
     /// Returns the expected tokens.
     /// Leaves the contained vec empty!
-    pub fn expect_vec(&self) -> Vec<Suggest> {
-        self.expect.replace(Vec::new())
+    pub fn expect_vec(&self) -> Ref<'_, Vec<Suggest>> {
+        self.expect.borrow()
     }
 
     /// Expected tokens.

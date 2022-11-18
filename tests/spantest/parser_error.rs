@@ -1,8 +1,9 @@
+use openformula::ast::tokens::TokenError;
 use openformula::ast::tracer::{Suggest, Tracer};
 use openformula::ast::{ParseResult, Span};
 use openformula::error::OFError;
 use std::cell::RefCell;
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 
 pub trait TestEq<Rhs = Self> {
     fn eq(&self, other: &Rhs) -> bool;
@@ -26,7 +27,7 @@ where
     #[must_use]
     pub fn okopt<V>(&self, test: Option<V>) -> &Self
     where
-        V: Display,
+        V: Debug,
         for<'x> &'x O: TestEq<V>,
     {
         match &self.result {
@@ -35,7 +36,7 @@ where
                     None => match test {
                         None => {}
                         Some(test) => {
-                            println!("FAIL: Value mismatch: None <> {}", test.to_string());
+                            println!("FAIL: Value mismatch: None <> {:?}", test);
                             self.flag_fail();
                         }
                     },
@@ -46,11 +47,7 @@ where
                         }
                         Some(test) => {
                             if !token.eq(&test) {
-                                println!(
-                                    "FAIL: Value mismatch: {:?} <> {}",
-                                    token,
-                                    test.to_string()
-                                );
+                                println!("FAIL: Value mismatch: {:?} <> {:?}", token, test);
                                 self.flag_fail();
                             }
                         }
@@ -66,10 +63,19 @@ where
     }
 }
 
+enum RunState {
+    CheckDump,
+    CheckTrace,
+    Dump,
+    Trace,
+}
+
 impl<'s, O> TestRun<'s, O>
 where
     O: Debug,
 {
+    const STATE: RunState = RunState::CheckTrace;
+
     /// Runs the parser and records the results.
     /// Use ok(), err(), ... to check specifics.
     ///
@@ -79,8 +85,6 @@ where
         span: &'s str,
         fn_test: for<'t> fn(&'t Tracer<'s>, Span<'s>) -> ParseResult<'s, O>,
     ) -> Self {
-        println!();
-
         let span = Span::new(span);
         let trace = Tracer::new();
         let result = fn_test(&trace, span);
@@ -97,6 +101,13 @@ where
         *self.fail.borrow_mut() = true;
     }
 
+    /// Always fails.
+    pub fn fail(&self) -> &Self {
+        println!("FAIL: Unconditionally");
+        self.flag_fail();
+        self
+    }
+
     /// Checks for ok.
     /// Uses an extraction function to get the relevant result.
     ///
@@ -104,13 +115,13 @@ where
     #[must_use]
     pub fn okeq<V>(&'s self, eq: fn(&'s O, &V) -> bool, test: &V) -> &Self
     where
-        V: Display + ?Sized,
-        O: Display,
+        V: Debug + ?Sized,
+        O: Debug,
     {
         match &self.result {
             Ok((_, token)) => {
                 if !eq(token, &test) {
-                    println!("FAIL: Value mismatch: {} <> {}", token, test.to_string());
+                    println!("FAIL: Value mismatch: {:?} <> {:?}", token, test);
                     self.flag_fail();
                 }
             }
@@ -129,13 +140,13 @@ where
     #[must_use]
     pub fn ok<V>(&self, test: V) -> &Self
     where
-        V: Display,
+        V: Debug,
         for<'x> &'x O: TestEq<V>,
     {
         match &self.result {
             Ok((_, token)) => {
                 if !token.eq(&test) {
-                    println!("FAIL: Value mismatch: {:?} <> {}", token, test.to_string());
+                    println!("FAIL: Value mismatch: {:?} <> {:?}", token, test);
                     self.flag_fail();
                 }
             }
@@ -201,6 +212,23 @@ where
         self
     }
 
+    #[must_use]
+    pub fn cause(&self, tok: TokenError) -> &Self {
+        match &self.result {
+            Ok(_) => {
+                println!("FAIL: Expected error, but was ok!");
+                self.flag_fail();
+            }
+            Err(e) => {
+                if !e.has_tok(&tok) {
+                    println!("FAIL: {:?} was not the token error.", tok);
+                    self.flag_fail();
+                }
+            }
+        }
+        self
+    }
+
     /// Fails the test if any of the checks before failed.
     ///
     /// Panic
@@ -208,19 +236,49 @@ where
     /// Panics if any test failed.
     #[track_caller]
     pub fn q(&self) {
-        // self.dump();
-        if *self.fail.borrow() {
-            self.dump();
-            panic!()
+        match Self::STATE {
+            RunState::CheckDump => {
+                if *self.fail.borrow() {
+                    self.dump();
+                    panic!()
+                }
+            }
+            RunState::CheckTrace => {
+                if *self.fail.borrow() {
+                    self.trace();
+                    panic!()
+                }
+            }
+            RunState::Dump => {
+                self.dump();
+            }
+            RunState::Trace => {
+                self.trace();
+            }
         }
     }
 
     /// Dump the result.
     pub fn dump(&self) -> &Self {
+        println!("when parsing '{}'", self.span);
+        match &self.result {
+            Ok((rest, token)) => {
+                println!("=> token='{:?}' <=> rest='{}'", token, rest);
+            }
+            Err(e) => {
+                println!("=> {}", e);
+            }
+        }
+        self
+    }
+
+    /// Dump the result.
+    pub fn trace(&self) -> &Self {
+        println!("when parsing '{}'", self.span);
         match &self.result {
             Ok((rest, token)) => {
                 println!("{:?}", &self.trace);
-                println!("=> '{:?}' | rest='{}'", token, rest);
+                println!("=> token='{:?}' <=> rest='{}'", token, rest);
             }
             Err(e) => {
                 println!("{:?}", &self.trace);

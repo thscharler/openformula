@@ -168,7 +168,7 @@ impl<'s> GeneralExpr<'s> for CompareExpr {
                     trace.suggest(Suggest::CompOp);
                     match Self::operator(trace, eat_space(loop_rest)) {
                         Ok((rest2, op)) => {
-                            trace.clear_suggestions();
+                            trace.clear_suggest();
                             //
                             match AddExpr::parse(trace, eat_space(rest2)) {
                                 Ok((rest3, expr2)) => {
@@ -228,7 +228,7 @@ impl<'s> GeneralExpr<'s> for AddExpr {
                     trace.suggest(Suggest::AddOp);
                     match Self::operator(trace, eat_space(loop_rest)) {
                         Ok((rest2, op)) => {
-                            trace.clear_suggestions();
+                            trace.clear_suggest();
                             //
                             match MulExpr::parse(trace, eat_space(rest2)) {
                                 Ok((rest3, expr2)) => {
@@ -288,7 +288,7 @@ impl<'s> GeneralExpr<'s> for MulExpr {
                     trace.suggest(Suggest::MulOp);
                     match Self::operator(trace, eat_space(loop_rest)) {
                         Ok((rest2, op)) => {
-                            trace.clear_suggestions();
+                            trace.clear_suggest();
                             //
                             match PowExpr::parse(trace, eat_space(rest2)) {
                                 Ok((rest3, expr2)) => {
@@ -347,7 +347,7 @@ impl<'s> GeneralExpr<'s> for PowExpr {
                     trace.suggest(Suggest::PowOp);
                     match Self::operator(trace, eat_space(loop_rest)) {
                         Ok((rest2, op)) => {
-                            trace.clear_suggestions();
+                            trace.clear_suggest();
                             //
                             match PostfixExpr::parse(trace, eat_space(rest2)) {
                                 Ok((rest3, expr2)) => {
@@ -722,7 +722,7 @@ struct ColTerm;
 
 impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
     fn name() -> &'static str {
-        "Col"
+        "col"
     }
 
     fn lah(_i: Span<'s>) -> bool {
@@ -754,7 +754,7 @@ impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
             unsafe { span_union_opt(col.0, col.1) },
         );
 
-        Ok((rest, col))
+        trace.ok(col.span, rest, col)
     }
 }
 
@@ -762,7 +762,7 @@ struct RowTerm;
 
 impl<'s> GeneralTerm<'s, OFRow<'s>> for RowTerm {
     fn name() -> &'static str {
-        "Row"
+        "row"
     }
 
     fn lah(_i: Span<'s>) -> bool {
@@ -794,7 +794,7 @@ impl<'s> GeneralTerm<'s, OFRow<'s>> for RowTerm {
             unsafe { span_union_opt(row.0, row.1) },
         );
 
-        Ok((rest, row))
+        trace.ok(row.span(), rest, row)
     }
 }
 
@@ -1025,10 +1025,13 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
-        // TODO: ? operator and trace don't cooperate
+        // TODO: Check suggestions. Maybe add a span to the suggestion?
+        trace.optional(IriTerm::name());
         let (rest, iri) = IriTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
+        trace.optional(SheetNameTerm::name());
         let (rest, sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
         let (rest, row) = RowTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
+        trace.clear_suggest();
 
         let rest = match colon(rest) {
             Ok((rest, _)) => rest,
@@ -1039,8 +1042,10 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
             Err(e) => trace.panic_tok(e),
         };
 
+        trace.optional(SheetNameTerm::name());
         let (rest, to_sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
         let (rest, to_row) = RowTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
+        trace.clear_suggest();
 
         let tok = if let Some(iri) = &iri {
             unsafe { span_union(iri.span(), to_row.span()) }
@@ -1077,7 +1082,7 @@ impl<'s> GeneralExpr<'s> for ParenthesesExpr {
             }
             Err(e) => trace.panic_tok(e),
         };
-        trace.clear_suggestions();
+        trace.clear_suggest();
 
         let (rest, expr) =
             Expr::parse(trace, eat_space(rest)).trace(trace, OFError::ErrParentheses)?;
@@ -1143,7 +1148,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
         match tokens::parentheses_open(eat_space(rest)) {
             Ok((mut loop_rest, par1)) => {
                 // Should be a function call now.
-                trace.clear_suggestions();
+                trace.clear_suggest();
 
                 // First separator is checked before the arguments as arguments can be empty.
                 match tokens::semikolon(eat_space(loop_rest)) {
@@ -1181,7 +1186,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         }
                         Err(e) => return trace.err_parse_(e),
                     };
-                    trace.clear_suggestions();
+                    trace.clear_suggest();
 
                     // Followed by a separator.
                     trace.suggest(Suggest::Separator);
@@ -1190,7 +1195,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                             loop_rest = rest2;
                             // separator separates
                             trace.step("separator", sep1);
-                            trace.clear_suggestions();
+                            trace.clear_suggest();
                             Some(sep1)
                         }
                         Err(TokenError::TokSemikolon(_)) => {

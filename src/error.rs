@@ -5,6 +5,7 @@ use crate::error::OFError::*;
 use spreadsheet_ods_cellref::parser::{ParseColnameError, ParseRownameError};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
+use std::mem;
 
 #[derive(Debug)]
 pub struct ParseOFError<'s> {
@@ -127,6 +128,19 @@ impl<'s> ParseOFError<'s> {
     /// Return the span.
     pub fn span(&self) -> &Span<'s> {
         &self.span
+    }
+
+    /// Contains this token error.
+    pub fn has_tok(&self, tok: &TokenError<'s>) -> bool {
+        for t in &self.tok {
+            return mem::discriminant(t) == mem::discriminant(&tok);
+        }
+        return false;
+    }
+
+    /// Return the causal token errors.
+    pub fn tok(&self) -> &Vec<TokenError<'s>> {
+        &self.tok
     }
 
     /// NomError variant.
@@ -292,14 +306,14 @@ impl<'s> Display for ParseOFError<'s> {
         write!(f, "{:?} ", self.code)?;
         write!(
             f,
-            "span={}::{}:{} '{}'",
+            "for span={}::{}:{} '{}'",
             self.span.location_offset(),
             self.span.location_line(),
             self.span.get_column(),
             self.span.fragment()
         )?;
         if !self.tok.is_empty() {
-            write!(f, " <== ")?;
+            write!(f, " caused by ")?;
             for tok in &self.tok {
                 write!(f, "{:?}, ", tok)?;
             }

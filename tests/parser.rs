@@ -1,7 +1,8 @@
 mod spantest;
 
 use openformula::ast::parser::{
-    FnCallExpr, GeneralExpr, GeneralTerm, IriTerm, NamedExpr, ParenthesesExpr, SheetNameTerm,
+    FnCallExpr, GeneralExpr, GeneralTerm, IriTerm, NamedExpr, ParenthesesExpr, RowRangeExpr,
+    SheetNameTerm,
 };
 use openformula::ast::tracer::Suggest::*;
 use openformula::ast::{OFAst, OFIri, OFSheetName};
@@ -26,7 +27,69 @@ pub use spantest::*;
 // TODO: CelllRangeExpr
 // TODO: ColRangeExpr
 // TODO: RowRangeExpr
-// TODO: ParenthesisExpr
+
+#[test]
+pub fn rowrange() {
+    fn iri<'s>(result: &'s Box<OFAst<'s>>, test: &'s str) -> bool {
+        match &**result {
+            OFAst::NodeRowRange(result) => match &result.iri {
+                None => unreachable!(),
+                Some(iri) => &iri.iri == test,
+            },
+            _ => unreachable!(),
+        }
+    }
+    fn sheet_name<'s>(result: &'s Box<OFAst<'s>>, test: &'s str) -> bool {
+        match &**result {
+            OFAst::NodeRowRange(result) => match &result.table {
+                None => unreachable!(),
+                Some(table) => &table.name == test,
+            },
+            _ => unreachable!(),
+        }
+    }
+    fn row_row<'s>(result: &'s Box<OFAst<'s>>, test: &(u32, u32)) -> bool {
+        match &**result {
+            OFAst::NodeRowRange(result) => result.row.row == test.0 && result.to_row.row == test.1,
+            _ => unreachable!(),
+        }
+    }
+
+    TestRun::parse("", RowRangeExpr::parse)
+        .err(ErrRowRange)
+        .expect(Digit)
+        .q();
+    TestRun::parse("'iri'#1:3", RowRangeExpr::parse)
+        .okeq(iri, "iri")
+        .q();
+    TestRun::parse("'sheet'.1:3", RowRangeExpr::parse)
+        .okeq(sheet_name, "sheet")
+        .q();
+    // TODO: continue
+    TestRun::parse("1:3", RowRangeExpr::parse)
+        .okeq(row_row, &(0, 2))
+        .q();
+    TestRun::parse("1:", RowRangeExpr::parse)
+        .err(ErrRowRange)
+        .expect(Digit)
+        .q();
+    TestRun::parse("1", RowRangeExpr::parse)
+        .err(ErrRowRange)
+        .expect(Colon)
+        .q();
+    TestRun::parse(":", RowRangeExpr::parse)
+        .err(ErrRowRange)
+        .expect(Digit)
+        .q();
+    TestRun::parse(":1", RowRangeExpr::parse)
+        .err(ErrRowRange)
+        .expect(Digit)
+        .q();
+    TestRun::parse("C:E", RowRangeExpr::parse)
+        .err(ErrRowRange)
+        .expect(Digit)
+        .q();
+}
 
 #[test]
 pub fn parentheses() {
