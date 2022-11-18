@@ -121,7 +121,7 @@ impl<'s> GeneralExpr<'s> for Expr {
         trace.enter(Self::name(), rest);
         match CompareExpr::parse(trace, rest) {
             Ok((rest, expr)) => trace.ok(expr.span(), rest, expr),
-            Err(e) => trace.err_parse_(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -175,17 +175,17 @@ impl<'s> GeneralExpr<'s> for CompareExpr {
                                     loop_rest = rest3;
                                     expr1 = OFAst::compare(expr1, op, expr2);
                                 }
-                                Err(e) => break trace.err_parse_(e),
+                                Err(e) => break trace.err_parse(e),
                             }
                         }
-                        Err(e) if e.code == ErrComparisonOp => {
+                        Err(e) if e.code == ErrCompOp => {
                             break trace.ok(expr1.span(), loop_rest, expr1)
                         }
-                        Err(e) => break trace.err_parse_(e),
+                        Err(e) => break trace.err_parse(e),
                     }
                 }
             }
-            Err(e) => trace.err_parse_(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -202,8 +202,7 @@ impl<'s> AddExpr {
                 "-" => trace.ok(tok, rest, OFAddOp::Subtract(tok)),
                 _ => unreachable!(),
             },
-            Err(e @ TokenError::TokAddOp(_)) => trace.err_map_tok(ParseOFError::add_op, e),
-            Err(e) => trace.err_tok(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -235,17 +234,17 @@ impl<'s> GeneralExpr<'s> for AddExpr {
                                     loop_rest = rest3;
                                     expr1 = OFAst::add(expr1, op, expr2);
                                 }
-                                Err(e) => break trace.err_parse_(e),
+                                Err(e) => break trace.err_parse(e),
                             }
                         }
                         Err(e) if e.code == ErrAddOp => {
                             break trace.ok(expr1.span(), loop_rest, expr1)
                         }
-                        Err(e) => break trace.err_parse_(e),
+                        Err(e) => break trace.err_parse(e),
                     }
                 }
             }
-            Err(e) => trace.err_parse_(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -295,17 +294,17 @@ impl<'s> GeneralExpr<'s> for MulExpr {
                                     loop_rest = rest3;
                                     expr1 = OFAst::mul(expr1, op, expr2);
                                 }
-                                Err(e) => break trace.err_parse_(e),
+                                Err(e) => break trace.err_parse(e),
                             }
                         }
                         Err(e) if e.code == ErrMulOp => {
                             break trace.ok(expr1.span(), loop_rest, expr1)
                         }
-                        Err(e) => break trace.err_parse_(e),
+                        Err(e) => break trace.err_parse(e),
                     }
                 }
             }
-            Err(e) => trace.err_parse_(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -354,17 +353,17 @@ impl<'s> GeneralExpr<'s> for PowExpr {
                                     loop_rest = rest3;
                                     expr1 = OFAst::pow(expr1, op, expr2);
                                 }
-                                Err(e) => break trace.err_parse_(e),
+                                Err(e) => break trace.err_parse(e),
                             }
                         }
                         Err(e) if e.code == ErrPowOp => {
                             break trace.ok(expr1.span(), loop_rest, expr1)
                         }
-                        Err(e) => break trace.err_parse_(e),
+                        Err(e) => break trace.err_parse(e),
                     }
                 }
             }
-            Err(e) => trace.err_parse_(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -413,11 +412,11 @@ impl<'s> GeneralExpr<'s> for PostfixExpr {
                             expr = OFAst::postfix(expr, tok);
                         }
                         Err(e) if e.code == ErrPostfixOp => break (loop_rest, expr),
-                        Err(e) => return trace.err_parse_(e),
+                        Err(e) => return trace.err_parse(e),
                     }
                 }
             }
-            Err(e) => return trace.err_parse_(e),
+            Err(e) => return trace.err_parse(e),
         };
 
         trace.ok(ast.span(), rest, ast)
@@ -474,14 +473,14 @@ impl<'s> GeneralExpr<'s> for PrefixExpr {
                 Err(e) if e.code == ErrPrefixOp => {
                     break loop_rest;
                 }
-                Err(e) => return trace.err_parse_(e),
+                Err(e) => return trace.err_parse(e),
             }
         };
 
         // parse the expression itself
         let (rest, expr) = match ElementaryExpr::parse(trace, eat_space(rest)) {
             Ok((rest1, expr)) => (rest1, expr),
-            Err(e) => return trace.err_parse_(e),
+            Err(e) => return trace.err_parse(e),
         };
 
         // join everything up
@@ -524,7 +523,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                     /* skip */
                     trace.expect(Suggest::Number);
                 }
-                Err(e) => return trace.err_parse_(e),
+                Err(e) => return trace.err_parse(e),
             }
         }
 
@@ -539,7 +538,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                     /* skip */
                     trace.expect(Suggest::StringContent);
                 }
-                Err(e) => return trace.err_parse_(e),
+                Err(e) => return trace.err_parse(e),
             }
         }
 
@@ -551,7 +550,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                     return trace.ok(expr.span(), rest, expr);
                 }
                 Err(e) if e.code == ErrNomError => { /* skip */ }
-                Err(e) => return trace.err_parse_(e),
+                Err(e) => return trace.err_parse(e),
             }
         }
 
@@ -566,7 +565,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                     /* skip, no reference */
                     trace.expect(Suggest::Reference);
                 }
-                Err(e) => return trace.err_parse_(e),
+                Err(e) => return trace.err_parse(e),
             }
         }
 
@@ -581,13 +580,13 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                     /* skip */
                     trace.expect(Suggest::FnCall);
                 }
-                Err(e) => return trace.err_parse_(e),
+                Err(e) => return trace.err_parse(e),
             }
         }
 
         // TODO: NamedExpr
 
-        trace.err_parse_(ParseOFError::elementary(rest))
+        trace.err_parse(ParseOFError::elementary(rest))
     }
 }
 
@@ -746,7 +745,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
         }
 
         trace.expect(Suggest::Reference);
-        trace.err_parse_(ParseOFError::reference(rest))
+        trace.err_parse(ParseOFError::reference(rest))
     }
 }
 
@@ -851,7 +850,7 @@ impl CellRefExpr {
                 };
                 trace.ok(cell_ref.span, rest, cell_ref)
             }
-            Err(e) => trace.err_parse_(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -910,7 +909,7 @@ impl CellRangeExpr {
                 };
                 trace.ok(cell_range.span, rest, cell_range)
             }
-            Err(e) => trace.err_parse_(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -985,7 +984,7 @@ impl ColRangeExpr {
                 };
                 trace.ok(col_range.span(), rest, col_range)
             }
-            Err(e) => trace.err_parse_(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -1058,7 +1057,7 @@ impl RowRangeExpr {
                 };
                 trace.ok(row_range.span(), rest, row_range)
             }
-            Err(e) => trace.err_parse_(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -1237,7 +1236,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                             trace.step("arg", Span::new(""));
                             None
                         }
-                        Err(e) => return trace.err_parse_(e),
+                        Err(e) => return trace.err_parse(e),
                     };
                     trace.clear_suggest();
 

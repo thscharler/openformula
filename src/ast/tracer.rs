@@ -278,6 +278,21 @@ impl<'s> Tracer<'s> {
         buf
     }
 
+    #[track_caller]
+    fn dump_and_panic(&self, result: ParseOFError<'s>) -> ! {
+        eprintln!("{:?}", self);
+        eprintln!(
+            "found '{}' expected {} suggest {}",
+            result.span(),
+            self.expect_str(),
+            self.suggest_str()
+        );
+        eprintln!();
+        eprintln!("=> {}", result);
+
+        unreachable!();
+    }
+
     /// Ok in a parser.
     ///
     /// Returns the given value for ease of use. Records the success with
@@ -296,38 +311,28 @@ impl<'s> Tracer<'s> {
         Ok((rest, val))
     }
 
-    /// Error in a parser.
-    ///
-    /// Keeps track of the error.
-    /// Marks the current function as complete.
-    ///
-    /// Panics
-    ///
-    /// Panics if there was no call to enter() before.
-    pub fn err_parse_<'t, T>(&'t self, err: ParseOFError<'s>) -> ParseResult<'s, T> {
-        let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks.borrow_mut().push(Track::ErrorSpan(
-            func,
-            self.in_optional(),
-            err.to_string(),
-            *err.span(),
-        ));
+    // Remaps to a new code.
+    fn map_parse_of_error(&self, mut err: ParseOFError<'s>, code: OFError) -> ParseOFError<'s> {
+        // Translates the code with some exceptions.
+        if err.code != OFError::ErrNomError
+            && err.code != OFError::ErrNomFailure
+            && err.code != OFError::ErrUnexpected
+            && err.code != OFError::ErrParseIncomplete
+        {
+            err.code = code;
+        }
 
-        self.maybe_drop_optional(func);
+        // Auto expect.
+        // TODO: Switch to OFError codes
+        // if let Some(expect) = code.expect() {
+        //     self.expect(expect);
+        // }
 
-        Err(err)
+        err
     }
 
-    /// Notes the error, dumps everything and panics.
-    /// Might be useful, if a unexpected TokenError occurs.
-    ///
-    /// Panics
-    ///
-    /// Always.
-    pub fn panic_parse(&self, err: ParseOFError<'s>) -> ! {
-        let error_span = *err.span();
-
-        // Cleanup function and keep tracks.
+    // Fills the machinery ...
+    fn track_parse_of_error(&self, err: &ParseOFError<'s>) {
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks.borrow_mut().push(Track::ErrorSpan(
             func,
@@ -337,18 +342,6 @@ impl<'s> Tracer<'s> {
         ));
 
         self.maybe_drop_optional(func);
-
-        eprintln!("{:?}", self);
-        eprintln!(
-            "found '{}' expected {} suggest {}",
-            error_span,
-            self.expect_str(),
-            self.suggest_str()
-        );
-        eprintln!();
-        eprintln!("=> {}", err);
-
-        unreachable!();
     }
 
     /// Error in a parser.
@@ -360,105 +353,27 @@ impl<'s> Tracer<'s> {
     /// Panics
     ///
     /// Panics if there was no call to enter() before.
-    pub fn err_parse<'t, T>(
+    pub fn map_err_parse<'t, T>(
         &'t self,
-        mut err: ParseOFError<'s>,
+        err: ParseOFError<'s>,
         code: OFError,
     ) -> ParseResult<'s, T> {
-        // Translates the code with some exceptions.
-        if err.code != OFError::ErrNomError
-            && err.code != OFError::ErrNomFailure
-            && err.code != OFError::ErrUnexpected
-            && err.code != OFError::ErrParseIncomplete
-        {
-            err.code = code;
-        }
-        // Auto expect.
-        if let Some(expect) = code.expect() {
-            self.expect(expect);
-        }
-
-        // Cleanup function and keep tracks.
-        let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks.borrow_mut().push(Track::ErrorSpan(
-            func,
-            self.in_optional(),
-            err.to_string(),
-            *err.span(),
-        ));
-
-        self.maybe_drop_optional(func);
-
+        let err = self.map_parse_of_error(err, code);
+        self.track_parse_of_error(&err);
         Err(err)
     }
 
     /// Error in a parser.
     ///
-    /// Maps a nom::Err::Error to one of the ParseOFErrors.
-    /// If the error is a nom::Err::Failure it is mapped to ParseOFError::ErrNomFailure.
-    /// Records the information in the error with the current function.
+    /// Keeps track of the error.
+    /// Marks the current function as complete.
     ///
     /// Panics
     ///
-    /// If the error is a nom::Err::Incomplete.
     /// Panics if there was no call to enter() before.
-    ///
-    pub fn err_map_nom<'t, T>(
-        &'t self,
-        err_fn: fn(span: Span<'s>) -> ParseOFError<'s>,
-        nom: nom::Err<nom::error::Error<Span<'s>>>,
-    ) -> ParseResult<'s, T> {
-        //
-        // The nom error is just the span + error kind in a way.
-        // Plus a few bits to differentiate between parsing error and complete failure.
-        let (fail, error_span, _error_kind) = Self::error_kind(&nom);
-        // Map the error.
-        let err = if fail {
-            ParseOFError::fail(error_span)
-        } else {
-            err_fn(error_span)
-        };
-
-        // Keep track.
-        let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks.borrow_mut().push(Track::Error(
-            func,
-            self.in_optional(),
-            nom.to_string(),
-            error_span,
-        ));
-
-        self.maybe_drop_optional(func);
-
+    pub fn err_parse<'t, T>(&'t self, err: ParseOFError<'s>) -> ParseResult<'s, T> {
+        self.track_parse_of_error(&err);
         Err(err)
-    }
-
-    /// Extracts the error kind and a flag to differentiate between
-    /// ast error and failures+incomplete.
-    fn error_kind(
-        err: &nom::Err<nom::error::Error<Span<'s>>>,
-    ) -> (bool, Span<'s>, nom::error::ErrorKind) {
-        match err {
-            nom::Err::Error(e) => (false, e.input, e.code),
-            nom::Err::Failure(e) => (true, e.input, e.code),
-            nom::Err::Incomplete(e) => panic!("{:?}", e),
-        }
-    }
-
-    /// Error in a parser.
-    ///
-    /// Maps nom::Err::Error to ParseOFError::ErrNomError and calls it a day.
-    /// Uses map_nom, see there.
-    ///
-    /// Panics
-    ///
-    /// If the error is a nom::Err::Incomplete.
-    /// Panics if there was no call to enter() before.
-    pub fn err_nom<'t, T>(
-        &'t self,
-        nom: nom::Err<nom::error::Error<Span<'s>>>,
-    ) -> ParseResult<'s, T> {
-        self.err_map_nom(ParseOFError::err, nom)
     }
 
     /// Notes the error, dumps everything and panics.
@@ -467,29 +382,32 @@ impl<'s> Tracer<'s> {
     /// Panics
     ///
     /// Always.
-    pub fn panic_tok(&self, tok: TokenError<'s>) -> ! {
-        let error_span = *tok.span();
+    #[track_caller]
+    pub fn panic_parse<'t>(&'t self, err: ParseOFError<'s>) -> ! {
+        self.track_parse_of_error(&err);
+        self.dump_and_panic(err);
+    }
 
-        // Keep track.
-        let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks.borrow_mut().push(Track::Error(
-            func,
-            self.in_optional(),
-            tok.to_string(),
-            error_span,
-        ));
+    fn map_token_error(
+        &self,
+        err_fn: fn(span: Span<'s>) -> ParseOFError<'s>,
+        tok: TokenError<'s>,
+    ) -> ParseOFError<'s> {
+        let mut err = if let TokenError::TokNomFailure(_) = &tok {
+            ParseOFError::fail(*tok.span())
+        } else if let TokenError::TokNomError(_) = &tok {
+            ParseOFError::err(*tok.span())
+        } else if let TokenError::TokUnexpected(_, e) = &tok {
+            // Lost in the detail, but that's a bug anyway.
+            self.detail(e.to_string());
+            ParseOFError::unexpected(*tok.span())
+        } else {
+            err_fn(*tok.span())
+        };
 
-        eprintln!("{:?}", self);
-        eprintln!(
-            "found '{}' expected {} suggest {}",
-            error_span,
-            self.expect_str(),
-            self.suggest_str()
-        );
-        eprintln!();
-        eprintln!("=> {}", tok);
+        err.tok.push(tok);
 
-        unreachable!();
+        err
     }
 
     /// Error in a parser.
@@ -511,42 +429,85 @@ impl<'s> Tracer<'s> {
         err_fn: fn(span: Span<'s>) -> ParseOFError<'s>,
         tok: TokenError<'s>,
     ) -> ParseResult<'s, T> {
-        let error_span = *tok.span();
-        //
-        let mut err = if let TokenError::TokNomFailure(_) = &tok {
-            ParseOFError::fail(error_span)
-        } else if let TokenError::TokNomError(_) = &tok {
-            ParseOFError::err(error_span)
-        } else if let TokenError::TokUnexpected(_, e) = &tok {
-            // Lost in the detail, but that's a bug anyway.
-            self.detail(e.to_string());
-            ParseOFError::unexpected(error_span)
-        } else {
-            err_fn(error_span)
-        };
-
-        // Keep track.
-        let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks.borrow_mut().push(Track::Error(
-            func,
-            self.in_optional(),
-            tok.to_string(),
-            error_span,
-        ));
-
-        self.maybe_drop_optional(func);
-
-        err.tok.push(tok);
+        let err = self.map_token_error(err_fn, tok);
+        self.track_parse_of_error(&err);
         Err(err)
     }
 
-    /// Erring in a parser. Handles all nom errors.
+    /// Erring in a parser. Handles all token errors.
     ///
     /// Panic
     ///
     /// Panics if there was no call to enter() before.
     pub fn err_tok<'t, T>(&'t self, tok: TokenError<'s>) -> ParseResult<'s, T> {
-        self.err_map_tok(ParseOFError::err, tok)
+        let err = self.map_token_error(ParseOFError::err, tok);
+        self.track_parse_of_error(&err);
+        Err(err)
+    }
+
+    /// Notes the error, dumps everything and panics.
+    /// Might be useful, if a unexpected TokenError occurs.
+    ///
+    /// Panics
+    ///
+    /// Always.
+    #[track_caller]
+    pub fn panic_tok(&self, tok: TokenError<'s>) -> ! {
+        let err = self.map_token_error(ParseOFError::err, tok);
+        self.track_parse_of_error(&err);
+        self.dump_and_panic(err);
+    }
+
+    // transformation
+    fn map_nom_error(
+        &self,
+        err_fn: fn(span: Span<'s>) -> ParseOFError<'s>,
+        nom: nom::Err<nom::error::Error<Span<'s>>>,
+    ) -> ParseOFError<'s> {
+        match nom {
+            nom::Err::Error(e) => err_fn(e.input),
+            nom::Err::Failure(e) => ParseOFError::new(OFError::ErrNomFailure, e.input),
+            nom::Err::Incomplete(_) => unreachable!(),
+        }
+    }
+
+    /// Error in a parser.
+    ///
+    /// Maps a nom::Err::Error to one of the ParseOFErrors.
+    /// If the error is a nom::Err::Failure it is mapped to ParseOFError::ErrNomFailure.
+    /// Records the information in the error with the current function.
+    ///
+    /// Panics
+    ///
+    /// If the error is a nom::Err::Incomplete.
+    /// Panics if there was no call to enter() before.
+    ///
+    pub fn err_map_nom<'t, T>(
+        &'t self,
+        err_fn: fn(span: Span<'s>) -> ParseOFError<'s>,
+        nom: nom::Err<nom::error::Error<Span<'s>>>,
+    ) -> ParseResult<'s, T> {
+        let err = self.map_nom_error(err_fn, nom);
+        self.track_parse_of_error(&err);
+        Err(err)
+    }
+
+    /// Error in a parser.
+    ///
+    /// Maps nom::Err::Error to ParseOFError::ErrNomError and calls it a day.
+    /// Uses map_nom, see there.
+    ///
+    /// Panics
+    ///
+    /// If the error is a nom::Err::Incomplete.
+    /// Panics if there was no call to enter() before.
+    pub fn err_nom<'t, T>(
+        &'t self,
+        nom: nom::Err<nom::error::Error<Span<'s>>>,
+    ) -> ParseResult<'s, T> {
+        let err = self.map_nom_error(ParseOFError::err, nom);
+        self.track_parse_of_error(&err);
+        Err(err)
     }
 }
 
@@ -565,7 +526,7 @@ impl<'s, 't, O> TrackParseResult<'s, 't, O> for ParseResult<'s, O> {
     fn trace(self, trace: &'t Tracer<'s>, code: OFError) -> Self {
         match self {
             Ok(_) => self,
-            Err(e) => trace.err_parse(e, code),
+            Err(e) => trace.map_err_parse(e, code),
         }
     }
 }
@@ -583,6 +544,7 @@ pub enum Track<'s> {
     /// Function where this occurred and some error info.
     Error(&'static str, bool, String, Span<'s>),
     /// Function where this occurred and some error info.
+    // TODO: check if necessary
     ErrorSpan(&'static str, bool, String, Span<'s>),
 }
 

@@ -1,5 +1,4 @@
 use crate::ast::tokens::TokenError;
-use crate::ast::tracer::Suggest;
 use crate::ast::Span;
 use crate::error::OFError::*;
 use spreadsheet_ods_cellref::parser::{ParseColnameError, ParseRownameError};
@@ -28,89 +27,49 @@ pub enum OFError {
 
     ErrAddOp,
     ErrAlpha,
-    /// CellRange parsing error.
     ErrCellRange,
     ErrCellRef,
     ErrCol,
-    /// ColRange parsing error.
     ErrColRange,
-    /// Error converting a column-name to an u32.
     ErrColname,
     ErrColon,
-    ErrComparisonOp,
+    ErrCompOp,
     ErrDigit,
     ErrDollar,
     ErrDollarDollar,
     ErrDot,
-    /// Elementary expression fails.
     ErrElementary,
     ErrExpr,
-    /// Error when parsing a function call
     ErrFnCall,
     ErrFnName,
+    ErrHashtag,
+    ErrIdentifier,
     ErrIri,
     ErrMulOp,
-    /// Error when parsing a named expression
     ErrNamed,
     ErrNumber,
-    /// Error when parsing an expression in parentheses.
     ErrParentheses,
+    ErrParenthesesClose,
+    ErrParenthesesOpen,
     ErrPostfixOp,
     ErrPowOp,
     ErrPrefixOp,
-    /// Reference expression fails.
+    ErrQuoteEnd,
+    ErrQuoteStart,
+    ErrRefConcatOp,
+    ErrRefIntersectOp,
+    ErrRefOp,
     ErrReference,
     ErrRow,
-    /// Rowrange parsing error.
     ErrRowRange,
-    /// Error converting a row-name to an u32.
     ErrRowname,
-    ErrString,
+    ErrSemikolon,
     ErrSheetName,
     ErrSingleQuoted,
-}
-
-impl OFError {
-    pub fn expect(&self) -> Option<Suggest> {
-        match self {
-            ErrNomError => None,
-            ErrNomFailure => None,
-            ErrUnexpected => None,
-            ErrParseIncomplete => None,
-            ErrAddOp => Some(Suggest::AddOp),
-            ErrAlpha => Some(Suggest::Alpha),
-            ErrCellRange => Some(Suggest::CellRange),
-            ErrCol => Some(Suggest::Col),
-            ErrColRange => Some(Suggest::ColRange),
-            ErrColname => Some(Suggest::Colname),
-            ErrColon => Some(Suggest::Colon),
-            ErrDot => Some(Suggest::Dot),
-            ErrComparisonOp => Some(Suggest::CompOp),
-            ErrDigit => Some(Suggest::Digit),
-            ErrDollar => Some(Suggest::Dollar),
-            ErrDollarDollar => Some(Suggest::DollarDollar),
-            ErrElementary => Some(Suggest::Elementary),
-            ErrFnCall => Some(Suggest::FnCall),
-            ErrFnName => Some(Suggest::FnName),
-            ErrIri => Some(Suggest::Iri),
-            ErrMulOp => Some(Suggest::MulOp),
-            ErrNamed => Some(Suggest::Named),
-            ErrNumber => Some(Suggest::Number),
-            ErrParentheses => Some(Suggest::Parentheses),
-            ErrPostfixOp => Some(Suggest::PostfixOp),
-            ErrPowOp => Some(Suggest::PowOp),
-            ErrPrefixOp => Some(Suggest::PrefixOp),
-            ErrReference => Some(Suggest::Reference),
-            ErrRow => Some(Suggest::Row),
-            ErrRowRange => Some(Suggest::RowRange),
-            ErrRowname => Some(Suggest::Rowname),
-            ErrString => Some(Suggest::StringContent),
-            ErrSheetName => Some(Suggest::SheetName),
-            ErrSingleQuoted => Some(Suggest::SingleQuoted),
-            ErrCellRef => Some(Suggest::CellRef),
-            ErrExpr => Some(Suggest::Expr),
-        }
-    }
+    ErrSingleQuoteEnd,
+    ErrSingleQuoteStart,
+    ErrString,
+    ErrStringOp,
 }
 
 impl<'s> ParseOFError<'s> {
@@ -145,6 +104,15 @@ impl<'s> ParseOFError<'s> {
         &self.tok
     }
 
+    /// Create a ParseOFError from a nom::Err
+    pub fn nom(e: nom::Err<nom::error::Error<Span<'s>>>) -> ParseOFError<'s> {
+        match e {
+            nom::Err::Error(e) => ParseOFError::new(ErrNomError, e.input),
+            nom::Err::Failure(e) => ParseOFError::new(ErrNomFailure, e.input),
+            nom::Err::Incomplete(_) => unreachable!(),
+        }
+    }
+
     /// NomError variant.
     pub fn err(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrNomError, span)
@@ -164,7 +132,10 @@ impl<'s> ParseOFError<'s> {
     pub fn parse_incomplete(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrParseIncomplete, span)
     }
+}
 
+// Simple mappings
+impl<'s> ParseOFError<'s> {
     pub fn parens(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrParentheses, span)
     }
@@ -226,7 +197,7 @@ impl<'s> ParseOFError<'s> {
     }
 
     pub fn comp_op(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrComparisonOp, span)
+        ParseOFError::new(ErrCompOp, span)
     }
 
     pub fn prefix_op(span: Span<'s>) -> ParseOFError<'s> {

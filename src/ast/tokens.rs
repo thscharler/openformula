@@ -9,7 +9,7 @@ use crate::ast::nomtokens::{
     prefix_op_nom, ref_concat_op_nom, ref_intersection_op_nom, reference_op_nom, row_nom,
     semikolon_nom, sheet_name_nom, string_op_nom,
 };
-use crate::ast::{span_union, Span};
+use crate::ast::{span_union, ParseResult, Span};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
 use nom::character::complete::{char as nchar, none_of, one_of};
@@ -19,9 +19,10 @@ use nom::sequence::tuple;
 use nom::InputTake;
 use std::fmt::{Debug, Display, Formatter};
 
+use crate::error::ParseOFError;
 use nom::error::ErrorKind::*;
 
-pub type TokenResult<'a, O> = Result<(Span<'a>, O), TokenError<'a>>;
+pub type TokenResult<'s, O> = Result<(Span<'s>, O), TokenError<'s>>;
 
 #[derive(PartialEq)]
 pub enum TokenError<'s> {
@@ -32,8 +33,7 @@ pub enum TokenError<'s> {
     /// An unknown token error. A unexpected TokenError was found.
     TokUnexpected(Span<'s>, Box<TokenError<'s>>),
 
-    TokHash(Span<'s>),
-    TokAddOp(Span<'s>),
+    // TokAddOp(Span<'s>),
     TokAlpha(Span<'s>),
     TokBracketsClose(Span<'s>),
     TokBracketsOpen(Span<'s>),
@@ -47,6 +47,7 @@ pub enum TokenError<'s> {
     TokEndQuote(Span<'s>),
     TokEndSingleQuote(Span<'s>),
     TokFnName(Span<'s>),
+    TokHash(Span<'s>),
     TokHashtag(Span<'s>),
     TokIdentifier(Span<'s>),
     TokMulOp(Span<'s>),
@@ -75,7 +76,7 @@ impl<'s> TokenError<'s> {
             TokenError::TokNomFailure(_) => "NomFailure",
             TokenError::TokUnexpected(_, _) => "Unexpected",
 
-            TokenError::TokAddOp(_) => "AddOp",
+            // TokenError::TokAddOp(_) => "AddOp",
             TokenError::TokAlpha(_) => "Alpha",
             TokenError::TokBracketsClose(_) => "BracketsClose",
             TokenError::TokBracketsOpen(_) => "BracketsOpen",
@@ -118,7 +119,7 @@ impl<'s> TokenError<'s> {
             TokenError::TokNomFailure(s) => s,
             TokenError::TokUnexpected(s, _) => s,
 
-            TokenError::TokAddOp(s) => s,
+            // TokenError::TokAddOp(s) => s,
             TokenError::TokAlpha(s) => s,
             TokenError::TokBracketsClose(s) => s,
             TokenError::TokBracketsOpen(s) => s,
@@ -465,11 +466,11 @@ pub fn brackets_close<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
 }
 
 /// Tries to parses any additive operator.
-pub fn add_op<'a>(rest: Span<'a>) -> TokenResult<'a, Span<'a>> {
+pub fn add_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
     match add_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(TokenError::TokAddOp(rest)),
-        Err(e) => Err(TokenError::nom(e)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::add_op(rest)),
+        Err(e) => Err(ParseOFError::nom(e)),
     }
 }
 
