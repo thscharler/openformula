@@ -1,8 +1,8 @@
 use nom::error::ErrorKind;
 use nom::IResult;
-use openformula::ast::tokens::{TokenError, TokenResult};
-use openformula::ast::Span;
-use std::mem;
+use openformula::ast::{ParseResult, Span};
+use openformula::error::OFError;
+use openformula::error::OFError::{ErrNomError, ErrNomFailure};
 
 pub trait CheckOk {
     fn cok(&self, offset: usize, fragment: &str);
@@ -24,7 +24,7 @@ pub trait CheckFailNom {
 
 pub trait CheckFailToken {
     fn dump(&self);
-    fn ctok(&self, kind: TokenError<'_>);
+    fn ctok(&self, kind: OFError);
 }
 
 impl<'a> CheckOk for Span<'a> {
@@ -215,7 +215,7 @@ impl<'a> CheckNone for IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
     }
 }
 
-impl<'a> CheckOk for TokenResult<'a, Span<'a>> {
+impl<'a> CheckOk for ParseResult<'a, Span<'a>> {
     #[track_caller]
     fn cok(&self, offset: usize, fragment: &str) {
         match self {
@@ -230,7 +230,7 @@ impl<'a> CheckOk for TokenResult<'a, Span<'a>> {
     }
 }
 
-impl<'a> CheckFailToken for TokenResult<'a, Span<'a>> {
+impl<'a> CheckFailToken for ParseResult<'a, Span<'a>> {
     #[track_caller]
     fn dump(&self) {
         match self {
@@ -244,27 +244,27 @@ impl<'a> CheckFailToken for TokenResult<'a, Span<'a>> {
     }
 
     #[track_caller]
-    fn ctok(&self, kind: TokenError<'_>) {
+    fn ctok(&self, kind: OFError) {
         match self {
             Ok((rest, token)) => {
                 println!("Ok, but should have failed:");
                 println!("    rest='{}' token='{}'", rest, token);
                 assert!(false);
             }
-            Err(e @ TokenError::TokNomError(_)) => {
-                println!("Failed with TokNomError. To unspecified.");
+            Err(e) if e.code == ErrNomError => {
+                println!("Failed with ErrNomError. To unspecified.");
                 println!("{:?}", e);
                 assert!(false);
             }
-            Err(e @ TokenError::TokNomFailure(_)) => {
-                println!("Failed with TokNomFailure.");
+            Err(e) if e.code == ErrNomFailure => {
+                println!("Failed with ErrNomFailure.");
                 println!("{:?}", e);
                 assert!(false);
             }
             Err(e) => {
-                if mem::discriminant(e) != mem::discriminant(&kind) {
+                if e.code != kind {
                     println!("Failed with the wrong ErrorKind:");
-                    println!("    '{}' => result={} <> kind={}", e.span(), e, kind);
+                    println!("    '{}' => result={} <> kind={:?}", e.span(), e, kind);
                     assert!(false);
                 }
             }
@@ -272,7 +272,7 @@ impl<'a> CheckFailToken for TokenResult<'a, Span<'a>> {
     }
 }
 
-impl<'a> CheckOk2 for TokenResult<'a, (Option<Span<'a>>, Span<'a>)> {
+impl<'a> CheckOk2 for ParseResult<'a, (Option<Span<'a>>, Span<'a>)> {
     #[track_caller]
     fn cok0(&self, offset: usize, fragment: &str) {
         match self {
@@ -305,7 +305,7 @@ impl<'a> CheckOk2 for TokenResult<'a, (Option<Span<'a>>, Span<'a>)> {
     }
 }
 
-impl<'a> CheckFailToken for TokenResult<'a, (Option<Span<'a>>, Span<'a>)> {
+impl<'a> CheckFailToken for ParseResult<'a, (Option<Span<'a>>, Span<'a>)> {
     #[track_caller]
     fn dump(&self) {
         match self {
@@ -319,27 +319,27 @@ impl<'a> CheckFailToken for TokenResult<'a, (Option<Span<'a>>, Span<'a>)> {
     }
 
     #[track_caller]
-    fn ctok(&self, kind: TokenError<'_>) {
+    fn ctok(&self, kind: OFError) {
         match self {
             Ok((rest, token)) => {
                 println!("Ok, but should have failed:");
                 println!("    rest='{}' token='{:?}'", rest, token);
                 assert!(false);
             }
-            Err(e @ TokenError::TokNomError(_)) => {
-                println!("Failed with TokNomError. To unspecified.");
+            Err(e) if e.code == ErrNomError => {
+                println!("Failed with ErrNomError. To unspecified.");
                 println!("{:?}", e);
                 assert!(false);
             }
-            Err(e @ TokenError::TokNomFailure(_)) => {
-                println!("Failed with TokNomFailure.");
+            Err(e) if e.code == ErrNomFailure => {
+                println!("Failed with ErrNomFailure.");
                 println!("{:?}", e);
                 assert!(false);
             }
             Err(e) => {
-                if mem::discriminant(e) != mem::discriminant(&kind) {
+                if e.code != kind {
                     println!("Failed with the wrong ErrorKind:");
-                    println!("    '{}' => result={} <> kind={}", e.span(), e, kind);
+                    println!("    '{}' => result={} <> kind={:?}", e.span(), e, kind);
                     assert!(false);
                 }
             }
@@ -347,7 +347,7 @@ impl<'a> CheckFailToken for TokenResult<'a, (Option<Span<'a>>, Span<'a>)> {
     }
 }
 
-impl<'a> CheckNone for TokenResult<'a, (Option<Span<'a>>, Span<'a>)> {
+impl<'a> CheckNone for ParseResult<'a, (Option<Span<'a>>, Span<'a>)> {
     #[track_caller]
     fn cnone0(&self) {
         match self {

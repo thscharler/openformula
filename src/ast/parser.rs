@@ -8,7 +8,7 @@
 //! The look-ahead functions are called internally at certain branching points.
 
 use crate::ast::nomtokens::eat_space;
-use crate::ast::tokens::{col, colon, empty, row, TokenError};
+use crate::ast::tokens::empty;
 use crate::ast::tracer::Suggest;
 use crate::ast::tracer::Suggest::EndSingleQuote;
 use crate::ast::tracer::TrackParseResult;
@@ -142,8 +142,7 @@ impl<'s> CompareExpr {
                 ">=" => trace.ok(tok, rest, OFCompOp::GreaterEqual(tok)),
                 _ => unreachable!(),
             },
-            Err(e @ TokenError::TokComparisonOp(_)) => trace.err_map_tok(ParseOFError::comp_op, e),
-            Err(e) => trace.err_tok(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -261,8 +260,7 @@ impl<'s> MulExpr {
                 "/" => trace.ok(tok, rest, OFMulOp::Divide(tok)),
                 _ => unreachable!(),
             },
-            Err(e @ TokenError::TokMulOp(_)) => trace.err_map_tok(ParseOFError::mul_op, e),
-            Err(e) => trace.err_tok(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -320,8 +318,7 @@ impl<'s> PowExpr {
                 "^" => trace.ok(tok, rest, OFPowOp::Power(tok)),
                 _ => unreachable!(),
             },
-            Err(e @ TokenError::TokPowOp(_)) => trace.err_map_tok(ParseOFError::pow_op, e),
-            Err(e) => trace.err_tok(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -383,8 +380,7 @@ impl PostfixExpr {
                 "%" => trace.ok(tok, rest, OFPostfixOp::Percent(tok)),
                 _ => unreachable!(),
             },
-            Err(e @ TokenError::TokPostfixOp(_)) => trace.err_map_tok(ParseOFError::postfix_op, e),
-            Err(e) => trace.err_tok(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -439,11 +435,7 @@ impl PrefixExpr {
                 "-" => trace.ok(tok, rest, OFPrefixOp::Minus(tok)),
                 _ => unreachable!(),
             },
-            Err(e @ TokenError::TokPrefixOp(_)) => {
-                trace.expect(Suggest::PrefixOp);
-                trace.err_map_tok(ParseOFError::prefix_op, e)
-            }
-            Err(e) => trace.err_tok(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -618,7 +610,7 @@ impl<'s> GeneralExpr<'s> for NumberExpr {
             }
             Err(e) => {
                 trace.expect(Suggest::Number);
-                trace.err_map_tok(ParseOFError::number, e)
+                trace.err_map_parse(e, OFError::ErrNumber)
             }
         }
     }
@@ -644,22 +636,7 @@ impl<'s> GeneralExpr<'s> for StringExpr {
                 let ast = OFAst::string(conv::unquote_double(tok), tok);
                 trace.ok(ast.span(), rest2, ast)
             }
-            Err(e @ TokenError::TokStartQuote(_)) => {
-                trace.expect(Suggest::StartQuote);
-                trace.err_map_tok(ParseOFError::string, e)
-            }
-            Err(e @ TokenError::TokEndQuote(_)) => {
-                trace.expect(Suggest::EndQuote);
-                trace.err_map_tok(ParseOFError::string, e)
-            }
-            Err(e @ TokenError::TokString(_)) => {
-                trace.expect(Suggest::StringContent);
-                trace.err_map_tok(ParseOFError::string, e)
-            }
-            Err(e) => {
-                trace.expect(Suggest::StringContent);
-                trace.err_map_tok(ParseOFError::string, e)
-            }
+            Err(e) => trace.err_track_map_parse(e, OFError::ErrString),
         }
     }
 }
@@ -763,20 +740,20 @@ impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFCol<'s>> {
         trace.enter(Self::name(), rest);
 
-        let (rest, col) = match col(rest) {
+        let (rest, col) = match tokens::col(rest) {
             Ok((rest, col)) => (rest, col),
-            Err(e @ TokenError::TokDollar(_)) => {
+            Err(e) if e.code == ErrDollar => {
                 trace.expect(Suggest::Dollar);
-                return trace.err_map_tok(ParseOFError::col, e);
+                return trace.err_track_map_parse(e, OFError::ErrCol);
             }
-            Err(e @ TokenError::TokAlpha(_)) => {
+            Err(e) if e.code == ErrAlpha => {
                 trace.expect(Suggest::Alpha);
                 trace.expect(Suggest::Col);
-                return trace.err_map_tok(ParseOFError::col, e);
+                return trace.err_track_map_parse(e, OFError::ErrCol);
             }
             Err(e) => {
                 trace.expect(Suggest::Col);
-                trace.panic_tok(e);
+                trace.panic_parse(e);
             }
         };
 
@@ -804,20 +781,20 @@ impl<'s> GeneralTerm<'s, OFRow<'s>> for RowTerm {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFRow<'s>> {
         trace.enter(Self::name(), rest);
 
-        let (rest, row) = match row(rest) {
+        let (rest, row) = match tokens::row(rest) {
             Ok((rest, row)) => (rest, row),
-            Err(e @ TokenError::TokDollar(_)) => {
+            Err(e) if e.code == ErrDollar => {
                 trace.expect(Suggest::Dollar);
-                return trace.err_map_tok(ParseOFError::row, e);
+                return trace.err_track_map_parse(e, OFError::ErrRow);
             }
-            Err(e @ TokenError::TokDigit(_)) => {
+            Err(e) if e.code == ErrDigit => {
                 trace.expect(Suggest::Digit);
                 trace.expect(Suggest::Row);
-                return trace.err_map_tok(ParseOFError::row, e);
+                return trace.err_track_map_parse(e, OFError::ErrRow);
             }
             Err(e) => {
                 trace.expect(Suggest::Row);
-                trace.panic_tok(e);
+                trace.panic_parse(e);
             }
         };
 
@@ -936,14 +913,7 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
         let (rest, row) = RowTerm::parse(trace, rest).trace(trace, ErrCellRange)?;
         trace.clear_suggest();
 
-        let rest = match colon(rest) {
-            Ok((rest, _)) => rest,
-            Err(e @ TokenError::TokColon(_)) => {
-                trace.expect(Suggest::Colon);
-                return trace.err_map_tok(ParseOFError::cell_range, e);
-            }
-            Err(e) => trace.panic_tok(e),
-        };
+        let (rest, _colon) = ColonTerm::parse(trace, rest).trace(trace, ErrCellRange)?;
 
         trace.optional(SheetNameTerm::name());
         let (rest, to_sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrCellRange)?;
@@ -1010,14 +980,7 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
         let (rest, col) = ColTerm::parse(trace, rest).trace(trace, ErrColRange)?;
         trace.clear_suggest();
 
-        let rest = match colon(rest) {
-            Ok((rest, _)) => rest,
-            Err(e @ TokenError::TokColon(_)) => {
-                trace.expect(Suggest::Colon);
-                return trace.err_map_tok(ParseOFError::col_range, e);
-            }
-            Err(e) => trace.panic_tok(e),
-        };
+        let (rest, _colon) = ColonTerm::parse(trace, rest).trace(trace, ErrColRange)?;
 
         trace.optional(SheetNameTerm::name());
         let (rest, to_sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrColRange)?;
@@ -1084,14 +1047,7 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
         let (rest, row) = RowTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
         trace.clear_suggest();
 
-        let rest = match colon(rest) {
-            Ok((rest, _)) => rest,
-            Err(e @ TokenError::TokColon(_)) => {
-                trace.expect(Suggest::Colon);
-                return trace.err_map_tok(ParseOFError::row_range, e);
-            }
-            Err(e) => trace.panic_tok(e),
-        };
+        let (rest, _colon) = ColonTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
 
         trace.optional(SheetNameTerm::name());
         let (rest, to_sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
@@ -1128,11 +1084,11 @@ impl<'s> GeneralExpr<'s> for ParenthesesExpr {
 
         let (rest, par1) = match tokens::parentheses_open(rest) {
             Ok((rest1, par1)) => (rest1, par1),
-            Err(e @ TokenError::TokParenthesesOpen(_)) => {
+            Err(e) if e.code == ErrParenthesesOpen => {
                 trace.expect(Suggest::ParenthesesOpen);
-                return trace.err_map_tok(ParseOFError::parens, e);
+                return trace.err_track_map_parse(e, OFError::ErrParentheses);
             }
-            Err(e) => trace.panic_tok(e),
+            Err(e) => trace.panic_parse(e),
         };
         trace.clear_suggest();
 
@@ -1141,11 +1097,11 @@ impl<'s> GeneralExpr<'s> for ParenthesesExpr {
 
         let (rest, par2) = match tokens::parentheses_close(eat_space(rest)) {
             Ok((rest1, par2)) => (rest1, par2),
-            Err(e @ TokenError::TokParenthesesClose(_)) => {
+            Err(e) if e.code == ErrParenthesesClose => {
                 trace.expect(Suggest::ParenthesesClose);
-                return trace.err_map_tok(ParseOFError::parens, e);
+                return trace.err_track_map_parse(e, OFError::ErrParentheses);
             }
-            Err(e) => trace.panic_tok(e),
+            Err(e) => trace.panic_parse(e),
         };
 
         let ast = OFAst::parens(par1, expr, par2);
@@ -1183,13 +1139,13 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
         trace.suggest(Suggest::FnName);
         let (rest, fn_name) = match tokens::fn_name(eat_space(rest)) {
             Ok((rest1, tok)) => (rest1, tok),
-            Err(e @ TokenError::TokFnName(_)) => {
+            Err(e) if e.code == ErrFnName => {
                 trace.expect(Suggest::FnName);
-                return trace.err_map_tok(ParseOFError::fn_call, e);
+                return trace.err_track_map_parse(e, OFError::ErrFnCall);
             }
             Err(e) => {
                 trace.expect(Suggest::FnName);
-                trace.panic_tok(e)
+                trace.panic_parse(e)
             }
         };
         trace.step("name", fn_name);
@@ -1212,12 +1168,12 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         let ast = OFAst::empty(empty(sep1));
                         args.push(*ast);
                     }
-                    Err(TokenError::TokSemikolon(_)) => {
+                    Err(e) if e.code == ErrSemikolon => {
                         // Optional
                     }
                     Err(e) => {
                         trace.expect(Suggest::Semikolon);
-                        trace.panic_tok(e);
+                        trace.panic_parse(e);
                     }
                 }
 
@@ -1250,13 +1206,13 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                             trace.clear_suggest();
                             Some(sep1)
                         }
-                        Err(TokenError::TokSemikolon(_)) => {
+                        Err(e) if e.code == ErrSemikolon => {
                             // Optional
                             None
                         }
                         Err(e) => {
                             trace.expect(Suggest::Semikolon);
-                            trace.panic_tok(e);
+                            trace.panic_parse(e);
                         }
                     };
 
@@ -1300,29 +1256,29 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                             let ast = OFAst::fn_call(fn_name, par1, args, par2);
                             return trace.ok(ast.span(), rest2, ast);
                         }
-                        Err(e @ TokenError::TokParenthesesClose(_)) => {
+                        Err(e) if e.code == ErrParenthesesClose => {
                             // Fail if closing parentheses are required. Fine otherwise.
                             if parens == Parens::Needed {
                                 trace.expect(Suggest::ParenthesesClose);
-                                return trace.err_map_tok(ParseOFError::fn_call, e);
+                                return trace.err_track_map_parse(e, OFError::ErrFnCall);
                             }
                         }
                         Err(e) => {
                             trace.expect(Suggest::ParenthesesClose);
-                            trace.panic_tok(e);
+                            trace.panic_parse(e);
                         }
                     }
                 }
             }
 
-            Err(e @ TokenError::TokParenthesesOpen(_)) => {
+            Err(e) if e.code == ErrParenthesesOpen => {
                 trace.expect(Suggest::ParenthesesOpen);
-                return trace.err_map_tok(ParseOFError::fn_call, e);
+                return trace.err_track_map_parse(e, OFError::ErrFnCall);
             }
 
             Err(e) => {
                 trace.expect(Suggest::ParenthesesOpen);
-                trace.panic_tok(e);
+                trace.panic_parse(e);
             }
         };
     }
@@ -1360,20 +1316,19 @@ impl<'s> GeneralTerm<'s, Option<OFIri<'s>>> for IriTerm {
             }
 
             // Fail to start any of these
-            Err(TokenError::TokStartSingleQuote(_)) | Err(TokenError::TokHash(_)) => {
+            Err(e) if e.code == ErrSingleQuoteStart || e.code == ErrHashtag => {
                 trace.ok(empty(rest), rest, None)
             }
-
-            Err(e @ TokenError::TokString(_)) => {
+            Err(e) if e.code == ErrString => {
                 trace.expect(Suggest::StringContent);
-                trace.err_map_tok(ParseOFError::iri, e)
+                trace.err_track_map_parse(e, OFError::ErrIri)
             }
-            Err(e @ TokenError::TokEndSingleQuote(_)) => {
+            Err(e) if e.code == ErrSingleQuoteEnd => {
                 trace.expect(EndSingleQuote);
-                trace.err_map_tok(ParseOFError::iri, e)
+                trace.err_track_map_parse(e, OFError::ErrIri)
             }
 
-            Err(e) => trace.panic_tok(e),
+            Err(e) => trace.panic_parse(e),
         }
     }
 }
@@ -1408,21 +1363,50 @@ impl<'s> GeneralTerm<'s, Option<OFSheetName<'s>>> for SheetNameTerm {
 
                 (span, rest1, Some(term))
             }
-            Err(TokenError::TokStartSingleQuote(_)) => (empty(rest), rest, None),
+            Err(e) if e.code == ErrSingleQuoteStart => (empty(rest), rest, None),
 
-            Err(e @ TokenError::TokString(_)) => {
+            Err(e) if e.code == ErrString => {
                 trace.expect(Suggest::StringContent);
-                return trace.err_map_tok(ParseOFError::sheet_name, e);
+                return trace.err_track_map_parse(e, OFError::ErrSheetName);
             }
-            Err(e @ TokenError::TokEndSingleQuote(_)) => {
+            Err(e) if e.code == ErrSingleQuoteEnd => {
                 trace.expect(Suggest::EndSingleQuote);
-                return trace.err_map_tok(ParseOFError::sheet_name, e);
+                return trace.err_track_map_parse(e, OFError::ErrSheetName);
             }
 
-            Err(e) => trace.panic_tok(e),
+            Err(e) => trace.panic_parse(e),
         };
 
         trace.ok(span, rest, sheet_name)
+    }
+}
+
+pub struct ColonTerm;
+
+impl<'s> GeneralTerm<'s, ()> for ColonTerm {
+    fn name() -> &'static str {
+        "colon"
+    }
+
+    fn lah(_i: Span<'s>) -> bool {
+        // TODO: refs_tokens::lah_colon(i)
+        false
+    }
+
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, ()> {
+        trace.enter(Self::name(), rest);
+
+        // required dot
+        let (rest, dot) = match tokens::colon(rest) {
+            Ok((rest1, dot)) => (rest1, dot),
+            Err(e) if e.code == ErrColon => {
+                trace.expect(Suggest::Colon);
+                return trace.err_track_map_parse(e, OFError::ErrColon);
+            }
+            Err(e) => trace.panic_parse(e),
+        };
+
+        trace.ok(dot, rest, ())
     }
 }
 
@@ -1444,12 +1428,12 @@ impl<'s> GeneralTerm<'s, ()> for DotTerm {
         let (rest, dot) = match tokens::dot(rest) {
             Ok((rest1, dot)) => (rest1, dot),
 
-            Err(e @ TokenError::TokDot(_)) => {
+            Err(e) if e.code == ErrDot => {
                 trace.expect(Suggest::Dot);
-                return trace.err_map_tok(ParseOFError::dot, e);
+                return trace.err_track_map_parse(e, OFError::ErrDot);
             }
 
-            Err(e) => trace.panic_tok(e),
+            Err(e) => trace.panic_parse(e),
         };
 
         trace.ok(dot, rest, ())
@@ -1492,9 +1476,8 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                 let term = OFAst::simple_named(ident.to_string(), ident);
                 (rest1, Some(term))
             }
-            Err(TokenError::TokIdentifier(_)) => (rest, None),
-
-            Err(e) => trace.panic_tok(e),
+            Err(e) if e.code == ErrIdentifier => (rest, None),
+            Err(e) => trace.panic_parse(e),
         };
 
         // If we found a name we're good.
@@ -1508,11 +1491,11 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
             let (rest, _) = match tokens::dollar_dollar(rest) {
                 Ok((rest1, tag)) => (rest1, tag),
 
-                Err(e @ TokenError::TokDollarDollar(_)) => {
-                    return trace.err_map_tok(ParseOFError::dollardollar, e);
+                Err(e) if e.code == ErrDollarDollar => {
+                    return trace.err_track_map_parse(e, OFError::ErrDollarDollar);
                 }
 
-                Err(e) => trace.panic_tok(e),
+                Err(e) => trace.panic_parse(e),
             };
 
             // Identifier
@@ -1522,9 +1505,9 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                     let term = OFAst::simple_named(ident.to_string(), ident);
                     (rest1, Some(term))
                 }
-                Err(TokenError::TokIdentifier(_)) => (rest, None),
+                Err(e) if e.code == ErrIdentifier => (rest, None),
 
-                Err(e) => trace.panic_tok(e),
+                Err(e) => trace.panic_parse(e),
             };
 
             // SingleQuoted
@@ -1539,20 +1522,20 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                         (rest1, term)
                     }
 
-                    Err(e @ TokenError::TokStartQuote(_)) => {
+                    Err(e) if e.code == ErrSingleQuoteStart => {
                         trace.expect(Suggest::StartSingleQuote);
-                        return trace.err_map_tok(ParseOFError::single_quoted, e);
+                        return trace.err_track_map_parse(e, OFError::ErrSingleQuoted);
                     }
-                    Err(e @ TokenError::TokString(_)) => {
+                    Err(e) if e.code == ErrString => {
                         trace.expect(Suggest::SingleQuoted);
-                        return trace.err_map_tok(ParseOFError::single_quoted, e);
+                        return trace.err_track_map_parse(e, OFError::ErrSingleQuoted);
                     }
-                    Err(e @ TokenError::TokEndQuote(_)) => {
+                    Err(e) if e.code == ErrSingleQuoteEnd => {
                         trace.expect(Suggest::EndSingleQuote);
-                        return trace.err_map_tok(ParseOFError::single_quoted, e);
+                        return trace.err_track_map_parse(e, OFError::ErrSingleQuoted);
                     }
 
-                    Err(e) => trace.panic_tok(e),
+                    Err(e) => trace.panic_parse(e),
                 }
             };
 
@@ -1695,49 +1678,4 @@ mod tests {
             run_test2(test, Expr::parse);
         }
     }
-
-    // #[test]
-    // fn test_cellref2() -> Result<(), OFError> {
-    //     TODO: repair
-    //     let trace = Tracer::new();
-    //     unsafe {
-    //         assert_eq!(
-    //             CellRefExpr::ast(&trace, Span::new(".A21"))?,
-    //             (
-    //                 Span::new_from_raw_offset(4, 1, "", ()),
-    //                 Some(Box::new(OFAst::NodeCellRef(OFCellRef(
-    //                     CellRef::local(20, 0),
-    //                     Span::new_from_raw_offset(1, 1, ".A21", ())
-    //                 ))))
-    //             )
-    //         );
-    //     }
-    //     Ok(())
-    // }
-
-    // #[test]
-    // #[allow(unused_must_use)]
-    // fn test_cellref3() -> Result<(), OFError> {
-    //     let trace = Tracer::new();
-    //     dbg!(ReferenceExpr::ast(&trace, Span::new(".A1")));
-    //     dbg!(&trace);
-    //
-    //     let trace = Tracer::new();
-    //     dbg!(ReferenceExpr::ast(&trace, Span::new(".A0")));
-    //     dbg!(&trace);
-    //
-    //     let trace = Tracer::new();
-    //     dbg!(ReferenceExpr::ast(&trace, Span::new(".A1:.C4")));
-    //     dbg!(&trace);
-    //
-    //     let trace = Tracer::new();
-    //     dbg!(ReferenceExpr::ast(&trace, Span::new(".A:.C")));
-    //     dbg!(&trace);
-    //
-    //     let trace = Tracer::new();
-    //     dbg!(ReferenceExpr::ast(&trace, Span::new(".34:.37")));
-    //     dbg!(&trace);
-    //
-    //     Ok(())
-    // }
 }

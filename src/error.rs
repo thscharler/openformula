@@ -1,16 +1,15 @@
-use crate::ast::tokens::TokenError;
+use crate::ast::tracer::Suggest;
 use crate::ast::Span;
 use crate::error::OFError::*;
 use spreadsheet_ods_cellref::parser::{ParseColnameError, ParseRownameError};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
-use std::mem;
 
 #[derive(Debug)]
 pub struct ParseOFError<'s> {
     pub code: OFError,
     pub span: Span<'s>,
-    pub tok: Vec<TokenError<'s>>,
+    pub unexpected: Option<Box<ParseOFError<'s>>>,
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -27,6 +26,8 @@ pub enum OFError {
 
     ErrAddOp,
     ErrAlpha,
+    ErrBracketsClose,
+    ErrBracketsOpen,
     ErrCellRange,
     ErrCellRef,
     ErrCol,
@@ -65,11 +66,69 @@ pub enum OFError {
     ErrRowname,
     ErrSemikolon,
     ErrSheetName,
-    ErrSingleQuoted,
     ErrSingleQuoteEnd,
     ErrSingleQuoteStart,
+    ErrSingleQuoted,
     ErrString,
     ErrStringOp,
+}
+
+impl OFError {
+    pub fn expect(&self) -> Option<Suggest> {
+        match self {
+            ErrAddOp => Some(Suggest::AddOp),
+            ErrAlpha => Some(Suggest::Alpha),
+            ErrBracketsClose => Some(Suggest::BracketsClose),
+            ErrBracketsOpen => Some(Suggest::BracketsOpen),
+            ErrCellRange => Some(Suggest::CellRange),
+            ErrCellRef => Some(Suggest::CellRef),
+            ErrCol => Some(Suggest::Col),
+            ErrColRange => Some(Suggest::ColRange),
+            ErrColname => Some(Suggest::Colname),
+            ErrColon => Some(Suggest::Colon),
+            ErrCompOp => Some(Suggest::CompOp),
+            ErrDigit => Some(Suggest::Digit),
+            ErrDollar => Some(Suggest::Dollar),
+            ErrDollarDollar => Some(Suggest::DollarDollar),
+            ErrDot => Some(Suggest::Dot),
+            ErrElementary => Some(Suggest::Elementary),
+            ErrExpr => Some(Suggest::Expr),
+            ErrFnCall => Some(Suggest::FnCall),
+            ErrFnName => Some(Suggest::FnName),
+            ErrHashtag => Some(Suggest::Hashtag),
+            ErrIdentifier => Some(Suggest::Identifier),
+            ErrIri => Some(Suggest::Iri),
+            ErrMulOp => Some(Suggest::MulOp),
+            ErrNamed => Some(Suggest::Named),
+            ErrNomError => None,
+            ErrNomFailure => None,
+            ErrNumber => Some(Suggest::Number),
+            ErrParentheses => Some(Suggest::Parentheses),
+            ErrParenthesesClose => Some(Suggest::ParenthesesClose),
+            ErrParenthesesOpen => Some(Suggest::ParenthesesOpen),
+            ErrParseIncomplete => None,
+            ErrPostfixOp => Some(Suggest::PostfixOp),
+            ErrPowOp => Some(Suggest::PowOp),
+            ErrPrefixOp => Some(Suggest::PrefixOp),
+            ErrQuoteEnd => Some(Suggest::QuoteEnd),
+            ErrQuoteStart => Some(Suggest::QuoteStart),
+            ErrRefConcatOp => Some(Suggest::RefConcatOp),
+            ErrRefIntersectOp => Some(Suggest::RefIntersectOp),
+            ErrRefOp => Some(Suggest::RefOp),
+            ErrReference => Some(Suggest::Reference),
+            ErrRow => Some(Suggest::Row),
+            ErrRowRange => Some(Suggest::RowRange),
+            ErrRowname => Some(Suggest::Rowname),
+            ErrSemikolon => Some(Suggest::Semikolon),
+            ErrSheetName => Some(Suggest::SheetName),
+            ErrSingleQuoteEnd => Some(Suggest::SingleQuoteEnd),
+            ErrSingleQuoteStart => Some(Suggest::SingleQuoteStart),
+            ErrSingleQuoted => Some(Suggest::SingleQuoted),
+            ErrString => Some(Suggest::StringContent),
+            ErrStringOp => Some(Suggest::StringOp),
+            ErrUnexpected => None,
+        }
+    }
 }
 
 impl<'s> ParseOFError<'s> {
@@ -77,7 +136,7 @@ impl<'s> ParseOFError<'s> {
         Self {
             code,
             span,
-            tok: Vec::new(),
+            unexpected: None,
         }
     }
 
@@ -89,19 +148,6 @@ impl<'s> ParseOFError<'s> {
     /// Return the span.
     pub fn span(&self) -> &Span<'s> {
         &self.span
-    }
-
-    /// Contains this token error.
-    pub fn has_tok(&self, tok: &TokenError<'s>) -> bool {
-        for t in &self.tok {
-            return mem::discriminant(t) == mem::discriminant(&tok);
-        }
-        return false;
-    }
-
-    /// Return the causal token errors.
-    pub fn tok(&self) -> &Vec<TokenError<'s>> {
-        &self.tok
     }
 
     /// Create a ParseOFError from a nom::Err
@@ -124,8 +170,10 @@ impl<'s> ParseOFError<'s> {
     }
 
     /// Unexpected variant.
-    pub fn unexpected(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrUnexpected, span)
+    pub fn unexpected(err: ParseOFError<'s>) -> ParseOFError<'s> {
+        let mut new = ParseOFError::new(ErrUnexpected, err.span);
+        new.unexpected = Some(Box::new(err));
+        new
     }
 
     /// ParseIncomplete variant.
@@ -144,42 +192,94 @@ impl<'s> ParseOFError<'s> {
         ParseOFError::new(ErrFnCall, span)
     }
 
-    /// Elementary
     pub fn elementary(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrElementary, span)
     }
 
-    /// Reference
+    pub fn string_op(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrStringOp, span)
+    }
+
+    pub fn ref_intersect_op(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrRefIntersectOp, span)
+    }
+
+    pub fn ref_concat_op(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrRefConcatOp, span)
+    }
+
+    pub fn ref_op(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrRefOp, span)
+    }
+
+    pub fn identifier(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrIdentifier, span)
+    }
+
+    pub fn start_quote(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrQuoteStart, span)
+    }
+
+    pub fn end_quote(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrQuoteEnd, span)
+    }
+
+    pub fn start_single_quote(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrSingleQuoteStart, span)
+    }
+
+    pub fn end_single_quote(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrSingleQuoteEnd, span)
+    }
+
     pub fn reference(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrReference, span)
     }
 
-    /// Iri
     pub fn iri(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrIri, span)
     }
 
-    /// Sheet name
     pub fn sheet_name(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrSheetName, span)
     }
 
-    /// Sheet name
+    pub fn hashtag(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrHashtag, span)
+    }
+
     pub fn dot(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrDot, span)
     }
 
-    /// CellRange variant.
+    pub fn parens_open(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrParenthesesOpen, span)
+    }
+
+    pub fn parens_close(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrParenthesesClose, span)
+    }
+
+    pub fn brackets_open(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrBracketsOpen, span)
+    }
+
+    pub fn brackets_close(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrBracketsClose, span)
+    }
+
+    pub fn semikolon(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrSemikolon, span)
+    }
+
     pub fn cell_range(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrCellRange, span)
     }
 
-    /// ColRange variant.
     pub fn col_range(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrColRange, span)
     }
 
-    /// RowRange variant.
     pub fn row_range(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrRowRange, span)
     }
@@ -290,12 +390,6 @@ impl<'s> Display for ParseOFError<'s> {
             self.span.get_column(),
             self.span.fragment()
         )?;
-        if !self.tok.is_empty() {
-            write!(f, " caused by ")?;
-            for tok in &self.tok {
-                write!(f, "{:?}, ", tok)?;
-            }
-        }
         Ok(())
     }
 }

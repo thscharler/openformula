@@ -1,4 +1,3 @@
-use openformula::ast::tokens::TokenError;
 use openformula::ast::tracer::{Suggest, Tracer};
 use openformula::ast::{ParseResult, Span};
 use openformula::error::OFError;
@@ -240,23 +239,6 @@ where
             self.flag_fail();
         }
 
-        self
-    }
-
-    #[must_use]
-    pub fn cause(&self, tok: TokenError) -> &Self {
-        match &self.result {
-            Ok(_) => {
-                println!("FAIL: Expected error, but was ok!");
-                self.flag_fail();
-            }
-            Err(e) => {
-                if !e.has_tok(&tok) {
-                    println!("FAIL: {:?} was not the token error.", tok);
-                    self.flag_fail();
-                }
-            }
-        }
         self
     }
 
