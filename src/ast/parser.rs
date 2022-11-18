@@ -740,6 +740,7 @@ impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
             }
             Err(e @ TokenError::TokAlpha(_)) => {
                 trace.expect(Suggest::Alpha);
+                trace.expect(Suggest::Col);
                 return trace.err_map_tok(ParseOFError::col, e);
             }
             Err(e) => {
@@ -780,6 +781,7 @@ impl<'s> GeneralTerm<'s, OFRow<'s>> for RowTerm {
             }
             Err(e @ TokenError::TokDigit(_)) => {
                 trace.expect(Suggest::Digit);
+                trace.expect(Suggest::Row);
                 return trace.err_map_tok(ParseOFError::row, e);
             }
             Err(e) => {
@@ -835,10 +837,14 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
+        trace.optional(IriTerm::name());
         let (rest, iri) = IriTerm::parse(trace, rest).trace(trace, ErrCellRef)?;
+        trace.optional(SheetNameTerm::name());
         let (rest, sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrCellRef)?;
+        let (rest, _dot) = DotTerm::parse(trace, rest).trace(trace, ErrCellRef)?;
         let (rest, col) = ColTerm::parse(trace, rest).trace(trace, ErrCellRef)?;
         let (rest, row) = RowTerm::parse(trace, rest).trace(trace, ErrCellRef)?;
+        trace.clear_suggest();
 
         let tok = if let Some(iri) = &iri {
             unsafe { span_union(iri.span(), row.span()) }
@@ -890,10 +896,14 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
+        trace.optional(IriTerm::name());
         let (rest, iri) = IriTerm::parse(trace, rest).trace(trace, ErrCellRange)?;
+        trace.optional(SheetNameTerm::name());
         let (rest, sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrCellRange)?;
+        let (rest, _dot) = DotTerm::parse(trace, rest).trace(trace, ErrCellRange)?;
         let (rest, col) = ColTerm::parse(trace, rest).trace(trace, ErrCellRange)?;
         let (rest, row) = RowTerm::parse(trace, rest).trace(trace, ErrCellRange)?;
+        trace.clear_suggest();
 
         let rest = match colon(rest) {
             Ok((rest, _)) => rest,
@@ -904,10 +914,12 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
             Err(e) => trace.panic_tok(e),
         };
 
-        // todo: tracking ...
+        trace.optional(SheetNameTerm::name());
         let (rest, to_sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrCellRange)?;
+        let (rest, _dot) = DotTerm::parse(trace, rest).trace(trace, ErrCellRange)?;
         let (rest, to_col) = ColTerm::parse(trace, rest).trace(trace, ErrCellRange)?;
         let (rest, to_row) = RowTerm::parse(trace, rest).trace(trace, ErrCellRange)?;
+        trace.clear_suggest();
 
         let tok = if let Some(iri) = &iri {
             unsafe { span_union(iri.span(), to_row.span()) }
@@ -959,9 +971,13 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
+        trace.optional(IriTerm::name());
         let (rest, iri) = IriTerm::parse(trace, rest).trace(trace, ErrColRange)?;
+        trace.optional(SheetNameTerm::name());
         let (rest, sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrColRange)?;
+        let (rest, _dot) = DotTerm::parse(trace, rest).trace(trace, ErrColRange)?;
         let (rest, col) = ColTerm::parse(trace, rest).trace(trace, ErrColRange)?;
+        trace.clear_suggest();
 
         let rest = match colon(rest) {
             Ok((rest, _)) => rest,
@@ -972,8 +988,11 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
             Err(e) => trace.panic_tok(e),
         };
 
+        trace.optional(SheetNameTerm::name());
         let (rest, to_sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrColRange)?;
+        let (rest, _dot) = DotTerm::parse(trace, rest).trace(trace, ErrColRange)?;
         let (rest, to_col) = ColTerm::parse(trace, rest).trace(trace, ErrColRange)?;
+        trace.clear_suggest();
 
         let tok = if let Some(iri) = &iri {
             unsafe { span_union(iri.span(), to_col.span()) }
@@ -1030,6 +1049,7 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
         let (rest, iri) = IriTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
         trace.optional(SheetNameTerm::name());
         let (rest, sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
+        let (rest, _dot) = DotTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
         let (rest, row) = RowTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
         trace.clear_suggest();
 
@@ -1044,6 +1064,7 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
 
         trace.optional(SheetNameTerm::name());
         let (rest, to_sheet) = SheetNameTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
+        let (rest, _dot) = DotTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
         let (rest, to_row) = RowTerm::parse(trace, rest).trace(trace, ErrRowRange)?;
         trace.clear_suggest();
 
@@ -1370,23 +1391,37 @@ impl<'s> GeneralTerm<'s, Option<OFSheetName<'s>>> for SheetNameTerm {
             Err(e) => trace.panic_tok(e),
         };
 
-        // require dot
-        let rest = if sheet_name.is_some() {
-            match tokens::dot(rest) {
-                Ok((rest1, _dot)) => rest1,
+        trace.ok(span, rest, sheet_name)
+    }
+}
 
-                Err(e @ TokenError::TokDot(_)) => {
-                    trace.expect(Suggest::Dot);
-                    return trace.err_map_tok(ParseOFError::sheet_name, e);
-                }
+pub struct DotTerm;
 
-                Err(e) => trace.panic_tok(e),
+impl<'s> GeneralTerm<'s, ()> for DotTerm {
+    fn name() -> &'static str {
+        "dot"
+    }
+
+    fn lah(i: Span<'s>) -> bool {
+        refs_tokens::lah_dot(i)
+    }
+
+    fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, ()> {
+        trace.enter(Self::name(), rest);
+
+        // required dot
+        let (rest, dot) = match tokens::dot(rest) {
+            Ok((rest1, dot)) => (rest1, dot),
+
+            Err(e @ TokenError::TokDot(_)) => {
+                trace.expect(Suggest::Dot);
+                return trace.err_map_tok(ParseOFError::dot, e);
             }
-        } else {
-            rest
+
+            Err(e) => trace.panic_tok(e),
         };
 
-        trace.ok(span, rest, sheet_name)
+        trace.ok(dot, rest, ())
     }
 }
 
@@ -1411,13 +1446,11 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
         //
         trace.enter(Self::name(), rest);
 
-        // (IRI '#')?
         trace.optional(IriTerm::name());
         let (rest, iri) = IriTerm::parse(trace, rest).trace(trace, ErrNamed)?;
-
-        // QuotedSheetName ::= '$'? SingleQuoted "."
         trace.optional(SheetNameTerm::name());
         let (rest, sheet_name) = SheetNameTerm::parse(trace, rest).trace(trace, ErrNamed)?;
+        let (rest, _dot) = DotTerm::parse(trace, rest).trace(trace, ErrNamed)?;
 
         // (Identifier | '$$' (Identifier | SingleQuoted)
 
@@ -1515,9 +1548,9 @@ pub fn check_eof<'s>(
 #[allow(unsafe_code)]
 #[cfg(test)]
 mod tests {
+    use crate::ast::parser::GeneralExpr;
+    use crate::ast::parser::NamedExpr;
     use crate::ast::parser::{ElementaryExpr, Expr, ParenthesesExpr};
-    use crate::ast::parser::{GeneralExpr, StringExpr};
-    use crate::ast::parser::{NamedExpr, NumberExpr};
     use crate::ast::tracer::Tracer;
     use crate::ast::{OFAst, ParseResult, Span};
 
@@ -1554,27 +1587,6 @@ mod tests {
         let tests = ["471", r#""strdata""#, "1+1", "(1+1)"];
         for test in tests {
             run_test2(test, ElementaryExpr::parse);
-        }
-    }
-
-    #[test]
-    fn test_string() {
-        let tests = ["4", "\"", "\"\"", "\"X"];
-        for test in tests {
-            run_test2(test, StringExpr::parse);
-        }
-    }
-
-    #[test]
-    fn test_number() {
-        let test_ok = ["25", "25e+5", "25.", "25.001", "25.003e-7"];
-        for test in test_ok {
-            run_test2(test, NumberExpr::parse);
-        }
-
-        let test_err = ["invalid", "2x5", "25ex+5", "25.x", "25.x001", "25x.003e-7"];
-        for test in test_err {
-            run_test2(test, NumberExpr::parse);
         }
     }
 

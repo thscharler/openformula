@@ -41,6 +41,7 @@ pub enum OFError {
     ErrDigit,
     ErrDollar,
     ErrDollarDollar,
+    ErrDot,
     /// Elementary expression fails.
     ErrElementary,
     ErrExpr,
@@ -83,6 +84,7 @@ impl OFError {
             ErrColRange => Some(Suggest::ColRange),
             ErrColname => Some(Suggest::Colname),
             ErrColon => Some(Suggest::Colon),
+            ErrDot => Some(Suggest::Dot),
             ErrComparisonOp => Some(Suggest::CompOp),
             ErrDigit => Some(Suggest::Digit),
             ErrDollar => Some(Suggest::Dollar),
@@ -189,6 +191,11 @@ impl<'s> ParseOFError<'s> {
     /// Sheet name
     pub fn sheet_name(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(ErrSheetName, span)
+    }
+
+    /// Sheet name
+    pub fn dot(span: Span<'s>) -> ParseOFError<'s> {
+        ParseOFError::new(ErrDot, span)
     }
 
     /// CellRange variant.

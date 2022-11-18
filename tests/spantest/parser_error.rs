@@ -21,7 +21,7 @@ where
     O: Debug,
 {
     /// Checks for ok.
-    /// Uses TestResult::equal to test the result.
+    /// Uses TestEq::eq to test the result.
     ///
     /// Finish the test with q()
     #[must_use]
@@ -102,9 +102,25 @@ where
     }
 
     /// Always fails.
+    ///
+    /// Finish the test with q().
     pub fn fail(&self) -> &Self {
         println!("FAIL: Unconditionally");
         self.flag_fail();
+        self
+    }
+
+    /// Checks for ok.
+    /// Any result that is not Err is ok.
+    #[must_use]
+    pub fn okok(&'s self) -> &Self {
+        match &self.result {
+            Ok(_) => {}
+            Err(_) => {
+                println!("FAIL: Expected ok, but was an error.");
+                self.flag_fail();
+            }
+        }
         self
     }
 
@@ -134,7 +150,7 @@ where
     }
 
     /// Checks for ok.
-    /// Uses TestResult::equal to test the result.
+    /// Uses TestEq::eq to test the result.
     ///
     /// Finish the test with q()
     #[must_use]
@@ -178,7 +194,22 @@ where
         self
     }
 
-    /// Checks for and error.
+    /// Checks for any error.
+    ///
+    /// Finish the test with q()
+    #[must_use]
+    pub fn errerr(&self) -> &Self {
+        match &self.result {
+            Ok((_, _)) => {
+                println!("FAIL: Expected error, but was ok!");
+                self.flag_fail();
+            }
+            Err(_) => {}
+        }
+        self
+    }
+
+    /// Checks for an error.
     ///
     /// Finish the test with q()
     #[must_use]
