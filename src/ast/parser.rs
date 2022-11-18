@@ -702,23 +702,55 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
         trace.enter(Self::name(), rest);
 
         trace.optional(CellRangeExpr::name());
-        CellRangeExpr::parse(trace, rest).trace(trace, ErrReference)?;
+        match CellRangeExpr::parse(trace, rest) {
+            Ok((rest, token)) => {
+                return trace.ok(token.span(), rest, token);
+            }
+            Err(e) if e.code == ErrCellRange => {
+                // Not matched, ok.
+            }
+            Err(e) => trace.panic_parse(e),
+        };
 
         trace.optional(CellRefExpr::name());
-        CellRefExpr::parse(trace, rest).trace(trace, ErrReference)?;
+        match CellRefExpr::parse(trace, rest) {
+            Ok((rest, token)) => {
+                return trace.ok(token.span(), rest, token);
+            }
+            Err(e) if e.code == ErrCellRef => {
+                // Not matched, ok.
+            }
+            Err(e) => trace.panic_parse(e),
+        }
 
         trace.optional(ColRangeExpr::name());
-        ColRangeExpr::parse(trace, rest).trace(trace, ErrReference)?;
+        match ColRangeExpr::parse(trace, rest) {
+            Ok((rest, token)) => {
+                return trace.ok(token.span(), rest, token);
+            }
+            Err(e) if e.code == ErrColRange => {
+                // Not matched, ok.
+            }
+            Err(e) => trace.panic_parse(e),
+        }
 
         trace.optional(RowRangeExpr::name());
-        RowRangeExpr::parse(trace, rest).trace(trace, ErrReference)?;
+        match RowRangeExpr::parse(trace, rest) {
+            Ok((rest, token)) => {
+                return trace.ok(token.span(), rest, token);
+            }
+            Err(e) if e.code == ErrRowRange => {
+                // Not matched, ok.
+            }
+            Err(e) => trace.panic_parse(e),
+        }
 
         trace.expect(Suggest::Reference);
         trace.err_parse_(ParseOFError::reference(rest))
     }
 }
 
-struct ColTerm;
+pub struct ColTerm;
 
 impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
     fn name() -> &'static str {
@@ -759,7 +791,7 @@ impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
     }
 }
 
-struct RowTerm;
+pub struct RowTerm;
 
 impl<'s> GeneralTerm<'s, OFRow<'s>> for RowTerm {
     fn name() -> &'static str {

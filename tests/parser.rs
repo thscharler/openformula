@@ -1,8 +1,8 @@
 mod spantest;
 
 use openformula::ast::parser::{
-    CellRangeExpr, CellRefExpr, ColRangeExpr, FnCallExpr, GeneralExpr, GeneralTerm, IriTerm,
-    NamedExpr, ParenthesesExpr, RowRangeExpr, SheetNameTerm,
+    CellRangeExpr, CellRefExpr, ColRangeExpr, ColTerm, FnCallExpr, GeneralExpr, GeneralTerm,
+    IriTerm, NamedExpr, ParenthesesExpr, ReferenceExpr, RowRangeExpr, RowTerm, SheetNameTerm,
 };
 use openformula::ast::tracer::Suggest::*;
 use openformula::ast::{OFAst, OFIri, OFSheetName};
@@ -21,9 +21,43 @@ pub use spantest::*;
 // TODO: NumberExpr
 // TODO: StringExpr
 // TODO: ReferenceExpr
-// TODO: ColTerm
-// TODO: RowTerm
-// TODO: CellRefExpr
+
+#[test]
+pub fn reference() {
+    TestRun::parse("", ReferenceExpr::parse).fail().q();
+}
+
+#[test]
+pub fn colterm() {
+    TestRun::parse("", ColTerm::parse)
+        .err(ErrCol)
+        .expect(Alpha)
+        .expect(Col)
+        .q();
+    TestRun::parse("$A", ColTerm::parse).okok().q();
+    TestRun::parse("$", ColTerm::parse)
+        .err(ErrCol)
+        .expect(Alpha)
+        .expect(Col)
+        .q();
+    TestRun::parse("A", ColTerm::parse).okok().q();
+}
+
+#[test]
+pub fn rowterm() {
+    TestRun::parse("", RowTerm::parse)
+        .err(ErrRow)
+        .expect(Digit)
+        .expect(Row)
+        .q();
+    TestRun::parse("$1", RowTerm::parse).okok().q();
+    TestRun::parse("$", RowTerm::parse)
+        .err(ErrRow)
+        .expect(Digit)
+        .expect(Row)
+        .q();
+    TestRun::parse("1", RowTerm::parse).okok().q();
+}
 
 #[test]
 pub fn celref() {

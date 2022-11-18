@@ -318,6 +318,39 @@ impl<'s> Tracer<'s> {
         Err(err)
     }
 
+    /// Notes the error, dumps everything and panics.
+    /// Might be useful, if a unexpected TokenError occurs.
+    ///
+    /// Panics
+    ///
+    /// Always.
+    pub fn panic_parse(&self, err: ParseOFError<'s>) -> ! {
+        let error_span = *err.span();
+
+        // Cleanup function and keep tracks.
+        let func = self.func.borrow_mut().pop().unwrap();
+        self.tracks.borrow_mut().push(Track::ErrorSpan(
+            func,
+            self.in_optional(),
+            err.to_string(),
+            *err.span(),
+        ));
+
+        self.maybe_drop_optional(func);
+
+        eprintln!("{:?}", self);
+        eprintln!(
+            "found '{}' expected {} suggest {}",
+            error_span,
+            self.expect_str(),
+            self.suggest_str()
+        );
+        eprintln!();
+        eprintln!("=> {}", err);
+
+        unreachable!();
+    }
+
     /// Error in a parser.
     ///
     /// Translates a ParseError to our own code.
