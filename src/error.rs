@@ -1,138 +1,80 @@
-use crate::ast::tracer::Suggest;
 use crate::ast::Span;
-use crate::error::OFError::*;
+use crate::error::OFCode::*;
 use spreadsheet_ods_cellref::parser::{ParseColnameError, ParseRownameError};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug)]
 pub struct ParseOFError<'s> {
-    pub code: OFError,
+    pub code: OFCode,
     pub span: Span<'s>,
     pub unexpected: Option<Box<ParseOFError<'s>>>,
 }
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
-pub enum OFError {
+pub enum OFCode {
     /// Nom ast error.
-    ErrNomError,
+    OFNomError,
     /// Nom failure.
-    ErrNomFailure,
+    OFNomFailure,
     /// Unexpected token.
-    ErrUnexpected,
+    OFUnexpected,
     /// Parsing didn't parse all of the string.
-    ErrParseIncomplete,
+    OFParseIncomplete,
 
-    ErrAddOp,
-    ErrAlpha,
-    ErrBracketsClose,
-    ErrBracketsOpen,
-    ErrCellRange,
-    ErrCellRef,
-    ErrCol,
-    ErrColRange,
-    ErrColname,
-    ErrColon,
-    ErrCompOp,
-    ErrDigit,
-    ErrDollar,
-    ErrDollarDollar,
-    ErrDot,
-    ErrElementary,
-    ErrExpr,
-    ErrFnCall,
-    ErrFnName,
-    ErrHashtag,
-    ErrIdentifier,
-    ErrIri,
-    ErrMulOp,
-    ErrNamed,
-    ErrNumber,
-    ErrParentheses,
-    ErrParenthesesClose,
-    ErrParenthesesOpen,
-    ErrPostfixOp,
-    ErrPowOp,
-    ErrPrefixOp,
-    ErrQuoteEnd,
-    ErrQuoteStart,
-    ErrRefConcatOp,
-    ErrRefIntersectOp,
-    ErrRefOp,
-    ErrReference,
-    ErrRow,
-    ErrRowRange,
-    ErrRowname,
-    ErrSemikolon,
-    ErrSheetName,
-    ErrSingleQuoteEnd,
-    ErrSingleQuoteStart,
-    ErrSingleQuoted,
-    ErrString,
-    ErrStringOp,
-}
-
-impl OFError {
-    pub fn expect(&self) -> Option<Suggest> {
-        match self {
-            ErrAddOp => Some(Suggest::AddOp),
-            ErrAlpha => Some(Suggest::Alpha),
-            ErrBracketsClose => Some(Suggest::BracketsClose),
-            ErrBracketsOpen => Some(Suggest::BracketsOpen),
-            ErrCellRange => Some(Suggest::CellRange),
-            ErrCellRef => Some(Suggest::CellRef),
-            ErrCol => Some(Suggest::Col),
-            ErrColRange => Some(Suggest::ColRange),
-            ErrColname => Some(Suggest::Colname),
-            ErrColon => Some(Suggest::Colon),
-            ErrCompOp => Some(Suggest::CompOp),
-            ErrDigit => Some(Suggest::Digit),
-            ErrDollar => Some(Suggest::Dollar),
-            ErrDollarDollar => Some(Suggest::DollarDollar),
-            ErrDot => Some(Suggest::Dot),
-            ErrElementary => Some(Suggest::Elementary),
-            ErrExpr => Some(Suggest::Expr),
-            ErrFnCall => Some(Suggest::FnCall),
-            ErrFnName => Some(Suggest::FnName),
-            ErrHashtag => Some(Suggest::Hashtag),
-            ErrIdentifier => Some(Suggest::Identifier),
-            ErrIri => Some(Suggest::Iri),
-            ErrMulOp => Some(Suggest::MulOp),
-            ErrNamed => Some(Suggest::Named),
-            ErrNomError => None,
-            ErrNomFailure => None,
-            ErrNumber => Some(Suggest::Number),
-            ErrParentheses => Some(Suggest::Parentheses),
-            ErrParenthesesClose => Some(Suggest::ParenthesesClose),
-            ErrParenthesesOpen => Some(Suggest::ParenthesesOpen),
-            ErrParseIncomplete => None,
-            ErrPostfixOp => Some(Suggest::PostfixOp),
-            ErrPowOp => Some(Suggest::PowOp),
-            ErrPrefixOp => Some(Suggest::PrefixOp),
-            ErrQuoteEnd => Some(Suggest::QuoteEnd),
-            ErrQuoteStart => Some(Suggest::QuoteStart),
-            ErrRefConcatOp => Some(Suggest::RefConcatOp),
-            ErrRefIntersectOp => Some(Suggest::RefIntersectOp),
-            ErrRefOp => Some(Suggest::RefOp),
-            ErrReference => Some(Suggest::Reference),
-            ErrRow => Some(Suggest::Row),
-            ErrRowRange => Some(Suggest::RowRange),
-            ErrRowname => Some(Suggest::Rowname),
-            ErrSemikolon => Some(Suggest::Semikolon),
-            ErrSheetName => Some(Suggest::SheetName),
-            ErrSingleQuoteEnd => Some(Suggest::SingleQuoteEnd),
-            ErrSingleQuoteStart => Some(Suggest::SingleQuoteStart),
-            ErrSingleQuoted => Some(Suggest::SingleQuoted),
-            ErrString => Some(Suggest::StringContent),
-            ErrStringOp => Some(Suggest::StringOp),
-            ErrUnexpected => None,
-        }
-    }
+    OFAddOp,
+    OFAlpha,
+    OFBracketsClose,
+    OFBracketsOpen,
+    OFCellRange,
+    OFCellRef,
+    OFCol,
+    OFColRange,
+    OFColname,
+    OFColon,
+    OFCompOp,
+    OFDigit,
+    OFDollar,
+    OFDollarDollar,
+    OFDot,
+    OFElementary,
+    OFExpr,
+    OFFnCall,
+    OFFnName,
+    OFHashtag,
+    OFIdentifier,
+    OFIri,
+    OFMulOp,
+    OFNamed,
+    OFNumber,
+    OFParentheses,
+    OFParenthesesClose,
+    OFParenthesesOpen,
+    OFPostfixOp,
+    OFPowOp,
+    OFPrefixOp,
+    OFQuoteEnd,
+    OFQuoteStart,
+    OFRefConcatOp,
+    OFRefIntersectOp,
+    OFRefOp,
+    OFReference,
+    OFRow,
+    OFRowRange,
+    OFRowname,
+    OFSemikolon,
+    OFSeparator,
+    OFSheetName,
+    OFSingleQuoteEnd,
+    OFSingleQuoteStart,
+    OFSingleQuoted,
+    OFString,
+    OFStringOp,
 }
 
 impl<'s> ParseOFError<'s> {
-    pub fn new(code: OFError, span: Span<'s>) -> Self {
+    pub fn new(code: OFCode, span: Span<'s>) -> Self {
         Self {
             code,
             span,
@@ -141,7 +83,7 @@ impl<'s> ParseOFError<'s> {
     }
 
     /// Return the error code.
-    pub fn code(&self) -> OFError {
+    pub fn code(&self) -> OFCode {
         self.code
     }
 
@@ -153,203 +95,203 @@ impl<'s> ParseOFError<'s> {
     /// Create a ParseOFError from a nom::Err
     pub fn nom(e: nom::Err<nom::error::Error<Span<'s>>>) -> ParseOFError<'s> {
         match e {
-            nom::Err::Error(e) => ParseOFError::new(ErrNomError, e.input),
-            nom::Err::Failure(e) => ParseOFError::new(ErrNomFailure, e.input),
+            nom::Err::Error(e) => ParseOFError::new(OFNomError, e.input),
+            nom::Err::Failure(e) => ParseOFError::new(OFNomFailure, e.input),
             nom::Err::Incomplete(_) => unreachable!(),
         }
     }
 
     /// NomError variant.
     pub fn err(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrNomError, span)
+        ParseOFError::new(OFNomError, span)
     }
 
     /// NomFailure variant.
     pub fn fail(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrNomFailure, span)
+        ParseOFError::new(OFNomFailure, span)
     }
 
     /// Unexpected variant.
     pub fn unexpected(err: ParseOFError<'s>) -> ParseOFError<'s> {
-        let mut new = ParseOFError::new(ErrUnexpected, err.span);
+        let mut new = ParseOFError::new(OFUnexpected, err.span);
         new.unexpected = Some(Box::new(err));
         new
     }
 
     /// ParseIncomplete variant.
     pub fn parse_incomplete(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrParseIncomplete, span)
+        ParseOFError::new(OFParseIncomplete, span)
     }
 }
 
 // Simple mappings
 impl<'s> ParseOFError<'s> {
     pub fn parens(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrParentheses, span)
+        ParseOFError::new(OFParentheses, span)
     }
 
     pub fn fn_call(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrFnCall, span)
+        ParseOFError::new(OFFnCall, span)
     }
 
     pub fn elementary(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrElementary, span)
+        ParseOFError::new(OFElementary, span)
     }
 
     pub fn string_op(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrStringOp, span)
+        ParseOFError::new(OFStringOp, span)
     }
 
     pub fn ref_intersect_op(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrRefIntersectOp, span)
+        ParseOFError::new(OFRefIntersectOp, span)
     }
 
     pub fn ref_concat_op(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrRefConcatOp, span)
+        ParseOFError::new(OFRefConcatOp, span)
     }
 
     pub fn ref_op(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrRefOp, span)
+        ParseOFError::new(OFRefOp, span)
     }
 
     pub fn identifier(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrIdentifier, span)
+        ParseOFError::new(OFIdentifier, span)
     }
 
     pub fn start_quote(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrQuoteStart, span)
+        ParseOFError::new(OFQuoteStart, span)
     }
 
     pub fn end_quote(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrQuoteEnd, span)
+        ParseOFError::new(OFQuoteEnd, span)
     }
 
     pub fn start_single_quote(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrSingleQuoteStart, span)
+        ParseOFError::new(OFSingleQuoteStart, span)
     }
 
     pub fn end_single_quote(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrSingleQuoteEnd, span)
+        ParseOFError::new(OFSingleQuoteEnd, span)
     }
 
     pub fn reference(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrReference, span)
+        ParseOFError::new(OFReference, span)
     }
 
     pub fn iri(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrIri, span)
+        ParseOFError::new(OFIri, span)
     }
 
     pub fn sheet_name(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrSheetName, span)
+        ParseOFError::new(OFSheetName, span)
     }
 
     pub fn hashtag(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrHashtag, span)
+        ParseOFError::new(OFHashtag, span)
     }
 
     pub fn dot(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrDot, span)
+        ParseOFError::new(OFDot, span)
     }
 
     pub fn parens_open(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrParenthesesOpen, span)
+        ParseOFError::new(OFParenthesesOpen, span)
     }
 
     pub fn parens_close(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrParenthesesClose, span)
+        ParseOFError::new(OFParenthesesClose, span)
     }
 
     pub fn brackets_open(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrBracketsOpen, span)
+        ParseOFError::new(OFBracketsOpen, span)
     }
 
     pub fn brackets_close(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrBracketsClose, span)
+        ParseOFError::new(OFBracketsClose, span)
     }
 
     pub fn semikolon(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrSemikolon, span)
+        ParseOFError::new(OFSemikolon, span)
     }
 
     pub fn cell_range(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrCellRange, span)
+        ParseOFError::new(OFCellRange, span)
     }
 
     pub fn col_range(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrColRange, span)
+        ParseOFError::new(OFColRange, span)
     }
 
     pub fn row_range(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrRowRange, span)
+        ParseOFError::new(OFRowRange, span)
     }
 
     pub fn string(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrString, span)
+        ParseOFError::new(OFString, span)
     }
 
     pub fn number(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrNumber, span)
+        ParseOFError::new(OFNumber, span)
     }
 
     pub fn fn_name(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrFnName, span)
+        ParseOFError::new(OFFnName, span)
     }
 
     pub fn comp_op(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrCompOp, span)
+        ParseOFError::new(OFCompOp, span)
     }
 
     pub fn prefix_op(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrPrefixOp, span)
+        ParseOFError::new(OFPrefixOp, span)
     }
 
     pub fn postfix_op(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrPostfixOp, span)
+        ParseOFError::new(OFPostfixOp, span)
     }
 
     pub fn add_op(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrAddOp, span)
+        ParseOFError::new(OFAddOp, span)
     }
 
     pub fn mul_op(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrMulOp, span)
+        ParseOFError::new(OFMulOp, span)
     }
 
     pub fn pow_op(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrPowOp, span)
+        ParseOFError::new(OFPowOp, span)
     }
 
     pub fn dollar(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrDollar, span)
+        ParseOFError::new(OFDollar, span)
     }
 
     pub fn dollardollar(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrDollarDollar, span)
+        ParseOFError::new(OFDollarDollar, span)
     }
 
     pub fn single_quoted(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrSingleQuoted, span)
+        ParseOFError::new(OFSingleQuoted, span)
     }
 
     pub fn alpha(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrAlpha, span)
+        ParseOFError::new(OFAlpha, span)
     }
 
     pub fn col(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrCol, span)
+        ParseOFError::new(OFCol, span)
     }
 
     pub fn row(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrRow, span)
+        ParseOFError::new(OFRow, span)
     }
 
     pub fn digit(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrDigit, span)
+        ParseOFError::new(OFDigit, span)
     }
 
     pub fn colon(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(ErrColon, span)
+        ParseOFError::new(OFColon, span)
     }
 }
 
@@ -365,7 +307,7 @@ impl<'s, T> LocateError<'s, T, ParseRownameError> for Result<T, ParseRownameErro
     fn locate_err(self, span: Span<'s>) -> Result<T, ParseOFError<'s>> {
         match self {
             Ok(v) => Ok(v),
-            Err(_) => Err(ParseOFError::new(ErrRowname, span)),
+            Err(_) => Err(ParseOFError::new(OFRowname, span)),
         }
     }
 }
@@ -374,7 +316,7 @@ impl<'s, T> LocateError<'s, T, ParseColnameError> for Result<T, ParseColnameErro
     fn locate_err(self, span: Span<'s>) -> Result<T, ParseOFError<'s>> {
         match self {
             Ok(v) => Ok(v),
-            Err(_) => Err(ParseOFError::new(ErrColname, span)),
+            Err(_) => Err(ParseOFError::new(OFColname, span)),
         }
     }
 }

@@ -5,67 +5,10 @@
 //!
 
 use crate::ast::{ParseResult, Span};
-use crate::error::{OFError, ParseOFError};
+use crate::error::{OFCode, ParseOFError};
 use std::cell::{Ref, RefCell};
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
-
-///
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Suggest {
-    AddOp,
-    Alpha,
-    BracketsClose,
-    BracketsOpen,
-    CellRange,
-    CellRef,
-    Col,
-    ColRange,
-    Colname,
-    Colon,
-    CompOp,
-    Digit,
-    Dollar,
-    DollarDollar,
-    Dot,
-    Elementary,
-    EndQuote,
-    EndSingleQuote,
-    Expr,
-    FnCall,
-    FnName,
-    Hashtag,
-    Identifier,
-    Iri,
-    MulOp,
-    Named,
-    Number,
-    Parentheses,
-    ParenthesesClose,
-    ParenthesesOpen,
-    PostfixOp,
-    PowOp,
-    PrefixOp,
-    QuoteEnd,
-    QuoteStart,
-    RefConcatOp,
-    RefIntersectOp,
-    RefOp,
-    Reference,
-    Row,
-    RowRange,
-    Rowname,
-    Semikolon,
-    Separator,
-    SheetName,
-    SingleQuoteEnd,
-    SingleQuoteStart,
-    SingleQuoted,
-    StartQuote,
-    StartSingleQuote,
-    StringContent,
-    StringOp,
-}
 
 /// Follows the parsing.
 #[derive(Default)]
@@ -75,9 +18,9 @@ pub struct Tracer<'s> {
     /// In an optional branch.
     pub optional: RefCell<Vec<&'static str>>,
     /// Suggestions
-    pub suggest: RefCell<Vec<Suggest>>,
+    pub suggest: RefCell<Vec<OFCode>>,
     /// Expected
-    pub expect: RefCell<Vec<Suggest>>,
+    pub expect: RefCell<Vec<OFCode>>,
     /// Last fn tracked via enter.
     pub func: RefCell<Vec<&'static str>>,
 }
@@ -222,14 +165,14 @@ impl<'s> Tracer<'s> {
     ///
     /// Keeps a list of suggestions that can be used for user interaction.
     /// This list accumulates endlessly until clear_suggestions is called.
-    pub fn suggest(&self, suggest: Suggest) {
+    pub fn suggest(&self, suggest: OFCode) {
         self.detail(format!("suggest {:?}", suggest));
         self.suggest.borrow_mut().push(suggest);
     }
 
     /// Returns the suggested tokens.
     /// Leaves the contained vec empty!
-    pub fn suggest_vec(&self) -> Ref<'_, Vec<Suggest>> {
+    pub fn suggest_vec(&self) -> Ref<'_, Vec<OFCode>> {
         self.suggest.borrow()
     }
 
@@ -266,14 +209,14 @@ impl<'s> Tracer<'s> {
     ///
     /// Collect information about mandatory expected tokens. There can
     /// be any number of these, if at least one of many options is required.
-    pub fn expect(&self, suggest: Suggest) {
+    pub fn expect(&self, suggest: OFCode) {
         self.detail(format!("expect {:?}", suggest));
         self.expect.borrow_mut().push(suggest);
     }
 
     /// Returns the expected tokens.
     /// Leaves the contained vec empty!
-    pub fn expect_vec(&self) -> Ref<'_, Vec<Suggest>> {
+    pub fn expect_vec(&self) -> Ref<'_, Vec<OFCode>> {
         self.expect.borrow()
     }
 
@@ -322,20 +265,23 @@ impl<'s> Tracer<'s> {
     }
 
     // translate
-    fn map_parse_of_error(&self, mut err: ParseOFError<'s>, code: OFError) -> ParseOFError<'s> {
+    fn map_parse_of_error(&self, mut err: ParseOFError<'s>, code: OFCode) -> ParseOFError<'s> {
         // Translates the code with some exceptions.
-        if err.code != OFError::ErrNomError
-            && err.code != OFError::ErrNomFailure
-            && err.code != OFError::ErrUnexpected
-            && err.code != OFError::ErrParseIncomplete
+        if err.code != OFCode::OFNomError
+            && err.code != OFCode::OFNomFailure
+            && err.code != OFCode::OFUnexpected
+            && err.code != OFCode::OFParseIncomplete
         {
             err.code = code;
         }
 
         // Auto expect.
-        // TODO: Switch to OFError codes
-        if let Some(expect) = code.expect() {
-            self.expect(expect);
+        if err.code != OFCode::OFNomError
+            && err.code != OFCode::OFNomFailure
+            && err.code != OFCode::OFUnexpected
+            && err.code != OFCode::OFParseIncomplete
+        {
+            self.expect(code);
         }
 
         err
@@ -343,8 +289,22 @@ impl<'s> Tracer<'s> {
 
     // Fills the machinery ...
     // Keeps track of the new error.
+    // Leaves the current function as is.
+    fn track_parseoferror(&self, err: &ParseOFError<'s>) {
+        let func_vec = self.func.borrow();
+        let func = func_vec.last().unwrap();
+        self.tracks.borrow_mut().push(Track::ErrorSpan(
+            func,
+            self.in_optional(),
+            err.to_string(),
+            *err.span(),
+        ));
+    }
+
+    // Fills the machinery ...
+    // Keeps track of the new error.
     // Marks the current function as complete.
-    fn track_parse_of_error(&self, err: &ParseOFError<'s>) {
+    fn err_track_parseoferror(&self, err: &ParseOFError<'s>) {
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks.borrow_mut().push(Track::ErrorSpan(
             func,
@@ -369,11 +329,11 @@ impl<'s> Tracer<'s> {
     pub fn err_track_map_parse<'t, T>(
         &'t self,
         err: ParseOFError<'s>,
-        code: OFError,
+        code: OFCode,
     ) -> ParseResult<'s, T> {
         // TODO: track original
         let err = self.map_parse_of_error(err, code);
-        self.track_parse_of_error(&err);
+        self.err_track_parseoferror(&err);
         Err(err)
     }
 
@@ -389,10 +349,10 @@ impl<'s> Tracer<'s> {
     pub fn err_map_parse<'t, T>(
         &'t self,
         err: ParseOFError<'s>,
-        code: OFError,
+        code: OFCode,
     ) -> ParseResult<'s, T> {
         let err = self.map_parse_of_error(err, code);
-        self.track_parse_of_error(&err);
+        self.err_track_parseoferror(&err);
         Err(err)
     }
 
@@ -405,7 +365,7 @@ impl<'s> Tracer<'s> {
     ///
     /// Panics if there was no call to enter() before.
     pub fn err_parse<'t, T>(&'t self, err: ParseOFError<'s>) -> ParseResult<'s, T> {
-        self.track_parse_of_error(&err);
+        self.err_track_parseoferror(&err);
         Err(err)
     }
 
@@ -417,7 +377,7 @@ impl<'s> Tracer<'s> {
     /// Always.
     #[track_caller]
     pub fn panic_parse<'t>(&'t self, err: ParseOFError<'s>) -> ! {
-        self.track_parse_of_error(&err);
+        self.err_track_parseoferror(&err);
         self.dump_and_panic(err);
     }
 
@@ -429,7 +389,7 @@ impl<'s> Tracer<'s> {
     ) -> ParseOFError<'s> {
         match nom {
             nom::Err::Error(e) => err_fn(e.input),
-            nom::Err::Failure(e) => ParseOFError::new(OFError::ErrNomFailure, e.input),
+            nom::Err::Failure(e) => ParseOFError::new(OFCode::OFNomFailure, e.input),
             nom::Err::Incomplete(_) => unreachable!(),
         }
     }
@@ -451,7 +411,7 @@ impl<'s> Tracer<'s> {
         nom: nom::Err<nom::error::Error<Span<'s>>>,
     ) -> ParseResult<'s, T> {
         let err = self.map_nom_error(err_fn, nom);
-        self.track_parse_of_error(&err);
+        self.err_track_parseoferror(&err);
         Err(err)
     }
 
@@ -471,7 +431,7 @@ impl<'s> Tracer<'s> {
         nom: nom::Err<nom::error::Error<Span<'s>>>,
     ) -> ParseResult<'s, T> {
         let err = self.map_nom_error(ParseOFError::err, nom);
-        self.track_parse_of_error(&err);
+        self.err_track_parseoferror(&err);
         Err(err)
     }
 }
@@ -484,11 +444,11 @@ impl<'s> Tracer<'s> {
 pub trait TrackParseResult<'s, 't, O> {
     /// Translates the error code and adds the standard expect value.
     /// Then tracks the error and marks the current function as finished.
-    fn trace(self, trace: &'t Tracer<'s>, code: OFError) -> Self;
+    fn trace(self, trace: &'t Tracer<'s>, code: OFCode) -> Self;
 }
 
 impl<'s, 't, O> TrackParseResult<'s, 't, O> for ParseResult<'s, O> {
-    fn trace(self, trace: &'t Tracer<'s>, code: OFError) -> Self {
+    fn trace(self, trace: &'t Tracer<'s>, code: OFCode) -> Self {
         match self {
             Ok(_) => self,
             Err(e) => trace.err_map_parse(e, code),

@@ -1,6 +1,6 @@
-use openformula::ast::tracer::{Suggest, Tracer};
+use openformula::ast::tracer::Tracer;
 use openformula::ast::{ParseResult, Span};
-use openformula::error::OFError;
+use openformula::error::OFCode;
 use std::cell::RefCell;
 use std::fmt::Debug;
 
@@ -212,7 +212,7 @@ where
     ///
     /// Finish the test with q()
     #[must_use]
-    pub fn err(&self, code: OFError) -> &Self {
+    pub fn err(&self, code: OFCode) -> &Self {
         match &self.result {
             Ok((_, _)) => {
                 println!("FAIL: Expected error, but was ok!");
@@ -232,7 +232,7 @@ where
     ///
     /// Finish the test with q()
     #[must_use]
-    pub fn expect(&self, suggest: Suggest) -> &Self {
+    pub fn expect(&self, suggest: OFCode) -> &Self {
         let vec = self.trace.expect_vec();
         if !vec.contains(&suggest) {
             println!("FAIL: {:?} is not an expected token. [{:?}]", suggest, vec);

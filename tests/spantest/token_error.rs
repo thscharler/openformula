@@ -1,8 +1,8 @@
 use nom::error::ErrorKind;
 use nom::IResult;
 use openformula::ast::{ParseResult, Span};
-use openformula::error::OFError;
-use openformula::error::OFError::{ErrNomError, ErrNomFailure};
+use openformula::error::OFCode;
+use openformula::error::OFCode::{OFNomError, OFNomFailure};
 
 pub trait CheckOk {
     fn cok(&self, offset: usize, fragment: &str);
@@ -24,7 +24,7 @@ pub trait CheckFailNom {
 
 pub trait CheckFailToken {
     fn dump(&self);
-    fn ctok(&self, kind: OFError);
+    fn ctok(&self, kind: OFCode);
 }
 
 impl<'a> CheckOk for Span<'a> {
@@ -244,19 +244,19 @@ impl<'a> CheckFailToken for ParseResult<'a, Span<'a>> {
     }
 
     #[track_caller]
-    fn ctok(&self, kind: OFError) {
+    fn ctok(&self, kind: OFCode) {
         match self {
             Ok((rest, token)) => {
                 println!("Ok, but should have failed:");
                 println!("    rest='{}' token='{}'", rest, token);
                 assert!(false);
             }
-            Err(e) if e.code == ErrNomError => {
+            Err(e) if e.code == OFNomError => {
                 println!("Failed with ErrNomError. To unspecified.");
                 println!("{:?}", e);
                 assert!(false);
             }
-            Err(e) if e.code == ErrNomFailure => {
+            Err(e) if e.code == OFNomFailure => {
                 println!("Failed with ErrNomFailure.");
                 println!("{:?}", e);
                 assert!(false);
@@ -319,19 +319,19 @@ impl<'a> CheckFailToken for ParseResult<'a, (Option<Span<'a>>, Span<'a>)> {
     }
 
     #[track_caller]
-    fn ctok(&self, kind: OFError) {
+    fn ctok(&self, kind: OFCode) {
         match self {
             Ok((rest, token)) => {
                 println!("Ok, but should have failed:");
                 println!("    rest='{}' token='{:?}'", rest, token);
                 assert!(false);
             }
-            Err(e) if e.code == ErrNomError => {
+            Err(e) if e.code == OFNomError => {
                 println!("Failed with ErrNomError. To unspecified.");
                 println!("{:?}", e);
                 assert!(false);
             }
-            Err(e) if e.code == ErrNomFailure => {
+            Err(e) if e.code == OFNomFailure => {
                 println!("Failed with ErrNomFailure.");
                 println!("{:?}", e);
                 assert!(false);

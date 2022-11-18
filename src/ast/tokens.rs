@@ -10,7 +10,7 @@ use crate::ast::nomtokens::{
     semikolon_nom, sheet_name_nom, string_op_nom,
 };
 use crate::ast::{span_union, ParseResult, Span};
-use crate::error::OFError::*;
+use crate::error::OFCode::*;
 use crate::error::ParseOFError;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while1};
@@ -390,8 +390,8 @@ pub fn sheet_name(rest: Span<'_>) -> ParseResult<'_, (Option<Span<'_>>, Span<'_>
 
     let (rest, name) = match single_quoted(rest) {
         Ok((rest, name)) => (rest, Some(name)),
-        Err(e) if e.code == ErrSingleQuoteStart => (rest, None),
-        Err(e) if e.code == ErrString || e.code == ErrSingleQuoteEnd => return Err(e),
+        Err(e) if e.code == OFSingleQuoteStart => (rest, None),
+        Err(e) if e.code == OFString || e.code == OFSingleQuoteEnd => return Err(e),
         Err(e) => return Err(ParseOFError::unexpected(e)),
     };
 
@@ -421,9 +421,7 @@ pub fn quoted_sheet_name(rest: Span<'_>) -> ParseResult<'_, (Option<Span<'_>>, S
     let (rest, name) = match single_quoted(rest) {
         Ok((rest, tok)) => (rest, tok),
         Err(e)
-            if e.code == ErrSingleQuoteStart
-                || e.code == ErrString
-                || e.code == ErrSingleQuoteEnd =>
+            if e.code == OFSingleQuoteStart || e.code == OFString || e.code == OFSingleQuoteEnd =>
         {
             return Err(e)
         }
@@ -439,9 +437,7 @@ pub fn iri(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     let (rest, iri) = match single_quoted(rest) {
         Ok((rest, tok)) => (rest, tok),
         Err(e)
-            if e.code == ErrSingleQuoteStart
-                || e.code == ErrString
-                || e.code == ErrSingleQuoteEnd =>
+            if e.code == OFSingleQuoteStart || e.code == OFString || e.code == OFSingleQuoteEnd =>
         {
             return Err(e)
         }
