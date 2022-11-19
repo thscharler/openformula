@@ -7,6 +7,7 @@
 use crate::ast::{ParseResult, Span};
 use crate::error::{OFCode, ParseOFError};
 use std::cell::{Ref, RefCell};
+use std::fmt;
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
 
@@ -18,7 +19,8 @@ pub struct Tracer<'s> {
     /// In an optional branch.
     pub optional: RefCell<Vec<&'static str>>,
     /// Suggestions
-    pub suggest: RefCell<Vec<OFCode>>,
+    //pub suggest: RefCell<Vec<OFCode>>,
+    pub suggest: RefCell<Vec<Suggest>>,
     /// Expected
     pub expect: RefCell<Vec<OFCode>>,
     /// Last fn tracked via enter.
@@ -53,11 +55,6 @@ impl<'s> Debug for Tracer<'s> {
                     indent.pop();
                     indent.pop();
                 }
-                Track::ErrorSpan(_, _, _, _) => {
-                    writeln!(f, "{}{:?}", indent, tr)?;
-                    indent.pop();
-                    indent.pop();
-                }
             }
         }
 
@@ -79,11 +76,7 @@ impl<'s> Debug for Tracer<'s> {
         }
         writeln!(f)?;
 
-        write!(f, "    suggest=")?;
-        for suggest in &*self.suggest.borrow() {
-            write!(f, "{:?} ", suggest)?;
-        }
-        // writeln!();
+        write!(f, "    suggest={:#?}", self.suggest.borrow())?;
 
         Ok(())
     }
@@ -109,6 +102,11 @@ impl<'s> Tracer<'s> {
     /// * tok  
     pub fn enter(&self, func: &'static str, span: Span<'s>) {
         self.func.borrow_mut().push(func);
+        self.suggest.borrow_mut().push(Suggest {
+            func: func.to_string(),
+            codes: vec![],
+            suggest: vec![],
+        });
         self.tracks.borrow_mut().push(Track::Enter(func, span));
     }
 
@@ -167,13 +165,19 @@ impl<'s> Tracer<'s> {
     /// This list accumulates endlessly until clear_suggestions is called.
     pub fn suggest(&self, suggest: OFCode) {
         self.detail(format!("suggest {:?}", suggest));
-        self.suggest.borrow_mut().push(suggest);
+
+        match self.suggest.borrow_mut().last_mut() {
+            None => unreachable!(),
+            Some(su) => {
+                su.codes.push(suggest);
+            }
+        }
     }
 
     /// Returns the suggested tokens.
     /// Leaves the contained vec empty!
     pub fn suggest_vec(&self) -> Ref<'_, Vec<OFCode>> {
-        self.suggest.borrow()
+        todo!() // self.suggest.borrow()
     }
 
     /// Return the suggestions as a String.
@@ -191,8 +195,8 @@ impl<'s> Tracer<'s> {
     /// former suggestions from the parser are voided.
     /// This are usually tokens that prevent backtracking before this point.
     pub fn clear_suggest(&self) {
-        self.detail("clear suggestions");
-        self.suggest.borrow_mut().clear();
+        //self.detail("clear suggestions");
+        //self.suggest.borrow_mut().clear();
     }
 
     /// Remove all expectations.
@@ -217,7 +221,7 @@ impl<'s> Tracer<'s> {
             suggest
         ));
         if is_opt {
-            self.suggest.borrow_mut().push(suggest);
+            self.suggest(suggest);
         } else {
             self.expect.borrow_mut().push(suggest);
         }
@@ -255,24 +259,6 @@ impl<'s> Tracer<'s> {
         unreachable!();
     }
 
-    /// Ok in a parser.
-    ///
-    /// Returns the given value for ease of use. Records the success with
-    /// function, parsed span and rest span.
-    ///
-    /// Panics
-    ///
-    /// Panics if there was no call to enter() before.
-    // ParseResult<'s, OFAddOp<'s>>
-    pub fn ok<'t, T>(&'t self, span: Span<'s>, rest: Span<'s>, val: T) -> ParseResult<'s, T> {
-        let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks.borrow_mut().push(Track::Ok(func, span, rest));
-
-        self.maybe_drop_optional(func);
-
-        Ok((rest, val))
-    }
-
     // translate
     fn map_parse_of_error(&self, mut err: ParseOFError<'s>, code: OFCode) -> ParseOFError<'s> {
         // Translates the code with some exceptions.
@@ -304,7 +290,7 @@ impl<'s> Tracer<'s> {
     fn track_parseoferror(&self, err: &ParseOFError<'s>) {
         let func_vec = self.func.borrow();
         let func = func_vec.last().unwrap();
-        self.tracks.borrow_mut().push(Track::ErrorSpan(
+        self.tracks.borrow_mut().push(Track::Error(
             func,
             self.in_optional(),
             err.to_string(),
@@ -312,12 +298,32 @@ impl<'s> Tracer<'s> {
         ));
     }
 
+    // Pops the suggestions for the current function.
+    fn track_suggest_exit(&self, _func: &str) {
+        let mut su_vec = self.suggest.borrow_mut();
+
+        match su_vec.pop() {
+            None => unreachable!(),
+            Some(su) => {
+                match su_vec.last_mut() {
+                    None => su_vec.push(su), // was the last, keep
+                    Some(last) => {
+                        // add to last
+                        if !su.codes.is_empty() {
+                            last.suggest.push(su);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Fills the machinery ...
     // Keeps track of the new error.
     // Marks the current function as complete.
-    fn err_track_parseoferror(&self, err: &ParseOFError<'s>) {
+    fn err_track_parseoferror_exit(&self, err: &ParseOFError<'s>) {
         let func = self.func.borrow_mut().pop().unwrap();
-        self.tracks.borrow_mut().push(Track::ErrorSpan(
+        self.tracks.borrow_mut().push(Track::Error(
             func,
             self.in_optional(),
             err.to_string(),
@@ -325,6 +331,31 @@ impl<'s> Tracer<'s> {
         ));
 
         self.maybe_drop_optional(func);
+
+        self.track_suggest_exit(func);
+    }
+
+    // Records the success of a function.
+    fn ok_track_exit(&self, span: Span<'s>, rest: Span<'s>) {
+        let func = self.func.borrow_mut().pop().unwrap();
+        self.tracks.borrow_mut().push(Track::Ok(func, span, rest));
+
+        self.maybe_drop_optional(func);
+
+        self.track_suggest_exit(func);
+    }
+
+    /// Ok in a parser.
+    ///
+    /// Returns the given value for ease of use.
+    /// Records the success with function, parsed span and rest span.
+    ///
+    /// Panics
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn ok<'t, T>(&'t self, span: Span<'s>, rest: Span<'s>, val: T) -> ParseResult<'s, T> {
+        self.ok_track_exit(span, rest);
+        Ok((rest, val))
     }
 
     /// Error in a parser.
@@ -346,7 +377,7 @@ impl<'s> Tracer<'s> {
         self.track_parseoferror(&err);
         let err = self.map_parse_of_error(err, code);
         self.auto_expect(&err);
-        self.err_track_parseoferror(&err);
+        self.err_track_parseoferror_exit(&err);
 
         Err(err)
     }
@@ -367,7 +398,7 @@ impl<'s> Tracer<'s> {
     ) -> ParseResult<'s, T> {
         let err = self.map_parse_of_error(err, code);
         self.auto_expect(&err);
-        self.err_track_parseoferror(&err);
+        self.err_track_parseoferror_exit(&err);
         Err(err)
     }
 
@@ -380,7 +411,7 @@ impl<'s> Tracer<'s> {
     ///
     /// Panics if there was no call to enter() before.
     pub fn err_parse<'t, T>(&'t self, err: ParseOFError<'s>) -> ParseResult<'s, T> {
-        self.err_track_parseoferror(&err);
+        self.err_track_parseoferror_exit(&err);
         Err(err)
     }
 
@@ -392,7 +423,7 @@ impl<'s> Tracer<'s> {
     /// Always.
     #[track_caller]
     pub fn panic_parse<'t>(&'t self, err: ParseOFError<'s>) -> ! {
-        self.err_track_parseoferror(&err);
+        self.err_track_parseoferror_exit(&err);
         self.dump_and_panic(err);
     }
 
@@ -426,7 +457,7 @@ impl<'s> Tracer<'s> {
         nom: nom::Err<nom::error::Error<Span<'s>>>,
     ) -> ParseResult<'s, T> {
         let err = self.map_nom_error(err_fn, nom);
-        self.err_track_parseoferror(&err);
+        self.err_track_parseoferror_exit(&err);
         Err(err)
     }
 
@@ -446,7 +477,7 @@ impl<'s> Tracer<'s> {
         nom: nom::Err<nom::error::Error<Span<'s>>>,
     ) -> ParseResult<'s, T> {
         let err = self.map_nom_error(ParseOFError::err, nom);
-        self.err_track_parseoferror(&err);
+        self.err_track_parseoferror_exit(&err);
         Err(err)
     }
 }
@@ -471,6 +502,57 @@ impl<'s, 't, O> TrackParseResult<'s, 't, O> for ParseResult<'s, O> {
     }
 }
 
+#[derive(Default)]
+pub struct Suggest {
+    pub func: String,
+    pub codes: Vec<OFCode>,
+    pub suggest: Vec<Suggest>,
+}
+
+impl Suggest {
+    fn indent(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
+        for _ in 0..indent * 4 {
+            write!(f, " ")?;
+        }
+        Ok(())
+    }
+
+    pub fn arrow(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
+        if indent > 0 {
+            for _ in 0..((indent - 1) * 4) {
+                write!(f, " ")?;
+            }
+            for _ in ((indent - 1) * 4)..(indent * 4) - 2 {
+                write!(f, "-")?;
+            }
+            write!(f, "> ")?;
+        }
+        Ok(())
+    }
+
+    fn dbg_suggest(f: &mut Formatter<'_>, suggest: &Suggest, indent: u32) -> fmt::Result {
+        write!(f, "{} : ", suggest.func)?;
+        for code in &suggest.codes {
+            write!(f, "{:?}", code)?;
+        }
+        writeln!(f)?;
+
+        for su in &suggest.suggest {
+            Self::arrow(f, indent + 1)?;
+            Self::dbg_suggest(f, su, indent + 1)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Debug for Suggest {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Self::dbg_suggest(f, &self, 0)?;
+        Ok(())
+    }
+}
+
 /// One track of the parsing trace.
 pub enum Track<'s> {
     /// Function where this occurred and the input span.
@@ -483,9 +565,6 @@ pub enum Track<'s> {
     Ok(&'static str, Span<'s>, Span<'s>),
     /// Function where this occurred and some error info.
     Error(&'static str, bool, String, Span<'s>),
-    /// Function where this occurred and some error info.
-    // TODO: check if necessary
-    ErrorSpan(&'static str, bool, String, Span<'s>),
 }
 
 impl<'s> Track<'s> {
@@ -495,7 +574,6 @@ impl<'s> Track<'s> {
             Track::Step(_, _, s) => Some(s),
             Track::Ok(_, _, s) => Some(s),
             Track::Error(_, _, _, s) => Some(s),
-            Track::ErrorSpan(_, _, _, s) => Some(s),
             Track::Detail(_, _) => None,
         }
     }
@@ -521,16 +599,6 @@ impl<'s> Debug for Track<'s> {
                 }
             }
             Track::Error(func, opt, err_str, err_span) => {
-                write!(
-                    f,
-                    "{}: {} err=({}) span='{}'",
-                    func,
-                    if *opt { "OPT" } else { "!!!" },
-                    err_str,
-                    err_span
-                )?;
-            }
-            Track::ErrorSpan(func, opt, err_str, err_span) => {
                 write!(
                     f,
                     "{}: {} err=({}) span='{}'",
