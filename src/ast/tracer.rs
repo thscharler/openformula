@@ -210,8 +210,17 @@ impl<'s> Tracer<'s> {
     /// Collect information about mandatory expected tokens. There can
     /// be any number of these, if at least one of many options is required.
     pub fn expect(&self, suggest: OFCode) {
-        self.detail(format!("expect {:?}", suggest));
-        self.expect.borrow_mut().push(suggest);
+        let is_opt = self.in_optional();
+        self.detail(format!(
+            "expect {} {:?}",
+            if is_opt { "opt" } else { "" },
+            suggest
+        ));
+        if is_opt {
+            self.suggest.borrow_mut().push(suggest);
+        } else {
+            self.expect.borrow_mut().push(suggest);
+        }
     }
 
     /// Returns the expected tokens.
@@ -275,16 +284,18 @@ impl<'s> Tracer<'s> {
             err.code = code;
         }
 
+        err
+    }
+
+    fn auto_expect(&self, err: &ParseOFError<'s>) {
         // Auto expect.
         if err.code != OFCode::OFNomError
             && err.code != OFCode::OFNomFailure
             && err.code != OFCode::OFUnexpected
             && err.code != OFCode::OFParseIncomplete
         {
-            self.expect(code);
+            self.expect(err.code);
         }
-
-        err
     }
 
     // Fills the machinery ...
@@ -331,9 +342,12 @@ impl<'s> Tracer<'s> {
         err: ParseOFError<'s>,
         code: OFCode,
     ) -> ParseResult<'s, T> {
-        // TODO: track original
+        self.auto_expect(&err);
+        self.track_parseoferror(&err);
         let err = self.map_parse_of_error(err, code);
+        self.auto_expect(&err);
         self.err_track_parseoferror(&err);
+
         Err(err)
     }
 
@@ -352,6 +366,7 @@ impl<'s> Tracer<'s> {
         code: OFCode,
     ) -> ParseResult<'s, T> {
         let err = self.map_parse_of_error(err, code);
+        self.auto_expect(&err);
         self.err_track_parseoferror(&err);
         Err(err)
     }

@@ -2,7 +2,7 @@ mod spantest;
 
 use openformula::ast::parser::{
     CellRangeExpr, CellRefExpr, ColRangeExpr, ColTerm, FnCallExpr, GeneralExpr, GeneralTerm,
-    IriTerm, NamedExpr, ParenthesesExpr, RowRangeExpr, RowTerm, SheetNameTerm,
+    IriTerm, NamedExpr, ParenthesesExpr, ReferenceExpr, RowRangeExpr, RowTerm, SheetNameTerm,
 };
 use openformula::ast::{OFAst, OFIri, OFSheetName};
 use openformula::error::OFCode::*;
@@ -23,7 +23,60 @@ pub use spantest::*;
 
 #[test]
 pub fn reference() {
-    // TestRun::parse("", ReferenceExpr::parse).fail().q();
+    fn cellrange<'s>(result: &'s Box<OFAst<'s>>, _test: &()) -> bool {
+        match &**result {
+            OFAst::NodeCellRange(_) => true,
+            _ => {
+                println!("FAIL: Node is not a CellRange");
+                false
+            }
+        }
+    }
+    fn cellref<'s>(result: &'s Box<OFAst<'s>>, _test: &()) -> bool {
+        match &**result {
+            OFAst::NodeCellRef(_) => true,
+            _ => {
+                println!("FAIL: Node is not a CellRef");
+                false
+            }
+        }
+    }
+    fn colrange<'s>(result: &'s Box<OFAst<'s>>, _test: &()) -> bool {
+        match &**result {
+            OFAst::NodeColRange(_) => true,
+            _ => {
+                println!("FAIL: Node is not a ColRange");
+                false
+            }
+        }
+    }
+    fn rowrange<'s>(result: &'s Box<OFAst<'s>>, _test: &()) -> bool {
+        match &**result {
+            OFAst::NodeRowRange(_) => true,
+            _ => {
+                println!("FAIL: Node is not a RowRange");
+                false
+            }
+        }
+    }
+
+    TestRun::parse(".1A", ReferenceExpr::parse)
+        .err(OFReference)
+        .expect(OFReference)
+        .fail()
+        .q();
+    TestRun::parse(".A1:.B2", ReferenceExpr::parse)
+        .okeq(cellrange, &())
+        .q();
+    TestRun::parse(".A1", ReferenceExpr::parse)
+        .okeq(cellref, &())
+        .q();
+    TestRun::parse(".1:.3", ReferenceExpr::parse)
+        .okeq(rowrange, &())
+        .q();
+    TestRun::parse(".C:.E", ReferenceExpr::parse)
+        .okeq(colrange, &())
+        .q();
 }
 
 #[test]
