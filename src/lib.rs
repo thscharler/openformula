@@ -38,6 +38,5 @@
 
 pub mod ast;
 pub mod cellref;
-mod dbg_ast;
 pub mod error;
 pub mod refs;

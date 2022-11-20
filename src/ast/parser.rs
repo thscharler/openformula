@@ -18,7 +18,6 @@ use crate::ast::{
 };
 use crate::error::OFCode::*;
 use crate::error::{LocateError, OFCode, ParseOFError};
-use spreadsheet_ods_cellref::parser as refs_parser;
 
 // Expression ::=
 // Whitespace* (
@@ -760,8 +759,8 @@ impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
         };
 
         let col = OFAst::col(
-            refs_parser::try_bool_from_abs_flag(col.0),
-            refs_parser::try_u32_from_colname(col.1).locate_err(rest)?,
+            conv::try_bool_from_abs_flag(col.0),
+            conv::try_u32_from_colname(col.1).locate_err(rest)?,
             unsafe { span_union_opt(col.0, col.1) },
         );
 
@@ -795,8 +794,8 @@ impl<'s> GeneralTerm<'s, OFRow<'s>> for RowTerm {
         };
 
         let row = OFAst::row(
-            refs_parser::try_bool_from_abs_flag(row.0),
-            refs_parser::try_u32_from_rowname(row.1).locate_err(rest)?,
+            conv::try_bool_from_abs_flag(row.0),
+            conv::try_u32_from_rowname(row.1).locate_err(rest)?,
             unsafe { span_union_opt(row.0, row.1) },
         );
 
@@ -1326,7 +1325,7 @@ impl<'s> GeneralTerm<'s, Option<OFSheetName<'s>>> for SheetNameTerm {
             Ok((rest1, (abs, sheet_name))) => {
                 let span = unsafe { span_union_opt(abs, sheet_name) };
                 let term = OFAst::sheet_name(
-                    refs_parser::try_bool_from_abs_flag(abs),
+                    conv::try_bool_from_abs_flag(abs),
                     conv::unquote_single(sheet_name),
                     span,
                 );

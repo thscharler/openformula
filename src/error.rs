@@ -1,6 +1,6 @@
+use crate::ast::conv::{ParseColnameError, ParseRownameError};
 use crate::ast::Span;
 use crate::error::OFCode::*;
-use spreadsheet_ods_cellref::parser::{ParseColnameError, ParseRownameError};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
