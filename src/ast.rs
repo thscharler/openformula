@@ -301,7 +301,7 @@ impl<'a> OFAst<'a> {
 
 impl<'a> Debug for OFAst<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_ast(self, 0, f)
+        dbg_ast::debug_ast(f, self, 0)
     }
 }
 
@@ -408,7 +408,7 @@ impl<'a> Node<'a> for OFEmpty<'a> {
 
 impl<'a> Debug for OFEmpty<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_empty(self, f)
+        dbg_ast::debug_empty(f, self)
     }
 }
 
@@ -475,7 +475,7 @@ impl<'a> BinaryNode<'a> for OFCompare<'a> {
 
 impl<'a> Debug for OFCompare<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_binary(self, 0, f)
+        dbg_ast::debug_binary(f, self, 0)
     }
 }
 
@@ -602,7 +602,7 @@ impl<'a> BinaryNode<'a> for OFAdd<'a> {
 
 impl<'a> Debug for OFAdd<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_binary(self, 0, f)
+        dbg_ast::debug_binary(f, self, 0)
     }
 }
 
@@ -713,7 +713,7 @@ impl<'a> BinaryNode<'a> for OFMul<'a> {
 
 impl<'a> Debug for OFMul<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_binary(self, 0, f)
+        dbg_ast::debug_binary(f, self, 0)
     }
 }
 
@@ -824,7 +824,7 @@ impl<'a> BinaryNode<'a> for OFPow<'a> {
 
 impl<'a> Debug for OFPow<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_binary(self, 0, f)
+        dbg_ast::debug_binary(f, self, 0)
     }
 }
 
@@ -904,7 +904,7 @@ impl<'a> Node<'a> for OFPostfix<'a> {
 
 impl<'a> Debug for OFPostfix<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_postfix(self, 0, f)
+        dbg_ast::debug_postfix(f, self, 0)
     }
 }
 
@@ -984,7 +984,7 @@ impl<'a> Node<'a> for OFPrefix<'a> {
 
 impl<'a> Debug for OFPrefix<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_prefix(self, 0, f)
+        dbg_ast::debug_prefix(f, self, 0)
     }
 }
 
@@ -1069,7 +1069,7 @@ impl<'a> Node<'a> for OFNumber<'a> {
 
 impl<'a> Debug for OFNumber<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_elem(self, f)
+        dbg_ast::debug_elem(f, self)
     }
 }
 
@@ -1089,8 +1089,8 @@ impl<'a> PartialEq for OFNumber<'a> {
 
 /// String
 pub struct OFString<'a> {
-    str: String,
-    span: Span<'a>,
+    pub str: String,
+    pub span: Span<'a>,
 }
 
 impl<'a> Node<'a> for OFString<'a> {
@@ -1109,7 +1109,7 @@ impl<'a> Node<'a> for OFString<'a> {
 
 impl<'a> Debug for OFString<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_elem(self, f)
+        dbg_ast::debug_elem(f, self)
     }
 }
 
@@ -1149,7 +1149,7 @@ impl<'a> Node<'a> for OFIri<'a> {
 
 impl<'a> Debug for OFIri<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_elem(self, f)
+        dbg_ast::debug_elem(f, self)
     }
 }
 
@@ -1194,7 +1194,7 @@ impl<'a> Node<'a> for OFSheetName<'a> {
 
 impl<'a> Debug for OFSheetName<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_elem(self, f)
+        dbg_ast::debug_elem(f, self)
     }
 }
 
@@ -1242,7 +1242,7 @@ impl<'a> Node<'a> for OFRow<'a> {
 
 impl<'a> Debug for OFRow<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_elem(self, f)
+        dbg_ast::debug_elem(f, self)
     }
 }
 
@@ -1290,7 +1290,7 @@ impl<'a> Node<'a> for OFCol<'a> {
 
 impl<'a> Debug for OFCol<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_elem(self, f)
+        dbg_ast::debug_elem(f, self)
     }
 }
 
@@ -1347,7 +1347,7 @@ impl<'a> Node<'a> for OFSimpleNamed<'a> {
 
 impl<'a> Debug for OFSimpleNamed<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_elem(self, f)
+        dbg_ast::debug_elem(f, self)
     }
 }
 
@@ -1408,7 +1408,7 @@ impl<'a> Node<'a> for OFNamed<'a> {
 
 impl<'a> Debug for OFNamed<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_elem(self, f)
+        dbg_ast::debug_elem(f, self)
     }
 }
 
@@ -1469,7 +1469,7 @@ impl<'a> Node<'a> for OFCellRef<'a> {
 
 impl<'a> Debug for OFCellRef<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_elem(self, f)
+        dbg_ast::debug_elem(f, self)
     }
 }
 
@@ -1536,7 +1536,7 @@ impl<'a> Node<'a> for OFCellRange<'a> {
 
 impl<'a> Debug for OFCellRange<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_elem(self, f)
+        dbg_ast::debug_elem(f, self)
     }
 }
 
@@ -1616,7 +1616,7 @@ impl<'a> Node<'a> for OFRowRange<'a> {
 
 impl<'a> Debug for OFRowRange<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_elem(self, f)
+        dbg_ast::debug_elem(f, self)
     }
 }
 
@@ -1694,7 +1694,7 @@ impl<'a> Node<'a> for OFColRange<'a> {
 
 impl<'a> Debug for OFColRange<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_elem(self, f)
+        dbg_ast::debug_elem(f, self)
     }
 }
 
@@ -1755,7 +1755,7 @@ impl<'a> Node<'a> for OFParens<'a> {
 
 impl<'a> Debug for OFParens<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_parens(self, 0, f)
+        dbg_ast::debug_parens(f, self, 0)
     }
 }
 
@@ -1804,7 +1804,7 @@ impl<'a> Node<'a> for OFFnCall<'a> {
 
 impl<'a> Debug for OFFnCall<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        dbg_ast::debug_fn_call(self, 0, f)
+        dbg_ast::debug_fn_call(f, self, 0)
     }
 }
 

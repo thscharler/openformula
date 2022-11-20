@@ -76,7 +76,7 @@ impl<'s> Debug for Tracer<'s> {
         }
         writeln!(f)?;
 
-        write!(f, "    suggest={:#?}", self.suggest.borrow())?;
+        write!(f, "    suggest={:?}", self.suggest.borrow())?;
 
         Ok(())
     }
@@ -535,9 +535,9 @@ impl Suggest {
         for code in &suggest.codes {
             write!(f, "{:?}", code)?;
         }
-        writeln!(f)?;
 
         for su in &suggest.suggest {
+            writeln!(f)?;
             Self::arrow(f, indent + 1)?;
             Self::dbg_suggest(f, su, indent + 1)?;
         }

@@ -621,7 +621,7 @@ impl<'s> GeneralExpr<'s> for NumberExpr {
 }
 
 /// Parser for strings.
-struct StringExpr;
+pub struct StringExpr;
 
 impl<'s> GeneralExpr<'s> for StringExpr {
     fn name() -> &'static str {
@@ -1570,28 +1570,6 @@ mod tests {
         let tests = ["471 >0", "1==1", "(1<>1)"];
         for test in tests {
             run_test2(test, Expr::parse);
-        }
-    }
-
-    #[test]
-    fn test_parentheses() {
-        let tests = ["(21)", "21", "(21"];
-        for test in tests {
-            run_test2(test, ParenthesesExpr::parse);
-        }
-    }
-
-    #[test]
-    fn test_named() {
-        let tests = [
-            "Pi",
-            "$$Tau",
-            "'xref'.Rho",
-            "'xref'Foo",
-            "$$'nice and clean'",
-        ];
-        for test in tests {
-            run_test2(test, NamedExpr::parse);
         }
     }
 

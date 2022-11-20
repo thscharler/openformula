@@ -77,15 +77,16 @@ pub fn lah_string<'a>(i: Span<'a>) -> bool {
 pub fn string<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
     const QUOTE: char = '\"';
 
-    let rest = match nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE)(rest) {
-        Ok((rest, _)) => rest,
-        Err(nom::Err::Error(e)) if e.code == Char => return Err(ParseOFError::start_quote(rest)),
-        Err(e) => {
-            return Err(ParseOFError::nom(e));
-        }
-    };
+    let (rest, first_quote) =
+        match recognize(nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE))(rest) {
+            Ok((rest, quote)) => (rest, quote),
+            Err(nom::Err::Error(e)) if e.code == Char => {
+                return Err(ParseOFError::start_quote(rest))
+            }
+            Err(e) => return Err(ParseOFError::nom(e)),
+        };
 
-    let (rest, string) = match recognize(many0(alt((
+    let (rest, _string) = match recognize(many0(alt((
         take_while1(|v| v != QUOTE),
         recognize(count(
             nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE),
@@ -102,17 +103,15 @@ pub fn string<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
         }
     };
 
-    let rest = match nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE)(rest) {
-        Ok((rest, _)) => rest,
-        Err(nom::Err::Error(e)) if e.code == Char => {
-            return Err(ParseOFError::end_quote(rest));
-        }
-        Err(e) => {
-            return Err(ParseOFError::nom(e));
-        }
-    };
+    let (rest, last_quote) =
+        match recognize(nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE))(rest) {
+            Ok((rest, quote)) => (rest, quote),
+            Err(nom::Err::Error(e)) if e.code == Char => return Err(ParseOFError::end_quote(rest)),
+            Err(e) => return Err(ParseOFError::nom(e)),
+        };
 
-    Ok((rest, string))
+    let token = unsafe { span_union(first_quote, last_quote) };
+    Ok((rest, token))
 }
 
 /// Lookahead for a function name.
