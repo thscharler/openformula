@@ -262,10 +262,10 @@ impl<'s> Tracer<'s> {
     // translate
     fn map_parse_of_error(&self, mut err: ParseOFError<'s>, code: OFCode) -> ParseOFError<'s> {
         // Translates the code with some exceptions.
-        if err.code != OFCode::OFNomError
-            && err.code != OFCode::OFNomFailure
-            && err.code != OFCode::OFUnexpected
-            && err.code != OFCode::OFParseIncomplete
+        if err.code != OFCode::OFCNomError
+            && err.code != OFCode::OFCNomFailure
+            && err.code != OFCode::OFCUnexpected
+            && err.code != OFCode::OFCParseIncomplete
         {
             err.code = code;
         }
@@ -275,10 +275,10 @@ impl<'s> Tracer<'s> {
 
     fn auto_expect(&self, err: &ParseOFError<'s>) {
         // Auto expect.
-        if err.code != OFCode::OFNomError
-            && err.code != OFCode::OFNomFailure
-            && err.code != OFCode::OFUnexpected
-            && err.code != OFCode::OFParseIncomplete
+        if err.code != OFCode::OFCNomError
+            && err.code != OFCode::OFCNomFailure
+            && err.code != OFCode::OFCUnexpected
+            && err.code != OFCode::OFCParseIncomplete
         {
             self.expect(err.code);
         }
@@ -435,7 +435,7 @@ impl<'s> Tracer<'s> {
     ) -> ParseOFError<'s> {
         match nom {
             nom::Err::Error(e) => err_fn(e.input),
-            nom::Err::Failure(e) => ParseOFError::new(OFCode::OFNomFailure, e.input),
+            nom::Err::Failure(e) => ParseOFError::new(OFCode::OFCNomFailure, e.input),
             nom::Err::Incomplete(_) => unreachable!(),
         }
     }

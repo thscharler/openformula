@@ -61,7 +61,7 @@ pub fn string() {
         }
     }
 
-    TestRun::parse("", StringExpr::parse).err(OFString).q();
+    TestRun::parse("", StringExpr::parse).err(OFCString).q();
     TestRun::parse(r#""""#, StringExpr::parse)
         .ok(string, "")
         .q();
@@ -69,14 +69,14 @@ pub fn string() {
         .ok(string, "abc")
         .q();
     TestRun::parse(r#""abc"#, StringExpr::parse)
-        .err(OFString)
-        .expect(OFQuoteEnd)
-        .expect(OFString)
+        .err(OFCString)
+        .expect(OFCQuoteEnd)
+        .expect(OFCString)
         .q();
     TestRun::parse(r#"abc""#, StringExpr::parse)
-        .err(OFString)
-        .expect(OFQuoteStart)
-        .expect(OFString)
+        .err(OFCString)
+        .expect(OFCQuoteStart)
+        .expect(OFCString)
         .q();
     TestRun::parse(r#""ab""cd""#, StringExpr::parse)
         .ok(string, "ab\"cd")
@@ -126,8 +126,8 @@ pub fn reference() {
     }
 
     TestRun::parse(".1A", ReferenceExpr::parse)
-        .err(OFReference)
-        .expect(OFReference)
+        .err(OFCReference)
+        .expect(OFCReference)
         .q();
     TestRun::parse(".A1:.B2", ReferenceExpr::parse)
         .ok(cellrange, &())
@@ -146,35 +146,35 @@ pub fn reference() {
 #[test]
 pub fn colterm() {
     TestRun::parse("", ColTerm::parse)
-        .err(OFCol)
-        .expect(OFAlpha)
-        .expect(OFCol)
+        .err(OFCCol)
+        .expect(OFCAlpha)
+        .expect(OFCCol)
         .q();
     TestRun::parse("$A", ColTerm::parse).okok().q();
     TestRun::parse("$", ColTerm::parse)
-        .err(OFCol)
-        .expect(OFAlpha)
-        .expect(OFCol)
+        .err(OFCCol)
+        .expect(OFCAlpha)
+        .expect(OFCCol)
         .q();
     TestRun::parse("A", ColTerm::parse).okok().q();
-    TestRun::parse(" $A ", ColTerm::parse).err(OFCol).q();
+    TestRun::parse(" $A ", ColTerm::parse).err(OFCCol).q();
 }
 
 #[test]
 pub fn rowterm() {
     TestRun::parse("", RowTerm::parse)
-        .err(OFRow)
-        .expect(OFDigit)
-        .expect(OFRow)
+        .err(OFCRow)
+        .expect(OFCDigit)
+        .expect(OFCRow)
         .q();
     TestRun::parse("$1", RowTerm::parse).okok().q();
     TestRun::parse("$", RowTerm::parse)
-        .err(OFRow)
-        .expect(OFDigit)
-        .expect(OFRow)
+        .err(OFCRow)
+        .expect(OFCDigit)
+        .expect(OFCRow)
         .q();
     TestRun::parse("1", RowTerm::parse).okok().q();
-    TestRun::parse(" $1 ", RowTerm::parse).err(OFRow).q();
+    TestRun::parse(" $1 ", RowTerm::parse).err(OFCRow).q();
 }
 
 #[test]
@@ -211,9 +211,9 @@ pub fn celref() {
     }
 
     TestRun::parse("", CellRefExpr::parse)
-        .err(OFCellRef)
-        .expect(OFDot)
-        .expect(OFCellRef)
+        .err(OFCCellRef)
+        .expect(OFCDot)
+        .expect(OFCCellRef)
         .q();
     TestRun::parse("'iri'#.A1", CellRefExpr::parse)
         .ok(iri, "iri")
@@ -226,51 +226,51 @@ pub fn celref() {
         .ok(absolute, &(false, false))
         .q();
     TestRun::parse(".A", CellRefExpr::parse)
-        .err(OFCellRef)
-        .expect(OFDigit)
+        .err(OFCCellRef)
+        .expect(OFCDigit)
         .q();
     TestRun::parse(".1", CellRefExpr::parse)
-        .err(OFCellRef)
-        .expect(OFAlpha)
-        .expect(OFCol)
+        .err(OFCCellRef)
+        .expect(OFCAlpha)
+        .expect(OFCCol)
         .q();
     TestRun::parse("A1", CellRefExpr::parse)
-        .err(OFCellRef)
-        .expect(OFDot)
+        .err(OFCCellRef)
+        .expect(OFCDot)
         .q();
     TestRun::parse(".$A$1", CellRefExpr::parse)
         .ok(row_col, &(0, 0))
         .ok(absolute, &(true, true))
         .q();
     TestRun::parse(".$A $1", CellRefExpr::parse)
-        .err(OFCellRef)
-        .expect(OFDigit)
-        .expect(OFRow)
-        .expect(OFCellRef)
+        .err(OFCCellRef)
+        .expect(OFCDigit)
+        .expect(OFCRow)
+        .expect(OFCCellRef)
         .q();
     TestRun::parse(".$ A$1", CellRefExpr::parse)
-        .err(OFCellRef)
-        .expect(OFAlpha)
-        .expect(OFCol)
-        .expect(OFCellRef)
+        .err(OFCCellRef)
+        .expect(OFCAlpha)
+        .expect(OFCCol)
+        .expect(OFCCellRef)
         .q();
     TestRun::parse(".$A$ 1", CellRefExpr::parse)
-        .err(OFCellRef)
-        .expect(OFDigit)
-        .expect(OFRow)
-        .expect(OFCellRef)
+        .err(OFCCellRef)
+        .expect(OFCDigit)
+        .expect(OFCRow)
+        .expect(OFCCellRef)
         .q();
     TestRun::parse(".$A$$1", CellRefExpr::parse)
-        .err(OFCellRef)
-        .expect(OFDigit)
-        .expect(OFRow)
-        .expect(OFCellRef)
+        .err(OFCCellRef)
+        .expect(OFCDigit)
+        .expect(OFCRow)
+        .expect(OFCCellRef)
         .q();
     TestRun::parse(".$$A$$1", CellRefExpr::parse)
-        .err(OFCellRef)
-        .expect(OFAlpha)
-        .expect(OFCol)
-        .expect(OFCellRef)
+        .err(OFCCellRef)
+        .expect(OFCAlpha)
+        .expect(OFCCol)
+        .expect(OFCCellRef)
         .q();
     TestRun::parse(" 'iri' # $ 'sheet' . $A$1 ", CellRefExpr::parse)
         .ok(iri, "iri")
@@ -337,7 +337,7 @@ pub fn cellrange() {
     }
 
     TestRun::parse("", CellRangeExpr::parse)
-        .err(OFCellRange)
+        .err(OFCCellRange)
         .q();
     TestRun::parse("'iri'#.A1:.C3", CellRangeExpr::parse)
         .ok(iri, "iri")
@@ -361,38 +361,38 @@ pub fn cellrange() {
         .q();
     TestRun::parse(".A1:.C3", CellRangeExpr::parse).okok().q();
     TestRun::parse(".A1:.3", CellRangeExpr::parse)
-        .err(OFCellRange)
-        .expect(OFAlpha)
-        .expect(OFCol)
-        .expect(OFCellRange)
+        .err(OFCCellRange)
+        .expect(OFCAlpha)
+        .expect(OFCCol)
+        .expect(OFCCellRange)
         .q();
     TestRun::parse(".A1:.C", CellRangeExpr::parse)
-        .err(OFCellRange)
-        .expect(OFDigit)
-        .expect(OFRow)
-        .expect(OFCellRange)
+        .err(OFCCellRange)
+        .expect(OFCDigit)
+        .expect(OFCRow)
+        .expect(OFCCellRange)
         .q();
     TestRun::parse(".A:.C3", CellRangeExpr::parse)
-        .err(OFCellRange)
-        .expect(OFDigit)
-        .expect(OFRow)
-        .expect(OFCellRange)
+        .err(OFCCellRange)
+        .expect(OFCDigit)
+        .expect(OFCRow)
+        .expect(OFCCellRange)
         .q();
     TestRun::parse(".1:.C3", CellRangeExpr::parse)
-        .err(OFCellRange)
-        .expect(OFAlpha)
-        .expect(OFCol)
-        .expect(OFCellRange)
+        .err(OFCCellRange)
+        .expect(OFCAlpha)
+        .expect(OFCCol)
+        .expect(OFCCellRange)
         .q();
     TestRun::parse(":.C3", CellRangeExpr::parse)
-        .err(OFCellRange)
-        .expect(OFDot)
-        .expect(OFCellRange)
+        .err(OFCCellRange)
+        .expect(OFCDot)
+        .expect(OFCCellRange)
         .q();
     TestRun::parse("A1:C3", CellRangeExpr::parse)
-        .err(OFCellRange)
-        .expect(OFDot)
-        .expect(OFCellRange)
+        .err(OFCCellRange)
+        .expect(OFCDot)
+        .expect(OFCCellRange)
         .q();
     TestRun::parse(
         " 'external' # 'fun' . $A$1 : 'nofun' . $C$3",
@@ -431,8 +431,8 @@ pub fn colrange() {
     }
 
     TestRun::parse("", ColRangeExpr::parse)
-        .err(OFColRange)
-        .expect(OFDot)
+        .err(OFCColRange)
+        .expect(OFCDot)
         .q();
     TestRun::parse("'iri'#.A:.C", ColRangeExpr::parse)
         .ok(iri, "iri")
@@ -444,30 +444,30 @@ pub fn colrange() {
         .ok(col_col, &(0, 2))
         .q();
     TestRun::parse(".1:", ColRangeExpr::parse)
-        .err(OFColRange)
-        .expect(OFAlpha)
-        .expect(OFCol)
-        .expect(OFColRange)
+        .err(OFCColRange)
+        .expect(OFCAlpha)
+        .expect(OFCCol)
+        .expect(OFCColRange)
         .q();
     TestRun::parse(".A", ColRangeExpr::parse)
-        .err(OFColRange)
-        .expect(OFColon)
+        .err(OFCColRange)
+        .expect(OFCColon)
         .q();
     TestRun::parse(":", ColRangeExpr::parse)
-        .err(OFColRange)
-        .expect(OFDot)
+        .err(OFCColRange)
+        .expect(OFCDot)
         .q();
     TestRun::parse(":.A", ColRangeExpr::parse)
-        .err(OFColRange)
-        .expect(OFDot)
+        .err(OFCColRange)
+        .expect(OFCDot)
         .q();
     TestRun::parse(":A", ColRangeExpr::parse)
-        .err(OFColRange)
-        .expect(OFDot)
+        .err(OFCColRange)
+        .expect(OFCDot)
         .q();
     TestRun::parse(".5:.7", ColRangeExpr::parse)
-        .err(OFColRange)
-        .expect(OFAlpha)
+        .err(OFCColRange)
+        .expect(OFCAlpha)
         .q();
     TestRun::parse(" 'iri' # 'sheet' . $A : . $C ", ColRangeExpr::parse)
         .ok(iri, "iri")
@@ -503,8 +503,8 @@ pub fn rowrange() {
     }
 
     TestRun::parse("", RowRangeExpr::parse)
-        .err(OFRowRange)
-        .expect(OFDot)
+        .err(OFCRowRange)
+        .expect(OFCDot)
         .q();
     TestRun::parse("'iri'#.1:.3", RowRangeExpr::parse)
         .ok(iri, "iri")
@@ -516,24 +516,24 @@ pub fn rowrange() {
         .ok(row_row, &(0, 2))
         .q();
     TestRun::parse(".1:", RowRangeExpr::parse)
-        .err(OFRowRange)
-        .expect(OFDot)
+        .err(OFCRowRange)
+        .expect(OFCDot)
         .q();
     TestRun::parse(".1", RowRangeExpr::parse)
-        .err(OFRowRange)
-        .expect(OFColon)
+        .err(OFCRowRange)
+        .expect(OFCColon)
         .q();
     TestRun::parse(":", RowRangeExpr::parse)
-        .err(OFRowRange)
-        .expect(OFDot)
+        .err(OFCRowRange)
+        .expect(OFCDot)
         .q();
     TestRun::parse(":.1", RowRangeExpr::parse)
-        .err(OFRowRange)
-        .expect(OFDot)
+        .err(OFCRowRange)
+        .expect(OFCDot)
         .q();
     TestRun::parse(".C:.E", RowRangeExpr::parse)
-        .err(OFRowRange)
-        .expect(OFDigit)
+        .err(OFCRowRange)
+        .expect(OFCDigit)
         .q();
     TestRun::parse(" 'iri' # 'sheet' . $1 : . $3 ", RowRangeExpr::parse)
         .ok(iri, "iri")
@@ -545,16 +545,16 @@ pub fn rowrange() {
 pub fn parentheses() {
     TestRun::parse("(21)", ParenthesesExpr::parse).okok().q();
     TestRun::parse("(21", ParenthesesExpr::parse)
-        .err(OFParentheses)
-        .expect(OFParenthesesClose)
+        .err(OFCParentheses)
+        .expect(OFCParenthesesClose)
         .q();
     TestRun::parse("21)", ParenthesesExpr::parse)
-        .err(OFParentheses)
-        .expect(OFParenthesesOpen)
+        .err(OFCParentheses)
+        .expect(OFCParenthesesOpen)
         .q();
     TestRun::parse("21", ParenthesesExpr::parse)
-        .err(OFParentheses)
-        .expect(OFParenthesesOpen)
+        .err(OFCParentheses)
+        .expect(OFCParenthesesOpen)
         .q();
     TestRun::parse(" ( 21 ) ", ParenthesesExpr::parse)
         .okok()
@@ -571,24 +571,24 @@ pub fn fncall() {
     }
 
     TestRun::parse("$FUN()", FnCallExpr::parse)
-        .err(OFFnCall)
-        .expect(OFFnName)
+        .err(OFCFnCall)
+        .expect(OFCFnName)
         .q();
     TestRun::parse("FUN ( 77  ", FnCallExpr::parse)
-        .err(OFFnCall)
-        .expect(OFParenthesesClose)
+        .err(OFCFnCall)
+        .expect(OFCParenthesesClose)
         .q();
     TestRun::parse("FUN 77 ) ", FnCallExpr::parse)
-        .err(OFFnCall)
-        .expect(OFParenthesesOpen)
+        .err(OFCFnCall)
+        .expect(OFCParenthesesOpen)
         .q();
     TestRun::parse("FUN(", FnCallExpr::parse)
-        .err(OFFnCall)
-        .expect(OFParenthesesClose)
+        .err(OFCFnCall)
+        .expect(OFCParenthesesClose)
         .q();
     TestRun::parse("FUN  )", FnCallExpr::parse)
-        .err(OFFnCall)
-        .expect(OFParenthesesOpen)
+        .err(OFCFnCall)
+        .expect(OFCParenthesesOpen)
         .q();
     TestRun::parse("FUN(   ;;66)", FnCallExpr::parse)
         .ok(name, "FUN")
@@ -610,7 +610,7 @@ pub fn iri() {
 
     optional!(opt_iri(OFIri<'s>, &'s str), iri);
 
-    TestRun::parse("'external", IriTerm::parse).err(OFIri).q();
+    TestRun::parse("'external", IriTerm::parse).err(OFCIri).q();
     TestRun::parse("'external'", IriTerm::parse)
         .ok(opt_iri, None)
         .q();
@@ -643,8 +643,8 @@ pub fn sheet_name() {
         .ok(opt_sheetname, Some("sheetname"))
         .q();
     TestRun::parse("'sheetname", SheetNameTerm::parse)
-        .err(OFSheetName)
-        .expect(OFSingleQuoteEnd)
+        .err(OFCSheetName)
+        .expect(OFCSingleQuoteEnd)
         .q();
     TestRun::parse("sheetname'.", SheetNameTerm::parse)
         .ok(opt_sheetname, None)
@@ -656,8 +656,8 @@ pub fn sheet_name() {
         .ok(opt_sheetname, None)
         .q();
     TestRun::parse("$'sheetname.", SheetNameTerm::parse)
-        .err(OFSheetName)
-        .expect(OFSingleQuoteEnd)
+        .err(OFCSheetName)
+        .expect(OFCSingleQuoteEnd)
         .q();
     TestRun::parse("$'sheetname'", SheetNameTerm::parse)
         .ok(opt_sheetname, Some("sheetname"))
@@ -711,8 +711,8 @@ fn test_named() {
         .ok(sheet_name, "xref")
         .q();
     TestRun::parse("'xref'Foo", NamedExpr::parse)
-        .err(OFNamed)
-        .expect(OFDot)
+        .err(OFCNamed)
+        .expect(OFCDot)
         .q();
     TestRun::parse(".$$'nice and clean'", NamedExpr::parse)
         .ok(ident, "nice and clean")

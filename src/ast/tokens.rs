@@ -64,7 +64,7 @@ pub fn string<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
         }
     };
 
-    let (rest, last_quote) = match nomtokens::double_quote_nom(rest) {
+    let (rest, last_quote) = match double_quote_nom(rest) {
         Ok((rest, quote)) => (rest, quote),
         Err(nom::Err::Error(e)) if e.code == Char => return Err(ParseOFError::end_quote(rest)),
         Err(e) => return Err(ParseOFError::nom(e)),
@@ -296,8 +296,8 @@ pub fn sheet_name(rest: Span<'_>) -> ParseResult<'_, (Option<Span<'_>>, Span<'_>
 
     let (rest, name) = match single_quoted(rest) {
         Ok((rest, name)) => (rest, Some(name)),
-        Err(e) if e.code == OFSingleQuoteStart => (rest, None),
-        Err(e) if e.code == OFString || e.code == OFSingleQuoteEnd => return Err(e),
+        Err(e) if e.code == OFCSingleQuoteStart => (rest, None),
+        Err(e) if e.code == OFCString || e.code == OFCSingleQuoteEnd => return Err(e),
         Err(e) => return Err(ParseOFError::unexpected(e)),
     };
 
@@ -330,7 +330,9 @@ pub fn quoted_sheet_name(rest: Span<'_>) -> ParseResult<'_, (Option<Span<'_>>, S
     let (rest, name) = match single_quoted(rest) {
         Ok((rest, tok)) => (rest, tok),
         Err(e)
-            if e.code == OFSingleQuoteStart || e.code == OFString || e.code == OFSingleQuoteEnd =>
+            if e.code == OFCSingleQuoteStart
+                || e.code == OFCString
+                || e.code == OFCSingleQuoteEnd =>
         {
             return Err(e)
         }
@@ -346,7 +348,9 @@ pub fn iri(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     let (rest, iri) = match single_quoted(rest) {
         Ok((rest, tok)) => (rest, tok),
         Err(e)
-            if e.code == OFSingleQuoteStart || e.code == OFString || e.code == OFSingleQuoteEnd =>
+            if e.code == OFCSingleQuoteStart
+                || e.code == OFCString
+                || e.code == OFCSingleQuoteEnd =>
         {
             return Err(e)
         }

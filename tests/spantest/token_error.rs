@@ -2,7 +2,7 @@ use nom::error::ErrorKind;
 use nom::IResult;
 use openformula::ast::{ParseResult, Span};
 use openformula::error::OFCode;
-use openformula::error::OFCode::{OFNomError, OFNomFailure};
+use openformula::error::OFCode::{OFCNomError, OFCNomFailure};
 
 pub trait CheckOk {
     fn cok(&self, offset: usize, fragment: &str);
@@ -251,12 +251,12 @@ impl<'a> CheckFailToken for ParseResult<'a, Span<'a>> {
                 println!("    rest='{}' token='{}'", rest, token);
                 assert!(false);
             }
-            Err(e) if e.code == OFNomError => {
+            Err(e) if e.code == OFCNomError => {
                 println!("Failed with ErrNomError. To unspecified.");
                 println!("{:?}", e);
                 assert!(false);
             }
-            Err(e) if e.code == OFNomFailure => {
+            Err(e) if e.code == OFCNomFailure => {
                 println!("Failed with ErrNomFailure.");
                 println!("{:?}", e);
                 assert!(false);
@@ -326,12 +326,12 @@ impl<'a> CheckFailToken for ParseResult<'a, (Option<Span<'a>>, Span<'a>)> {
                 println!("    rest='{}' token='{:?}'", rest, token);
                 assert!(false);
             }
-            Err(e) if e.code == OFNomError => {
+            Err(e) if e.code == OFCNomError => {
                 println!("Failed with ErrNomError. To unspecified.");
                 println!("{:?}", e);
                 assert!(false);
             }
-            Err(e) if e.code == OFNomFailure => {
+            Err(e) if e.code == OFCNomFailure => {
                 println!("Failed with ErrNomFailure.");
                 println!("{:?}", e);
                 assert!(false);
