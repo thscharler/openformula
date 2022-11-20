@@ -2,64 +2,40 @@
 //! Contains all token parsers. Operates on and returns only spans.
 //!
 
-use crate::ast::nomtokens::{
-    add_op_nom, brackets_close_nom, brackets_open_nom, col_nom, colon_nom, comparison_op_nom,
-    decimal, dollar_dollar_nom, dollar_nom, dot_nom, eat_space, fn_name_nom, hashtag_nom,
-    identifier_nom, mul_op_nom, parentheses_close_nom, parentheses_open_nom, postfix_op_nom,
-    pow_op_nom, prefix_op_nom, ref_concat_op_nom, ref_intersection_op_nom, reference_op_nom,
-    row_nom, semikolon_nom, sheet_name_nom, string_op_nom,
-};
 use crate::ast::{span_union, ParseResult, Span};
 use crate::error::OFCode::*;
 use crate::error::ParseOFError;
-use nom::branch::alt;
-use nom::bytes::complete::{tag, take_while1};
-use nom::character::complete::{char as nchar, none_of, one_of};
-use nom::combinator::{opt, recognize};
+use nom::combinator::opt;
 use nom::error::ErrorKind::*;
-use nom::multi::{count, many0};
-use nom::sequence::tuple;
 use nom::InputTake;
+
+// reexport the lah* fn's. don't want any nomtokens imported anywhere else.
+// Still need this pub for the tests to run, but now it's possible to turn
+// the pub of for a compile run.
+pub mod nomtokens;
+use nomtokens::{
+    add_op_nom, brackets_close_nom, brackets_open_nom, col_nom, colon_nom, comparison_op_nom,
+    dollar_dollar_nom, dollar_nom, dot_nom, double_quote_nom, double_string_nom, fn_name_nom,
+    hashtag_nom, identifier_nom, mul_op_nom, number_nom, parentheses_close_nom,
+    parentheses_open_nom, postfix_op_nom, pow_op_nom, prefix_op_nom, ref_concat_op_nom,
+    ref_intersection_op_nom, reference_op_nom, row_nom, semikolon_nom, sheet_name_nom,
+    single_quote_nom, single_string_nom, string_op_nom,
+};
+pub use nomtokens::{
+    eat_space, lah_dollar_dollar, lah_dot, lah_fn_name, lah_identifier, lah_iri, lah_number,
+    lah_parentheses_open, lah_prefix_op, lah_sheet_name, lah_string,
+};
 
 /// Returns an empty token. But still technically a slice of the given span.
 pub fn empty<'a>(i: Span<'a>) -> Span<'a> {
     i.take(0)
 }
 
-/// Lookahead for a number
-pub fn lah_number<'a>(i: Span<'a>) -> bool {
-    alt::<Span<'a>, char, nom::error::Error<_>, _>((nchar('.'), one_of("0123456789")))(i).is_ok()
-}
-
 // Number ::= StandardNumber | '.' [0-9]+ ([eE] [-+]? [0-9]+)?
 // StandardNumber ::= [0-9]+ ('.' [0-9]+)? ([eE] [-+]? [0-9]+)?
 /// Any number.
 pub fn number<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
-    match alt((
-        // Case one: .42
-        recognize(tuple((
-            nchar('.'),
-            decimal,
-            opt(tuple((one_of("eE"), opt(one_of("+-")), decimal))),
-        ))),
-        // Case two: 42e42 and 42.42e42
-        recognize(tuple((
-            decimal,
-            opt(tuple((nchar('.'), opt(decimal)))),
-            one_of("eE"),
-            opt(one_of("+-")),
-            decimal,
-        ))),
-        // Case three: 42 and 42. and 42.42
-        recognize(tuple((
-            decimal, //
-            opt(tuple((
-                nchar('.'), //
-                opt(decimal),
-            ))), //
-        ))),
-    ))(rest)
-    {
+    match number_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Char || e.code == OneOf => {
             Err(ParseOFError::number(rest))
@@ -68,32 +44,17 @@ pub fn number<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
     }
 }
 
-/// Lookahead for a string.
-pub fn lah_string<'a>(i: Span<'a>) -> bool {
-    nchar::<Span<'a>, nom::error::Error<_>>('"')(i).is_ok()
-}
-
 /// Standard string
 pub fn string<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
     const QUOTE: char = '\"';
 
-    let (rest, first_quote) =
-        match recognize(nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE))(rest) {
-            Ok((rest, quote)) => (rest, quote),
-            Err(nom::Err::Error(e)) if e.code == Char => {
-                return Err(ParseOFError::start_quote(rest))
-            }
-            Err(e) => return Err(ParseOFError::nom(e)),
-        };
+    let (rest, first_quote) = match double_quote_nom(rest) {
+        Ok((rest, quote)) => (rest, quote),
+        Err(nom::Err::Error(e)) if e.code == Char => return Err(ParseOFError::start_quote(rest)),
+        Err(e) => return Err(ParseOFError::nom(e)),
+    };
 
-    let (rest, _string) = match recognize(many0(alt((
-        take_while1(|v| v != QUOTE),
-        recognize(count(
-            nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE),
-            2,
-        )),
-    ))))(rest)
-    {
+    let (rest, _string) = match double_string_nom(rest) {
         Ok((rest, tok)) => (rest, tok),
         Err(nom::Err::Error(e)) if e.code == TakeWhile1 || e.code == Char => {
             return Err(ParseOFError::string(rest));
@@ -103,23 +64,14 @@ pub fn string<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
         }
     };
 
-    let (rest, last_quote) =
-        match recognize(nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE))(rest) {
-            Ok((rest, quote)) => (rest, quote),
-            Err(nom::Err::Error(e)) if e.code == Char => return Err(ParseOFError::end_quote(rest)),
-            Err(e) => return Err(ParseOFError::nom(e)),
-        };
+    let (rest, last_quote) = match nomtokens::double_quote_nom(rest) {
+        Ok((rest, quote)) => (rest, quote),
+        Err(nom::Err::Error(e)) if e.code == Char => return Err(ParseOFError::end_quote(rest)),
+        Err(e) => return Err(ParseOFError::nom(e)),
+    };
 
     let token = unsafe { span_union(first_quote, last_quote) };
     Ok((rest, token))
-}
-
-/// Lookahead for a function name.
-pub fn lah_fn_name<'a>(i: Span<'a>) -> bool {
-    match (*i).chars().next() {
-        None => false,
-        Some(c) => unicode_ident::is_xid_start(c),
-    }
 }
 
 // LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
@@ -180,22 +132,12 @@ pub fn ref_concat_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse separator char for function args.
-pub fn lah_dollar_dollar<'a>(rest: Span<'a>) -> bool {
-    tag::<&str, Span<'a>, nom::error::Error<_>>("$$")(rest).is_ok()
-}
-
-/// Parse separator char for function args.
 pub fn dollar_dollar<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
     match dollar_dollar_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::dollardollar(rest)),
         Err(e) => Err(ParseOFError::nom(e)),
     }
-}
-
-/// Parse separator char for function args.
-pub fn lah_dollar<'a>(rest: Span<'a>) -> bool {
-    tag::<&str, Span<'a>, nom::error::Error<_>>("$")(rest).is_ok()
 }
 
 /// Parse separator char for function args.
@@ -225,11 +167,6 @@ pub fn semikolon<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
     }
 }
 
-/// Lookahead for a dot.
-pub fn lah_dot<'a>(i: Span<'a>) -> bool {
-    nchar::<Span<'a>, nom::error::Error<_>>('.')(i).is_ok()
-}
-
 /// Parse dot
 pub fn dot<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
     match dot_nom(rest) {
@@ -246,11 +183,6 @@ pub fn colon<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::colon(rest)),
         Err(e) => Err(ParseOFError::nom(e)),
     }
-}
-
-/// Lookahead for opening parentheses.
-pub fn lah_parentheses_open<'a>(i: Span<'a>) -> bool {
-    nchar::<Span<'a>, nom::error::Error<_>>('(')(i).is_ok()
 }
 
 /// Parse open parentheses.
@@ -316,11 +248,6 @@ pub fn pow_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
     }
 }
 
-/// Lookahead for any prefix operator.
-pub fn lah_prefix_op<'a>(i: Span<'a>) -> bool {
-    one_of::<Span<'a>, _, nom::error::Error<_>>("+-")(i).is_ok()
-}
-
 /// Tries to ast any prefix operator.
 pub fn prefix_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
     match prefix_op_nom(rest) {
@@ -331,24 +258,11 @@ pub fn prefix_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Tries to ast any postfix operator.
-pub fn lah_postfix_op<'a>(i: Span<'a>) -> bool {
-    one_of::<Span<'a>, _, nom::error::Error<_>>("%")(i).is_ok()
-}
-
-/// Tries to ast any postfix operator.
 pub fn postfix_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
     match postfix_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::postfix_op(rest)),
         Err(e) => Err(ParseOFError::nom(e)),
-    }
-}
-
-/// Simple lookahead for a identifier.
-pub fn lah_identifier<'a>(i: Span<'a>) -> bool {
-    match (*i).chars().next() {
-        None => false,
-        Some(c) => unicode_ident::is_xid_start(c),
     }
 }
 
@@ -365,13 +279,6 @@ pub fn identifier<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
         }
         Err(e) => Err(ParseOFError::nom(e)),
     }
-}
-
-/// Lookahead for a sheet-name
-// TODO: sync with spreadsheet_ods_cellref
-pub fn lah_sheet_name(i: Span<'_>) -> bool {
-    // TODO: none_of("]. #$") is a very wide definition.
-    alt::<_, char, nom::error::Error<_>, _>((nchar('$'), nchar('\''), none_of("]. #$")))(i).is_ok()
 }
 
 // SheetName ::= QuotedSheetName | '$'? [^\]\. #$']+
@@ -489,37 +396,28 @@ pub fn col(rest: Span<'_>) -> ParseResult<'_, (Option<Span<'_>>, Span<'_>)> {
 pub fn single_quoted<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
     const QUOTE: char = '\'';
 
-    let (rest, first_quote) =
-        match recognize(nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE))(rest) {
-            Ok((rest, quote)) => (rest, quote),
-            Err(nom::Err::Error(e)) if e.code == Char => {
-                return Err(ParseOFError::start_single_quote(rest))
-            }
-            Err(e) => return Err(ParseOFError::nom(e)),
-        };
+    let (rest, first_quote) = match single_quote_nom(rest) {
+        Ok((rest, quote)) => (rest, quote),
+        Err(nom::Err::Error(e)) if e.code == Char => {
+            return Err(ParseOFError::start_single_quote(rest))
+        }
+        Err(e) => return Err(ParseOFError::nom(e)),
+    };
 
-    let (rest, _string) = match recognize(many0(alt((
-        take_while1(|v| v != QUOTE),
-        recognize(count(
-            nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE),
-            2,
-        )),
-    ))))(rest)
-    {
+    let (rest, _string) = match single_string_nom(rest) {
         Ok((rest, tok)) => (rest, tok),
         Err(nom::Err::Error(e)) if e.code == TakeWhile1 => return Err(ParseOFError::string(rest)),
         Err(nom::Err::Error(e)) if e.code == Char => return Err(ParseOFError::string(rest)),
         Err(e) => return Err(ParseOFError::nom(e)),
     };
 
-    let (rest, last_quote) =
-        match recognize(nchar::<Span<'a>, nom::error::Error<Span<'a>>>(QUOTE))(rest) {
-            Ok((rest, quote)) => (rest, quote),
-            Err(nom::Err::Error(e)) if e.code == Char => {
-                return Err(ParseOFError::end_single_quote(rest))
-            }
-            Err(e) => return Err(ParseOFError::nom(e)),
-        };
+    let (rest, last_quote) = match single_quote_nom(rest) {
+        Ok((rest, quote)) => (rest, quote),
+        Err(nom::Err::Error(e)) if e.code == Char => {
+            return Err(ParseOFError::end_single_quote(rest))
+        }
+        Err(e) => return Err(ParseOFError::nom(e)),
+    };
 
     let token = unsafe { span_union(first_quote, last_quote) };
     Ok((rest, token))

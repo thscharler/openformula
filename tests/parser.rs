@@ -35,6 +35,18 @@ pub fn number() {
     TestRun::parse("123", NumberExpr::parse)
         .ok(number, 123f64)
         .q();
+    TestRun::parse("123", NumberExpr::parse)
+        .ok(number, 123f64)
+        .q();
+    TestRun::parse("123", NumberExpr::parse)
+        .ok(number, 123f64)
+        .q();
+    TestRun::parse("123", NumberExpr::parse)
+        .ok(number, 123f64)
+        .q();
+    TestRun::parse("123", NumberExpr::parse)
+        .ok(number, 123f64)
+        .q();
 }
 
 #[test]

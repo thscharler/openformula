@@ -7,18 +7,18 @@
 //!
 //! The look-ahead functions are called internally at certain branching points.
 
-use crate::ast::nomtokens::eat_space;
-use crate::ast::tokens::empty;
-use crate::ast::tracer::TrackParseResult;
+use crate::ast::conv;
+use crate::ast::tokens;
+use crate::ast::tokens::{eat_space, empty};
+use crate::ast::tracer::{Tracer, TrackParseResult};
 use crate::ast::{
-    conv, span_union, span_union_opt, tokens, tracer::Tracer, Node, OFAddOp, OFAst, OFCellRange,
-    OFCellRef, OFCol, OFColRange, OFCompOp, OFIri, OFMulOp, OFPostfixOp, OFPowOp, OFPrefixOp,
-    OFRow, OFRowRange, OFSheetName, ParseResult, Span,
+    span_union, span_union_opt, Node, OFAddOp, OFAst, OFCellRange, OFCellRef, OFCol, OFColRange,
+    OFCompOp, OFIri, OFMulOp, OFPostfixOp, OFPowOp, OFPrefixOp, OFRow, OFRowRange, OFSheetName,
+    ParseResult, Span,
 };
 use crate::error::OFCode::*;
 use crate::error::{LocateError, OFCode, ParseOFError};
 use spreadsheet_ods_cellref::parser as refs_parser;
-use spreadsheet_ods_cellref::tokens as refs_tokens;
 
 // Expression ::=
 // Whitespace* (
@@ -834,7 +834,7 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
     }
 
     fn lah(i: Span<'s>) -> bool {
-        refs_tokens::lah_iri(i) || refs_tokens::lah_sheet_name(i) || refs_tokens::lah_dot(i)
+        tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
     }
 
     #[allow(clippy::manual_map)]
@@ -892,7 +892,7 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
     }
 
     fn lah(i: Span<'s>) -> bool {
-        refs_tokens::lah_iri(i) || refs_tokens::lah_sheet_name(i) || refs_tokens::lah_dot(i)
+        tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
     }
 
     #[allow(clippy::manual_map)]
@@ -960,7 +960,7 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
     }
 
     fn lah(i: Span<'s>) -> bool {
-        refs_tokens::lah_iri(i) || refs_tokens::lah_sheet_name(i) || refs_tokens::lah_dot(i)
+        tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
     }
 
     #[allow(clippy::manual_map)]
@@ -1026,7 +1026,7 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
     }
 
     fn lah(i: Span<'s>) -> bool {
-        refs_tokens::lah_iri(i) || refs_tokens::lah_sheet_name(i) || refs_tokens::lah_dot(i)
+        tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
     }
 
     #[allow(clippy::manual_map)]
@@ -1278,7 +1278,7 @@ impl<'s> GeneralTerm<'s, Option<OFIri<'s>>> for IriTerm {
     }
 
     fn lah(i: Span<'s>) -> bool {
-        refs_tokens::lah_iri(i)
+        tokens::lah_iri(i)
     }
 
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Option<OFIri<'s>>> {
@@ -1312,7 +1312,7 @@ impl<'s> GeneralTerm<'s, Option<OFSheetName<'s>>> for SheetNameTerm {
     }
 
     fn lah(i: Span<'s>) -> bool {
-        refs_tokens::lah_sheet_name(i)
+        tokens::lah_sheet_name(i)
     }
 
     fn parse<'t>(
@@ -1359,7 +1359,7 @@ impl<'s> GeneralTerm<'s, ()> for ColonTerm {
     }
 
     fn lah(_i: Span<'s>) -> bool {
-        // TODO: refs_tokens::lah_colon(i)
+        // TODO: lah_colon(i)
         false
     }
 
@@ -1387,7 +1387,7 @@ impl<'s> GeneralTerm<'s, Span<'s>> for DotTerm {
     }
 
     fn lah(i: Span<'s>) -> bool {
-        refs_tokens::lah_dot(i)
+        tokens::lah_dot(i)
     }
 
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Span<'s>> {
@@ -1416,8 +1416,8 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
     }
 
     fn lah(i: Span<'s>) -> bool {
-        refs_tokens::lah_iri(i)
-            || refs_tokens::lah_sheet_name(i)
+        tokens::lah_iri(i)
+            || tokens::lah_sheet_name(i)
             || tokens::lah_dollar_dollar(i)
             || tokens::lah_identifier(i)
     }

@@ -2,7 +2,7 @@ mod spantest;
 
 use crate::spantest::*;
 use nom::error::ErrorKind;
-use openformula::ast::nomtokens::*;
+use openformula::ast::tokens::nomtokens::*;
 use openformula::ast::Span;
 
 #[test]

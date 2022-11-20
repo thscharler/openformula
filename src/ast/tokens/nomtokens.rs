@@ -7,11 +7,14 @@
 use crate::ast::Span;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while, take_while1};
-use nom::character::complete::{alpha1, multispace0, none_of, one_of};
+use nom::character::complete::{alpha1, char as nchar, multispace0, none_of, one_of};
 use nom::combinator::{opt, recognize};
-use nom::multi::many1;
+use nom::multi::{count, many0, many1};
 use nom::sequence::tuple;
 use nom::IResult;
+
+const DOUBLE_QUOTE: char = '\"';
+const SINGLE_QUOTE: char = '\'';
 
 /// Eats the leading whitespace.
 pub fn eat_space<'a>(i: Span<'a>) -> Span<'a> {
@@ -23,9 +26,137 @@ pub fn eat_space<'a>(i: Span<'a>) -> Span<'a> {
     }
 }
 
+/// Lookahead for a number
+pub fn lah_number<'a>(i: Span<'a>) -> bool {
+    alt::<Span<'a>, char, nom::error::Error<_>, _>((nchar('.'), one_of("0123456789")))(i).is_ok()
+}
+
+/// Lookahead for a string.
+pub fn lah_string<'a>(i: Span<'a>) -> bool {
+    nchar::<Span<'a>, nom::error::Error<_>>('"')(i).is_ok()
+}
+
+/// Lookahead for a function name.
+pub fn lah_fn_name<'a>(i: Span<'a>) -> bool {
+    match (*i).chars().next() {
+        None => false,
+        Some(c) => unicode_ident::is_xid_start(c),
+    }
+}
+
+/// Parse separator char for function args.
+pub fn lah_dollar_dollar<'a>(rest: Span<'a>) -> bool {
+    tag::<&str, Span<'a>, nom::error::Error<_>>("$$")(rest).is_ok()
+}
+
+/// Parse separator char for function args.
+pub fn lah_dollar<'a>(rest: Span<'a>) -> bool {
+    tag::<&str, Span<'a>, nom::error::Error<_>>("$")(rest).is_ok()
+}
+
+/// Lookahead for a dot.
+pub fn lah_dot<'a>(i: Span<'a>) -> bool {
+    nchar::<Span<'a>, nom::error::Error<_>>('.')(i).is_ok()
+}
+
+/// Lookahead for opening parentheses.
+pub fn lah_parentheses_open<'a>(i: Span<'a>) -> bool {
+    nchar::<Span<'a>, nom::error::Error<_>>('(')(i).is_ok()
+}
+
+/// Lookahead for any prefix operator.
+pub fn lah_prefix_op<'a>(i: Span<'a>) -> bool {
+    one_of::<Span<'a>, _, nom::error::Error<_>>("+-")(i).is_ok()
+}
+
+/// Tries to ast any postfix operator.
+pub fn lah_postfix_op<'a>(i: Span<'a>) -> bool {
+    one_of::<Span<'a>, _, nom::error::Error<_>>("%")(i).is_ok()
+}
+
+/// Simple lookahead for a identifier.
+pub fn lah_identifier<'a>(i: Span<'a>) -> bool {
+    match (*i).chars().next() {
+        None => false,
+        Some(c) => unicode_ident::is_xid_start(c),
+    }
+}
+
+/// Lookahead for a sheet-name
+// TODO: sync with spreadsheet_ods_cellref
+pub fn lah_sheet_name(i: Span<'_>) -> bool {
+    // TODO: none_of("]. #$") is a very wide definition.
+    alt::<_, char, nom::error::Error<_>, _>((nchar('$'), nchar('\''), none_of("]. #$")))(i).is_ok()
+}
+
+/// Lookahead for an IRI.
+pub fn lah_iri<'a>(i: Span<'a>) -> bool {
+    nchar::<Span<'a>, nom::error::Error<_>>('\'')(i).is_ok()
+}
+
+/// Numeric value.
+pub fn number_nom<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    alt((
+        // Case one: .42
+        recognize(tuple((
+            nchar('.'),
+            decimal,
+            opt(tuple((one_of("eE"), opt(one_of("+-")), decimal))),
+        ))),
+        // Case two: 42e42 and 42.42e42
+        recognize(tuple((
+            decimal,
+            opt(tuple((nchar('.'), opt(decimal)))),
+            one_of("eE"),
+            opt(one_of("+-")),
+            decimal,
+        ))),
+        // Case three: 42 and 42. and 42.42
+        recognize(tuple((
+            decimal, //
+            opt(tuple((
+                nchar('.'), //
+                opt(decimal),
+            ))), //
+        ))),
+    ))(input)
+}
+
 /// Sequence of digits.
 pub fn decimal<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
     recognize(many1(one_of("0123456789")))(input)
+}
+
+/// A quote "
+pub fn double_quote_nom<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    recognize(nchar::<Span<'a>, nom::error::Error<Span<'a>>>(DOUBLE_QUOTE))(input)
+}
+
+/// A string containing double "" and ending (excluding) with a quote "
+pub fn double_string_nom<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    recognize(many0(alt((
+        take_while1(|v| v != DOUBLE_QUOTE),
+        recognize(count(
+            nchar::<Span<'a>, nom::error::Error<Span<'a>>>(DOUBLE_QUOTE),
+            2,
+        )),
+    ))))(input)
+}
+
+/// A quote '
+pub fn single_quote_nom<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    recognize(nchar::<Span<'a>, nom::error::Error<Span<'a>>>(SINGLE_QUOTE))(input)
+}
+
+/// A string containing double ''' and ending (excluding) with a quote '
+pub fn single_string_nom<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+    recognize(many0(alt((
+        take_while1(|v| v != SINGLE_QUOTE),
+        recognize(count(
+            nchar::<Span<'a>, nom::error::Error<Span<'a>>>(SINGLE_QUOTE),
+            2,
+        )),
+    ))))(input)
 }
 
 // LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
