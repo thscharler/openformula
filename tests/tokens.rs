@@ -43,15 +43,16 @@ pub fn test_number() {
 
 #[test]
 pub fn test_string() {
-    string(Span::new("\"\"")).cok(1, "");
-    string(Span::new("\"ABC\"")).cok(1, "ABC");
+    string(Span::new("\"\"")).cok(0, "\"\"");
+    string(Span::new("\"A\"")).cok(0, "\"A\"");
+    string(Span::new("\"ABC\"")).cok(0, "\"ABC\"");
     string(Span::new("\"ABC")).ctok(OFQuoteEnd);
     string(Span::new("ABC\"")).ctok(OFQuoteStart);
     string(Span::new("ABC")).ctok(OFQuoteStart);
 
-    string(Span::new("\"AB\"\"CD\"")).cok(1, "AB\"\"CD");
-    string(Span::new("\"AB\"CD\"")).cok(1, "AB");
-    string(Span::new("\"AB\"\"\"CD\"")).cok(1, "AB\"\"");
+    string(Span::new("\"AB\"\"CD\"")).cok(0, "\"AB\"\"CD\"");
+    string(Span::new("\"AB\"CD\"")).cok(0, "\"AB\"");
+    string(Span::new("\"AB\"\"\"CD\"")).cok(0, "\"AB\"\"\"");
 }
 
 #[test]

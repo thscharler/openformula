@@ -4,10 +4,10 @@
 
 use crate::ast::nomtokens::{
     add_op_nom, brackets_close_nom, brackets_open_nom, col_nom, colon_nom, comparison_op_nom,
-    decimal, dollar_dollar_nom, dollar_nom, dot_nom, fn_name_nom, hashtag_nom, identifier_nom,
-    mul_op_nom, parentheses_close_nom, parentheses_open_nom, postfix_op_nom, pow_op_nom,
-    prefix_op_nom, ref_concat_op_nom, ref_intersection_op_nom, reference_op_nom, row_nom,
-    semikolon_nom, sheet_name_nom, string_op_nom,
+    decimal, dollar_dollar_nom, dollar_nom, dot_nom, eat_space, fn_name_nom, hashtag_nom,
+    identifier_nom, mul_op_nom, parentheses_close_nom, parentheses_open_nom, postfix_op_nom,
+    pow_op_nom, prefix_op_nom, ref_concat_op_nom, ref_intersection_op_nom, reference_op_nom,
+    row_nom, semikolon_nom, sheet_name_nom, string_op_nom,
 };
 use crate::ast::{span_union, ParseResult, Span};
 use crate::error::OFCode::*;
@@ -417,6 +417,9 @@ pub fn quoted_sheet_name(rest: Span<'_>) -> ParseResult<'_, (Option<Span<'_>>, S
         Ok((rest, tok)) => (rest, tok),
         Err(e) => return Err(ParseOFError::nom(e)),
     };
+
+    let rest = eat_space(rest);
+
     let (rest, name) = match single_quoted(rest) {
         Ok((rest, tok)) => (rest, tok),
         Err(e)
@@ -442,6 +445,9 @@ pub fn iri(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
         }
         Err(e) => return Err(ParseOFError::unexpected(e)),
     };
+
+    let rest = eat_space(rest);
+
     let (rest,) = match hashtag_nom(rest) {
         Ok((rest, _hash)) => (rest,),
         Err(nom::Err::Error(e)) if e.code == Tag => {

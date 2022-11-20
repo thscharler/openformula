@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 
 type ParserFn<'s, O> = fn(&'_ Tracer<'s>, Span<'s>) -> ParseResult<'s, O>;
-type TestFn<'s, O, V> = fn(&'s O, &'_ V) -> bool;
+type TestFn<'s, O, V> = fn(&'s O, V) -> bool;
 
 pub struct TestRun<'s, O> {
     pub trace: Tracer<'s>,
@@ -27,7 +27,7 @@ pub struct TestRun<'s, O> {
 #[allow(unused_macros)]
 macro_rules! optional {
     ($name:ident( $O:ty, $V:ty ), $testfn:ident) => {
-        fn $name<'s>(result: &'s Option<$O>, test: &Option<$V>) -> bool {
+        fn $name<'s>(result: &'s Option<$O>, test: Option<$V>) -> bool {
             match result {
                 None => match test {
                     None => true,
@@ -115,14 +115,14 @@ where
     ///
     /// Finish the test with q()
     #[must_use]
-    pub fn ok<V>(&'s self, eq: TestFn<'s, O, V>, test: &V) -> &Self
+    pub fn ok<V>(&'s self, eq: TestFn<'s, O, V>, test: V) -> &Self
     where
-        V: Debug + ?Sized,
+        V: Debug + Copy,
         O: Debug,
     {
         match &self.result {
             Ok((_, token)) => {
-                if !eq(token, &test) {
+                if !eq(token, test) {
                     println!("FAIL: Value mismatch: {:?} <> {:?}", token, test);
                     self.flag_fail();
                 }
