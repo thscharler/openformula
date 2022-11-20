@@ -1033,7 +1033,7 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
-        // TODO: Check suggestions. Maybe add a span to the suggestion?
+        // NOTE: Check suggestions. Maybe add a span to the suggestion?
         trace.optional(IriTerm::name());
         let (rest, iri) = IriTerm::parse(trace, eat_space(rest)).trace(trace, OFCRowRange)?;
         trace.optional(SheetNameTerm::name());
