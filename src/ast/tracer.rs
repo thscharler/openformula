@@ -5,6 +5,7 @@
 //!
 
 use crate::ast::{ParseResult, Span};
+use crate::error::OFCode::OFCUnexpected;
 use crate::error::{OFCode, ParseOFError};
 use std::cell::{Ref, RefCell};
 use std::fmt;
@@ -421,10 +422,8 @@ impl<'s> Tracer<'s> {
     /// Panics
     ///
     /// Always.
-    #[track_caller]
-    pub fn panic_parse<'t>(&'t self, err: ParseOFError<'s>) -> ! {
-        self.err_track_parseoferror_exit(&err);
-        self.dump_and_panic(err);
+    pub fn unexpected_parse<'t>(&'t self, err: ParseOFError<'s>) -> ParseResult<'s, T> {
+        self.err_map_parse(err, OFCUnexpected)
     }
 
     // translate ...
@@ -548,7 +547,7 @@ impl Suggest {
 
 impl Debug for Suggest {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Self::dbg_suggest(f, &self, 0)?;
+        Self::dbg_suggest(f, self, 0)?;
         Ok(())
     }
 }

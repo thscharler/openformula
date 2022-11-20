@@ -221,6 +221,7 @@ impl<'a> OFAst<'a> {
     }
 
     /// CellRange variant
+    #[allow(clippy::too_many_arguments)]
     pub fn cell_range(
         iri: Option<OFIri<'a>>,
         table: Option<OFSheetName<'a>>,
