@@ -57,6 +57,7 @@ pub enum OFCode {
     OFCPostfixOp,
     OFCPow,
     OFCPowOp,
+    OFCPrefix,
     OFCPrefixOp,
     OFCQuoteEnd,
     OFCQuoteStart,

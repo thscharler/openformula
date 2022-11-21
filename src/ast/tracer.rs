@@ -48,11 +48,11 @@ impl<'s> Debug for Tracer<'s> {
                 }
                 Track::Ok(_, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
-                    indent.pop();
-                    indent.pop();
                 }
                 Track::Error(_, _, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
+                }
+                Track::Exit(_) => {
                     indent.pop();
                     indent.pop();
                 }
@@ -177,9 +177,9 @@ impl<'s> Tracer<'s> {
 
     /// Returns the suggested tokens.
     /// Leaves the contained vec empty!
-    pub fn suggest_vec(&self) -> Ref<'_, Vec<OFCode>> {
-        todo!() // self.suggest.borrow()
-    }
+    // pub fn suggest_vec(&self) -> Ref<'_, Vec<OFCode>> {
+    //     todo!() // self.suggest.borrow()
+    // }
 
     /// Return the suggestions as a String.
     pub fn suggest_str(&self) -> String {
@@ -206,8 +206,8 @@ impl<'s> Tracer<'s> {
     /// former suggestions from the parser are voided.
     /// This are usually tokens that prevent backtracking before this point.
     pub fn clear_expect(&self) {
-        self.detail("clear expectations");
-        self.expect.borrow_mut().clear();
+        // self.detail("clear expectations");
+        // self.expect.borrow_mut().clear();
     }
 
     /// Expected tokens.
@@ -215,15 +215,10 @@ impl<'s> Tracer<'s> {
     /// Collect information about mandatory expected tokens. There can
     /// be any number of these, if at least one of many options is required.
     pub fn expect(&self, suggest: OFCode) {
-        let is_opt = self.in_optional();
-        self.detail(format!(
-            "expect {} {:?}",
-            if is_opt { "opt" } else { "" },
-            suggest
-        ));
-        if is_opt {
+        if self.in_optional() {
             self.suggest(suggest);
         } else {
+            self.detail(format!("expect {:?}", suggest));
             self.expect.borrow_mut().push(suggest);
         }
     }
@@ -330,6 +325,7 @@ impl<'s> Tracer<'s> {
             err.to_string(),
             *err.span(),
         ));
+        self.tracks.borrow_mut().push(Track::Exit(func));
 
         self.maybe_drop_optional(func);
 
@@ -340,6 +336,7 @@ impl<'s> Tracer<'s> {
     fn ok_track_exit(&self, span: Span<'s>, rest: Span<'s>) {
         let func = self.func.borrow_mut().pop().unwrap();
         self.tracks.borrow_mut().push(Track::Ok(func, span, rest));
+        self.tracks.borrow_mut().push(Track::Exit(func));
 
         self.maybe_drop_optional(func);
 
@@ -532,7 +529,7 @@ impl Suggest {
     fn dbg_suggest(f: &mut Formatter<'_>, suggest: &Suggest, indent: u32) -> fmt::Result {
         write!(f, "{} : ", suggest.func)?;
         for code in &suggest.codes {
-            write!(f, "{:?}", code)?;
+            write!(f, "{:?} ", code)?;
         }
 
         for su in &suggest.suggest {
@@ -564,6 +561,8 @@ pub enum Track<'s> {
     Ok(&'static str, Span<'s>, Span<'s>),
     /// Function where this occurred and some error info.
     Error(&'static str, bool, String, Span<'s>),
+    /// Exit the function
+    Exit(&'static str),
 }
 
 impl<'s> Track<'s> {
@@ -574,6 +573,7 @@ impl<'s> Track<'s> {
             Track::Ok(_, _, s) => Some(s),
             Track::Error(_, _, _, s) => Some(s),
             Track::Detail(_, _) => None,
+            Track::Exit(_) => None,
         }
     }
 }
@@ -606,6 +606,9 @@ impl<'s> Debug for Track<'s> {
                     err_str,
                     err_span
                 )?;
+            }
+            Track::Exit(func) => {
+                write!(f, "return {}: ", func)?;
             }
         }
         Ok(())

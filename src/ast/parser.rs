@@ -353,8 +353,7 @@ impl<'s> GeneralExpr<'s> for PowExpr {
                                     expr1 = OFAst::pow(expr1, op, expr2);
                                 }
                                 Err(e) => {
-                                    trace.suggest(OFCPostfix);
-                                    break trace.err_parse(e);
+                                    break trace.err_map_parse(e, OFCPostfix);
                                 }
                             }
                         }
@@ -427,7 +426,7 @@ impl<'s> GeneralExpr<'s> for PostfixExpr {
     }
 }
 
-struct PrefixExpr;
+pub struct PrefixExpr;
 
 impl PrefixExpr {
     /// Parses and maps the Span to a OFPrefixOp.
@@ -473,14 +472,14 @@ impl<'s> GeneralExpr<'s> for PrefixExpr {
                     trace.suggest(OFCPrefixOp);
                     break loop_rest;
                 }
-                Err(e) => return trace.err_parse(e),
+                Err(e) => return trace.err_map_parse(e, OFCPrefix),
             }
         };
 
         // parse the expression itself
         let (rest, expr) = match ElementaryExpr::parse(trace, eat_space(rest)) {
             Ok((rest1, expr)) => (rest1, expr),
-            Err(e) => return trace.err_parse(e),
+            Err(e) => return trace.err_map_parse(e, OFCPrefix),
         };
 
         // join everything up
@@ -494,7 +493,7 @@ impl<'s> GeneralExpr<'s> for PrefixExpr {
 }
 
 /// Parser for the lowest expression level.
-struct ElementaryExpr;
+pub struct ElementaryExpr;
 
 impl<'s> GeneralExpr<'s> for ElementaryExpr {
     fn name() -> &'static str {
@@ -512,74 +511,76 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::name(), rest);
 
-        if NumberExpr::lah(rest) {
-            trace.optional(NumberExpr::name());
-            match NumberExpr::parse(trace, eat_space(rest)) {
-                Ok((rest, expr)) => {
-                    return trace.ok(expr.span(), rest, expr);
-                }
-                Err(e) if e.code == OFCNomError => {
-                    trace.suggest(OFCNumber);
-                    /* skip */
-                }
-                Err(e) => return trace.err_parse(e),
+        trace.optional(NumberExpr::name());
+        match NumberExpr::parse(trace, eat_space(rest)) {
+            Ok((rest, expr)) => {
+                return trace.ok(expr.span(), rest, expr);
             }
+            Err(e) if e.code == OFCNumber => {
+                trace.suggest(OFCNumber);
+                /* skip */
+            }
+            Err(e) => return trace.err_parse(e),
         }
 
-        if StringExpr::lah(rest) {
-            trace.optional(StringExpr::name());
-            match StringExpr::parse(trace, rest) {
-                Ok((rest, expr)) => {
-                    return trace.ok(expr.span(), rest, expr);
-                }
-                Err(e) if e.code == OFCNomError => {
-                    trace.suggest(OFCString);
-                    /* skip */
-                }
-                Err(e) => return trace.err_parse(e),
+        trace.optional(StringExpr::name());
+        match StringExpr::parse(trace, rest) {
+            Ok((rest, expr)) => {
+                return trace.ok(expr.span(), rest, expr);
             }
+            Err(e) if e.code == OFCString => {
+                trace.suggest(OFCString);
+                /* skip */
+            }
+            Err(e) => return trace.err_parse(e),
         }
 
-        if ParenthesesExpr::lah(rest) {
-            trace.optional(ParenthesesExpr::name());
-            match ParenthesesExpr::parse(trace, rest) {
-                Ok((rest, expr)) => {
-                    return trace.ok(expr.span(), rest, expr);
-                }
-                Err(e) if e.code == OFCNomError => {
-                    trace.suggest(OFCParentheses);
-                    /* skip */
-                }
-                Err(e) => return trace.err_parse(e),
+        trace.optional(ParenthesesExpr::name());
+        match ParenthesesExpr::parse(trace, rest) {
+            Ok((rest, expr)) => {
+                return trace.ok(expr.span(), rest, expr);
             }
+            Err(e) if e.code == OFCParentheses => {
+                trace.suggest(OFCParentheses);
+                /* skip */
+            }
+            Err(e) => return trace.err_parse(e),
         }
 
-        if ReferenceExpr::lah(rest) {
-            trace.optional(ReferenceExpr::name());
-            match ReferenceExpr::parse(trace, rest) {
-                Ok((rest, expr)) => {
-                    return trace.ok(expr.span(), rest, expr);
-                }
-                Err(e) if e.code == OFCReference => {
-                    /* skip, no reference */
-                    trace.suggest(OFCReference);
-                }
-                Err(e) => return trace.err_parse(e),
+        trace.optional(ReferenceExpr::name());
+        match ReferenceExpr::parse(trace, rest) {
+            Ok((rest, expr)) => {
+                return trace.ok(expr.span(), rest, expr);
             }
+            Err(e) if e.code == OFCReference => {
+                trace.suggest(OFCReference);
+                /* skip, no reference */
+            }
+            Err(e) => return trace.err_parse(e),
         }
 
-        if FnCallExpr::lah(rest) {
-            trace.optional(FnCallExpr::name());
-            match FnCallExpr::parse(trace, rest) {
-                Ok((rest, expr)) => {
-                    return trace.ok(expr.span(), rest, expr);
-                }
-                Err(e) if e.code == OFCNomError => {
-                    /* skip */
-                    trace.suggest(OFCFnCall);
-                }
-                Err(e) => return trace.err_parse(e),
+        trace.optional(FnCallExpr::name());
+        match FnCallExpr::parse(trace, rest) {
+            Ok((rest, expr)) => {
+                return trace.ok(expr.span(), rest, expr);
             }
+            Err(e) if e.code == OFCFnCall => {
+                trace.suggest(OFCFnCall);
+                /* skip */
+            }
+            Err(e) => return trace.err_parse(e),
+        }
+
+        trace.optional(NamedExpr::name());
+        match NamedExpr::parse(trace, rest) {
+            Ok((rest, expr)) => {
+                return trace.ok(expr.span(), rest, expr);
+            }
+            Err(e) if e.code == OFCNamed => {
+                trace.suggest(OFCNamed);
+                /* skip */
+            }
+            Err(e) => return trace.err_parse(e),
         }
 
         // TODO: NamedExpr
@@ -728,7 +729,6 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Err(e) => return trace.unexpected_parse(e),
         }
 
-        trace.expect(OFCReference);
         trace.err_parse(ParseOFError::reference(rest))
     }
 }
@@ -1394,12 +1394,7 @@ impl<'s> GeneralTerm<'s, Span<'s>> for DotTerm {
         // required dot
         let (rest, dot) = match tokens::dot(eat_space(rest)) {
             Ok((rest1, dot)) => (rest1, dot),
-
-            Err(e) if e.code == OFCDot => {
-                return trace.err_track_map_parse(e, OFCode::OFCDot);
-            }
-
-            Err(e) => return trace.unexpected_parse(e),
+            Err(e) => return trace.err_parse(e),
         };
 
         trace.ok(dot, rest, dot)
@@ -1432,7 +1427,6 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
         trace.optional(SheetNameTerm::name());
         let (rest, sheet_name) =
             SheetNameTerm::parse(trace, eat_space(rest)).trace(trace, OFCNamed)?;
-        dbg!(rest);
         let (rest, _dot) = DotTerm::parse(trace, eat_space(rest)).trace(trace, OFCNamed)?;
 
         // (Identifier | '$$' (Identifier | SingleQuoted)
