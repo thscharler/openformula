@@ -5,7 +5,6 @@
 //!
 
 use crate::ast::{ParseResult, Span};
-use crate::error::OFCode::OFCUnexpected;
 use crate::error::{OFCode, ParseOFError};
 use std::cell::{Ref, RefCell};
 use std::fmt;
@@ -260,7 +259,6 @@ impl<'s> Tracer<'s> {
         // Translates the code with some exceptions.
         if err.code != OFCode::OFCNomError
             && err.code != OFCode::OFCNomFailure
-            && err.code != OFCode::OFCUnexpected
             && err.code != OFCode::OFCParseIncomplete
         {
             err.code = code;
@@ -273,7 +271,6 @@ impl<'s> Tracer<'s> {
         // Auto expect.
         if err.code != OFCode::OFCNomError
             && err.code != OFCode::OFCNomFailure
-            && err.code != OFCode::OFCUnexpected
             && err.code != OFCode::OFCParseIncomplete
         {
             self.expect(err.code);
@@ -411,16 +408,6 @@ impl<'s> Tracer<'s> {
     pub fn err_parse<'t, T>(&'t self, err: ParseOFError<'s>) -> ParseResult<'s, T> {
         self.err_track_parseoferror_exit(&err);
         Err(err)
-    }
-
-    /// Notes the error, dumps everything and panics.
-    /// Might be useful, if a unexpected TokenError occurs.
-    ///
-    /// Panics
-    ///
-    /// Always.
-    pub fn unexpected_parse<'t, T>(&'t self, err: ParseOFError<'s>) -> ParseResult<'s, T> {
-        self.err_map_parse(err, OFCUnexpected)
     }
 
     // translate ...

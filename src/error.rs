@@ -7,7 +7,7 @@ use std::fmt::{Debug, Display, Formatter};
 #[derive(Debug)]
 pub struct ParseOFError<'s> {
     pub code: OFCode,
-    pub cause: Vec<OFCode>,
+    pub expect: Vec<OFCode>,
     pub span: Span<'s>,
     pub unexpected: Option<Box<ParseOFError<'s>>>,
 }
@@ -15,12 +15,10 @@ pub struct ParseOFError<'s> {
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum OFCode {
-    /// Nom ast error.
+    /// Nom error.
     OFCNomError,
     /// Nom failure.
     OFCNomFailure,
-    /// Unexpected token.
-    OFCUnexpected,
     /// Parsing didn't parse all of the string.
     OFCParseIncomplete,
 
@@ -82,9 +80,9 @@ impl<'s> ParseOFError<'s> {
     pub fn new(code: OFCode, span: Span<'s>) -> Self {
         Self {
             code,
-            cause: Vec::new(),
             span,
             unexpected: None,
+            expect: Vec::new(),
         }
     }
 
@@ -115,13 +113,6 @@ impl<'s> ParseOFError<'s> {
     /// NomFailure variant.
     pub fn fail(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(OFCNomFailure, span)
-    }
-
-    /// Unexpected variant.
-    pub fn unexpected(err: ParseOFError<'s>) -> ParseOFError<'s> {
-        let mut new = ParseOFError::new(OFCUnexpected, err.span);
-        new.unexpected = Some(Box::new(err));
-        new
     }
 
     /// ParseIncomplete variant.
@@ -330,8 +321,8 @@ impl<'s, T> LocateError<'s, T, ParseColnameError> for Result<T, ParseColnameErro
 impl<'s> Display for ParseOFError<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?} ", self.code)?;
-        if !self.cause.is_empty() {
-            write!(f, "{:?}", self.cause)?;
+        if !self.expect.is_empty() {
+            write!(f, "{:?}", self.expect)?;
         }
         write!(
             f,

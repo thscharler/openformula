@@ -690,7 +690,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
                 //trace.suggest(OFCellRange);
                 // Not matched, ok.
             }
-            Err(e) => return trace.unexpected_parse(e),
+            Err(e) => return trace.err_parse(e),
         };
 
         trace.optional(CellRefExpr::name());
@@ -702,7 +702,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
                 //trace.suggest(OFCellRef);
                 // Not matched, ok.
             }
-            Err(e) => return trace.unexpected_parse(e),
+            Err(e) => return trace.err_parse(e),
         }
 
         trace.optional(ColRangeExpr::name());
@@ -714,7 +714,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
                 //trace.suggest(OFColRange);
                 // Not matched, ok.
             }
-            Err(e) => return trace.unexpected_parse(e),
+            Err(e) => return trace.err_parse(e),
         }
 
         trace.optional(RowRangeExpr::name());
@@ -726,7 +726,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
                 //trace.suggest(OFRowRange);
                 // Not matched, ok.
             }
-            Err(e) => return trace.unexpected_parse(e),
+            Err(e) => return trace.err_parse(e),
         }
 
         trace.err_parse(ParseOFError::reference(rest))
@@ -754,7 +754,7 @@ impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
                 return trace.err_track_map_parse(e, OFCode::OFCCol);
             }
             Err(e) => {
-                return trace.unexpected_parse(e);
+                return trace.err_parse(e);
             }
         };
 
@@ -789,7 +789,7 @@ impl<'s> GeneralTerm<'s, OFRow<'s>> for RowTerm {
                 return trace.err_track_map_parse(e, OFCode::OFCRow);
             }
             Err(e) => {
-                return trace.unexpected_parse(e);
+                return trace.err_parse(e);
             }
         };
 
@@ -1082,7 +1082,7 @@ impl<'s> GeneralExpr<'s> for ParenthesesExpr {
             Err(e) if e.code == OFCParenthesesOpen => {
                 return trace.err_track_map_parse(e, OFCode::OFCParentheses);
             }
-            Err(e) => return trace.unexpected_parse(e),
+            Err(e) => return trace.err_parse(e),
         };
 
         let (rest, expr) =
@@ -1093,7 +1093,7 @@ impl<'s> GeneralExpr<'s> for ParenthesesExpr {
             Err(e) if e.code == OFCParenthesesClose => {
                 return trace.err_track_map_parse(e, OFCode::OFCParentheses);
             }
-            Err(e) => return trace.unexpected_parse(e),
+            Err(e) => return trace.err_parse(e),
         };
 
         let ast = OFAst::parens(par1, expr, par2);
@@ -1133,7 +1133,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
             Err(e) if e.code == OFCFnName => {
                 return trace.err_track_map_parse(e, OFCode::OFCFnCall);
             }
-            Err(e) => return trace.unexpected_parse(e),
+            Err(e) => return trace.err_parse(e),
         };
         trace.step("name", fn_name);
 
@@ -1158,7 +1158,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         trace.suggest(OFCSemikolon);
                     }
                     Err(e) => {
-                        return trace.unexpected_parse(e);
+                        return trace.err_parse(e);
                     }
                 }
 
@@ -1193,7 +1193,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                             None
                         }
                         Err(e) => {
-                            return trace.unexpected_parse(e);
+                            return trace.err_parse(e);
                         }
                     };
 
@@ -1244,7 +1244,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                             }
                         }
                         Err(e) => {
-                            return trace.unexpected_parse(e);
+                            return trace.err_parse(e);
                         }
                     }
                 }
@@ -1253,7 +1253,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                 return trace.err_track_map_parse(e, OFCode::OFCFnCall);
             }
             Err(e) => {
-                return trace.unexpected_parse(e);
+                return trace.err_parse(e);
             }
         };
     }
@@ -1296,8 +1296,7 @@ impl<'s> GeneralTerm<'s, Option<OFIri<'s>>> for IriTerm {
             }
             Err(e) if e.code == OFCString => trace.err_track_map_parse(e, OFCode::OFCIri),
             Err(e) if e.code == OFCSingleQuoteEnd => trace.err_track_map_parse(e, OFCode::OFCIri),
-
-            Err(e) => trace.unexpected_parse(e),
+            Err(e) => trace.err_parse(e),
         }
     }
 }
@@ -1328,21 +1327,16 @@ impl<'s> GeneralTerm<'s, Option<OFSheetName<'s>>> for SheetNameTerm {
                     conv::unquote_single(sheet_name),
                     span,
                 );
-
                 (span, rest1, Some(term))
             }
             Err(e) if e.code == OFCSingleQuoteStart => {
                 trace.suggest(OFCSheetName);
                 (empty(rest), rest, None)
             }
-
-            Err(e) if e.code == OFCString => {
+            Err(e) if e.code == OFCString || e.code == OFCSingleQuoteEnd => {
                 return trace.err_track_map_parse(e, OFCode::OFCSheetName);
             }
-            Err(e) if e.code == OFCSingleQuoteEnd => {
-                return trace.err_track_map_parse(e, OFCode::OFCSheetName);
-            }
-            Err(e) => return trace.unexpected_parse(e),
+            Err(e) => return trace.err_parse(e),
         };
 
         trace.ok(span, rest, sheet_name)
@@ -1370,7 +1364,7 @@ impl<'s> GeneralTerm<'s, ()> for ColonTerm {
             Err(e) if e.code == OFCColon => {
                 return trace.err_track_map_parse(e, OFCode::OFCColon);
             }
-            Err(e) => return trace.unexpected_parse(e),
+            Err(e) => return trace.err_parse(e),
         };
 
         trace.ok(dot, rest, ())
@@ -1441,7 +1435,7 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                 trace.suggest(OFCIdentifier);
                 (rest, None)
             }
-            Err(e) => return trace.unexpected_parse(e),
+            Err(e) => return trace.err_parse(e),
         };
 
         // If we found a name we're good.
@@ -1456,7 +1450,7 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                 Err(e) if e.code == OFCDollarDollar => {
                     return trace.err_track_map_parse(e, OFCode::OFCDollarDollar);
                 }
-                Err(e) => return trace.unexpected_parse(e),
+                Err(e) => return trace.err_parse(e),
             };
 
             // Identifier
@@ -1467,10 +1461,9 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                 }
                 Err(e) if e.code == OFCIdentifier => {
                     trace.suggest(OFCIdentifier);
-
                     (rest, None)
                 }
-                Err(e) => return trace.unexpected_parse(e),
+                Err(e) => return trace.err_parse(e),
             };
 
             // SingleQuoted
@@ -1483,16 +1476,14 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                         let term = OFAst::simple_named(named_str, ident);
                         (rest1, term)
                     }
-                    Err(e) if e.code == OFCSingleQuoteStart => {
+                    Err(e)
+                        if e.code == OFCSingleQuoteStart
+                            || e.code == OFCString
+                            || e.code == OFCSingleQuoteEnd =>
+                    {
                         return trace.err_track_map_parse(e, OFCode::OFCSingleQuoted);
                     }
-                    Err(e) if e.code == OFCString => {
-                        return trace.err_track_map_parse(e, OFCode::OFCSingleQuoted);
-                    }
-                    Err(e) if e.code == OFCSingleQuoteEnd => {
-                        return trace.err_track_map_parse(e, OFCode::OFCSingleQuoted);
-                    }
-                    Err(e) => return trace.unexpected_parse(e),
+                    Err(e) => return trace.err_parse(e),
                 }
             };
 
