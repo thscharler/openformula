@@ -1,9 +1,9 @@
 mod spantest;
 
 use openformula::ast::parser::{
-    CellRangeExpr, CellRefExpr, ColRangeExpr, ColTerm, FnCallExpr, GeneralExpr, GeneralTerm,
-    IriTerm, NamedExpr, NumberExpr, ParenthesesExpr, ReferenceExpr, RowRangeExpr, RowTerm,
-    SheetNameTerm, StringExpr,
+    CellRangeExpr, CellRefExpr, ColRangeExpr, ColTerm, ElementaryExpr, FnCallExpr, GeneralExpr,
+    GeneralTerm, IriTerm, NamedExpr, NumberExpr, ParenthesesExpr, PrefixExpr, ReferenceExpr,
+    RowRangeExpr, RowTerm, SheetNameTerm, StringExpr,
 };
 use openformula::ast::{OFAst, OFIri, OFSheetName};
 use openformula::error::OFCode::*;
@@ -17,8 +17,33 @@ use spantest::*;
 // TODO: PowExpr
 // TODO: PostfixExpr
 // TODO: PrefixExpr
-// TODO: ElementaryExpr
-// TODO: NumberExpr
+
+#[test]
+pub fn prefix() {
+    TestRun::parse("", PrefixExpr::parse)
+        .err(OFCPrefix)
+        .trace()
+        .q();
+    TestRun::parse("--5", PrefixExpr::parse).okok().q();
+    TestRun::parse("+-5", PrefixExpr::parse).okok().q();
+    TestRun::parse(" + - 5", PrefixExpr::parse).okok().q();
+}
+
+#[test]
+pub fn elementary() {
+    TestRun::parse("", ElementaryExpr::parse)
+        .expect(OFCElementary)
+        .q();
+    TestRun::parse("123", ElementaryExpr::parse).okok().q();
+    TestRun::parse("\"abc\"", ElementaryExpr::parse).okok().q();
+    TestRun::parse("(1)", ElementaryExpr::parse).okok().q();
+    TestRun::parse(".A1", ElementaryExpr::parse).okok().q();
+    TestRun::parse("FUN(2)", ElementaryExpr::parse).okok().q();
+    TestRun::parse(".NAMED", ElementaryExpr::parse)
+        .okok()
+        .trace()
+        .q();
+}
 
 #[test]
 pub fn number() {
