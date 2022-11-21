@@ -422,7 +422,7 @@ impl<'s> Tracer<'s> {
     /// Panics
     ///
     /// Always.
-    pub fn unexpected_parse<'t>(&'t self, err: ParseOFError<'s>) -> ParseResult<'s, T> {
+    pub fn unexpected_parse<'t, T>(&'t self, err: ParseOFError<'s>) -> ParseResult<'s, T> {
         self.err_map_parse(err, OFCUnexpected)
     }
 
