@@ -14,17 +14,17 @@ use std::fmt::{Debug, Formatter};
 /// Follows the parsing.
 #[derive(Default)]
 pub struct Tracer<'s> {
-    /// Collected tracks.
-    pub tracks: RefCell<Vec<Track<'s>>>,
+    /// Last fn tracked via enter.
+    pub func: RefCell<Vec<OFCode>>,
     /// In an optional branch.
-    pub optional: RefCell<Vec<&'static str>>,
+    pub optional: RefCell<Vec<OFCode>>,
+
     /// Suggestions
-    //pub suggest: RefCell<Vec<OFCode>>,
     pub suggest: RefCell<Vec<Suggest>>,
     /// Expected
     pub expect: RefCell<Vec<OFCode>>,
-    /// Last fn tracked via enter.
-    pub func: RefCell<Vec<&'static str>>,
+    /// Collected tracks.
+    pub tracks: RefCell<Vec<Track<'s>>>,
 }
 
 impl<'s> Debug for Tracer<'s> {
@@ -60,13 +60,13 @@ impl<'s> Debug for Tracer<'s> {
 
         write!(f, "    func=")?;
         for func in &*self.func.borrow() {
-            write!(f, "{} ", func)?;
+            write!(f, "{:?} ", func)?;
         }
         writeln!(f)?;
 
         write!(f, "    optional=")?;
         for optional in &*self.optional.borrow() {
-            write!(f, "{} ", optional)?;
+            write!(f, "{:?} ", optional)?;
         }
         writeln!(f)?;
 
@@ -100,7 +100,7 @@ impl<'s> Tracer<'s> {
     /// * nom
     /// * map_tok
     /// * tok  
-    pub fn enter(&self, func: &'static str, span: Span<'s>) {
+    pub fn enter(&self, func: OFCode, span: Span<'s>) {
         self.func.borrow_mut().push(func);
         self.suggest.borrow_mut().push(Suggest {
             func: func.to_string(),
@@ -139,7 +139,7 @@ impl<'s> Tracer<'s> {
     /// this name is exited via one of the exit functions.
     ///
     /// This can savely be called before and after enter of the function.
-    pub fn optional(&self, func: &'static str) {
+    pub fn optional(&self, func: OFCode) {
         self.optional.borrow_mut().push(func);
     }
 
@@ -150,7 +150,7 @@ impl<'s> Tracer<'s> {
 
     /// Looses one optional layer if the function matches.
     /// Called by each exit function.
-    fn maybe_drop_optional(&self, func: &'static str) {
+    fn maybe_drop_optional(&self, func: OFCode) {
         let mut b_optional = self.optional.borrow_mut();
         if let Some(opt) = b_optional.last() {
             if *opt == func {
@@ -282,7 +282,7 @@ impl<'s> Tracer<'s> {
     // Leaves the current function as is.
     fn track_parseoferror(&self, err: &ParseOFError<'s>) {
         let func_vec = self.func.borrow();
-        let func = func_vec.last().unwrap();
+        let func = *func_vec.last().unwrap();
         self.tracks.borrow_mut().push(Track::Error(
             func,
             self.in_optional(),
@@ -292,7 +292,7 @@ impl<'s> Tracer<'s> {
     }
 
     // Pops the suggestions for the current function.
-    fn track_suggest_exit(&self, _func: &str) {
+    fn track_suggest_exit(&self, _func: OFCode) {
         let mut su_vec = self.suggest.borrow_mut();
 
         match su_vec.pop() {
@@ -406,6 +406,7 @@ impl<'s> Tracer<'s> {
     ///
     /// Panics if there was no call to enter() before.
     pub fn err_parse<'t, T>(&'t self, err: ParseOFError<'s>) -> ParseResult<'s, T> {
+        self.auto_expect(&err);
         self.err_track_parseoferror_exit(&err);
         Err(err)
     }
@@ -539,17 +540,17 @@ impl Debug for Suggest {
 /// One track of the parsing trace.
 pub enum Track<'s> {
     /// Function where this occurred and the input span.
-    Enter(&'static str, Span<'s>),
+    Enter(OFCode, Span<'s>),
     /// Function with an extra step.
-    Step(&'static str, &'static str, Span<'s>),
+    Step(OFCode, &'static str, Span<'s>),
     /// Internal tracing.
-    Detail(&'static str, String),
+    Detail(OFCode, String),
     /// Function where this occurred and the remaining span.
-    Ok(&'static str, Span<'s>, Span<'s>),
+    Ok(OFCode, Span<'s>, Span<'s>),
     /// Function where this occurred and some error info.
-    Error(&'static str, bool, String, Span<'s>),
+    Error(OFCode, bool, String, Span<'s>),
     /// Exit the function
-    Exit(&'static str),
+    Exit(OFCode),
 }
 
 impl<'s> Track<'s> {

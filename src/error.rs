@@ -2,7 +2,7 @@ use crate::ast::conv::{ParseColnameError, ParseRownameError};
 use crate::ast::Span;
 use crate::error::OFCode::*;
 use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display, Formatter, Write};
 
 #[derive(Debug)]
 pub struct ParseOFError<'s> {
@@ -22,6 +22,7 @@ pub enum OFCode {
     /// Parsing didn't parse all of the string.
     OFCParseIncomplete,
 
+    OFCAdd,
     OFCAddOp,
     OFCAlpha,
     OFCBracketsClose,
@@ -32,6 +33,7 @@ pub enum OFCode {
     OFCColRange,
     OFCColname,
     OFCColon,
+    OFCComp,
     OFCCompOp,
     OFCDigit,
     OFCDollar,
@@ -293,6 +295,15 @@ impl<'s> ParseOFError<'s> {
 }
 
 impl<'s> Error for ParseOFError<'s> {}
+
+impl Display for OFCode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut buf = String::new();
+        write!(buf, "{:?}", self)?;
+        write!(f, "{}", buf.strip_prefix("OFC").unwrap())?;
+        Ok(())
+    }
+}
 
 /// Adds a span as location and converts the error to our own type..
 pub trait LocateError<'s, T, E> {
