@@ -20,10 +20,7 @@ use spantest::*;
 
 #[test]
 pub fn prefix() {
-    TestRun::parse("", PrefixExpr::parse)
-        .err(OFCPrefix)
-        .trace()
-        .q();
+    TestRun::parse("", PrefixExpr::parse).err(OFCPrefix).q();
     TestRun::parse("--5", PrefixExpr::parse).okok().q();
     TestRun::parse("+-5", PrefixExpr::parse).okok().q();
     TestRun::parse(" + - 5", PrefixExpr::parse).okok().q();
@@ -39,9 +36,9 @@ pub fn elementary() {
     TestRun::parse("(1)", ElementaryExpr::parse).okok().q();
     TestRun::parse(".A1", ElementaryExpr::parse).okok().q();
     TestRun::parse("FUN(2)", ElementaryExpr::parse).okok().q();
-    TestRun::parse(".NAMED", ElementaryExpr::parse)
-        .okok()
-        .trace()
+    TestRun::parse(".NAMED", ElementaryExpr::parse).okok().q();
+    TestRun::parse("FUN(RAW(2 X))", ElementaryExpr::parse)
+        .err(OFCElementary)
         .q();
 }
 
@@ -621,7 +618,10 @@ pub fn fncall() {
     TestRun::parse(" FUN(;;66)", FnCallExpr::parse)
         .ok(name, "FUN")
         .q();
-    TestRun::parse("FUN", FnCallExpr::parse).dump();
+    TestRun::parse("FUN", FnCallExpr::parse)
+        .err(OFCFnCall)
+        .expect(OFCParenthesesOpen)
+        .q();
     TestRun::parse(" FUN ( ; ; 66 ) ", FnCallExpr::parse)
         .ok(name, "FUN")
         .q();
