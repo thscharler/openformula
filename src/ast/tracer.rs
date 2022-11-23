@@ -170,14 +170,13 @@ impl<'s> Tracer<'s> {
                     None => su_vec.push(su), // was the last, keep
                     Some(last) => {
                         // add to last
-                        if !su.codes.is_empty() {
+                        if !su.codes.is_empty() || !su.next.is_empty() {
                             last.next.push(su);
                         }
                     }
                 }
             }
         }
-        // dbg!(&su_vec);
     }
 }
 
