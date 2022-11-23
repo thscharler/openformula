@@ -5,9 +5,8 @@
 //!
 
 use crate::ast::{ParseResult, Span};
-use crate::error::{OFCode, ParseOFError};
+use crate::error::{AddExpect, Expect, OFCode, OFSpan, ParseOFError, Suggest};
 use std::cell::RefCell;
-use std::fmt;
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
 
@@ -149,14 +148,18 @@ impl<'s> Tracer<'s> {
             None => unreachable!(),
             Some(su) => {
                 if let Some(&last) = su.codes.last() {
-                    if last.1 != code {
-                        su.codes.push((span, code));
+                    if last.code != code {
+                        su.codes.push(OFSpan { span, code });
                     }
                 } else {
-                    su.codes.push((span, code));
+                    su.codes.push(OFSpan { span, code });
                 }
             }
         }
+    }
+
+    fn clone_suggest<'t>(&'t self) -> Suggest<'s> {
+        self.suggest.borrow().last().unwrap().clone()
     }
 
     // Pops the suggestions for the current function.
@@ -186,17 +189,25 @@ impl<'s> Tracer<'s> {
     ///
     /// Collect information about mandatory expected tokens. There can
     /// be any number of these, if at least one of many options is required.
-    pub fn expect(&self, code: OFCode, span: Span<'s>) {
+    pub fn expect(&self, err: &mut ParseOFError<'s>) {
+        // track for the err
+        if let Some(expect) = &mut err.expect {
+            expect.add_expect(self.func(), err.span, err.code);
+        }
+
+        // track here
         if self.in_optional() {
-            self.suggest(code, span);
+            self.suggest(err.code, err.span);
         } else {
-            self.add_expect(code, span);
+            self.expect
+                .borrow_mut()
+                .add_expect(self.func(), err.span, err.code);
         }
     }
 
     pub fn is_expected(&self, code: OFCode) -> bool {
         for expect in &*self.expect.borrow() {
-            if expect.code == code {
+            if expect.expect.code == code {
                 return true;
             }
         }
@@ -212,23 +223,6 @@ impl<'s> Tracer<'s> {
             let _ = write!(buf, "{:?} ", s);
         }
         buf
-    }
-
-    fn add_expect(&self, code: OFCode, span: Span<'s>) {
-        // check the last one. if it's the same code in a different
-        // function we can deduplicate.
-        let duplicate = match self.expect.borrow().last() {
-            None => false,
-            Some(expect) => expect.code == code,
-        };
-
-        if !duplicate {
-            self.expect.borrow_mut().push(Expect {
-                func: self.func(),
-                span,
-                code,
-            })
-        }
     }
 }
 
@@ -298,15 +292,24 @@ impl<'s> Tracer<'s> {
     ///
     /// Panics if there was no call to enter() before.
     pub fn err<'t, T>(&'t self, mut err: ParseOFError<'s>) -> ParseResult<'s, T> {
+        // First encounter with this error.
+        // Fill in the current suggestions and initialize the error tracking.
+        if err.suggest.is_none() {
+            err.suggest = Some(self.clone_suggest());
+        }
+        if err.expect.is_none() {
+            err.expect = Some(Vec::new());
+        }
+
         // if the error doesn't match the current function
         // we track the error and change the code.
         if err.code != self.func() {
-            self.expect(err.code, err.span);
+            self.expect(&mut err);
             self.track_error(&err);
             err.code = self.func();
         }
 
-        self.expect(err.code, err.span);
+        self.expect(&mut err);
         self.track_error(&err);
         self.track_exit();
 
@@ -390,71 +393,6 @@ impl<'s, 't, O> TrackParseResult<'s, 't, O> for ParseResult<'s, O> {
             Ok(_) => self,
             Err(e) => trace.err(e),
         }
-    }
-}
-
-pub struct Expect<'s> {
-    pub func: OFCode,
-    pub span: Span<'s>,
-    pub code: OFCode,
-}
-
-impl<'s> Debug for Expect<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}: {} \"{}\"]", self.func, self.code, self.span)?;
-        Ok(())
-    }
-}
-
-#[derive(Default)]
-pub struct Suggest<'s> {
-    pub func: OFCode,
-    pub codes: Vec<(Span<'s>, OFCode)>,
-    pub next: Vec<Suggest<'s>>,
-}
-
-// debug impl
-impl<'s> Suggest<'s> {
-    fn indent(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
-        for _ in 0..indent * 4 {
-            write!(f, " ")?;
-        }
-        Ok(())
-    }
-
-    pub fn arrow(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
-        if indent > 0 {
-            for _ in 0..((indent - 1) * 4) {
-                write!(f, " ")?;
-            }
-            for _ in ((indent - 1) * 4)..(indent * 4) - 2 {
-                write!(f, "-")?;
-            }
-            write!(f, "> ")?;
-        }
-        Ok(())
-    }
-
-    fn dbg_suggest(f: &mut Formatter<'_>, suggest: &Suggest<'s>, indent: u32) -> fmt::Result {
-        write!(f, "{} : ", suggest.func)?;
-        for (span, code) in &suggest.codes {
-            write!(f, "{:?} {} ", code, span.location_offset())?;
-        }
-
-        for su in &suggest.next {
-            writeln!(f)?;
-            Self::arrow(f, indent + 1)?;
-            Self::dbg_suggest(f, su, indent + 1)?;
-        }
-
-        Ok(())
-    }
-}
-
-impl<'s> Debug for Suggest<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Self::dbg_suggest(f, self, 0)?;
-        Ok(())
     }
 }
 

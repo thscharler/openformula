@@ -260,7 +260,7 @@ where
             }
             Err(e) => {
                 println!("{:?}", &self.trace);
-                println!("=> {}", e);
+                println!("=> {:?}", e);
             }
         }
         self
