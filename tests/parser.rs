@@ -1,14 +1,45 @@
 mod spantest;
 
 use openformula::ast::parser::{
-    CellRangeExpr, CellRefExpr, ColRangeExpr, ColTerm, ElementaryExpr, FnCallExpr, GeneralExpr,
-    GeneralTerm, IriTerm, NamedExpr, NumberExpr, ParenthesesExpr, PrefixExpr, ReferenceExpr,
-    RowRangeExpr, RowTerm, SheetNameTerm, StringExpr,
+    CellRangeExpr, CellRefExpr, ColRangeExpr, ColTerm, ElementaryExpr, Expr, FnCallExpr,
+    GeneralExpr, GeneralTerm, IriTerm, NamedExpr, NumberExpr, ParenthesesExpr, PrefixExpr,
+    ReferenceExpr, RowRangeExpr, RowTerm, SheetNameTerm, StringExpr,
 };
 use openformula::ast::{OFAst, OFIri, OFSheetName};
 use openformula::error::OFCode::*;
 
 use spantest::*;
+
+#[test]
+pub fn expr() {
+    TestRun::parse("471", Expr::parse).fail().q();
+    TestRun::parse(r#""strdata""#, Expr::parse).fail().q();
+    TestRun::parse("1+1", Expr::parse).fail().q();
+    TestRun::parse("(1+1)", Expr::parse).fail().q();
+    TestRun::parse("4*5+1", Expr::parse).fail().q();
+    TestRun::parse("4+5*2", Expr::parse).fail().q();
+    TestRun::parse("22 * FUN ( 77 )", Expr::parse).fail().q();
+    TestRun::parse("17 + FUN(  )", Expr::parse).fail().q();
+    TestRun::parse("1+2*3^4", Expr::parse).fail().q();
+    TestRun::parse("27+(19*.A5)", Expr::parse).fail().q();
+}
+
+#[test]
+pub fn expr_fail() {
+    TestRun::parse("471X", Expr::parse).fail().q();
+    // TestRun::parse(r#""strdata"#, Expr::parse).fail().q();
+    // TestRun::parse("1+", Expr::parse).fail().q();
+    // TestRun::parse("(1+1", Expr::parse).fail().q();
+    // TestRun::parse("XX", Expr::parse).fail().q();
+    // TestRun::parse("4*5+", Expr::parse).fail().q();
+    // TestRun::parse("4+5*", Expr::parse).fail().q();
+    // TestRun::parse("22 * $FUN()", Expr::parse).fail().q();
+    // TestRun::parse("22 * FUN ( 77+  ", Expr::parse).fail().q();
+    // TestRun::parse("22 * FUN ( 77  ", Expr::parse).fail().q();
+    // TestRun::parse("22 * FUN 77 ) ", Expr::parse).fail().q();
+    // TestRun::parse("11 ^ FUN(   ;;.A)", Expr::parse).fail().q();
+    // TestRun::parse("11 ^ FUN(   ;;X)", Expr::parse).fail().q();
+}
 
 // TODO: Expr
 // TODO: CompareExpr

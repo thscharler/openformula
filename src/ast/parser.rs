@@ -173,7 +173,7 @@ impl<'s> GeneralExpr<'s> for CompareExpr {
                             }
                         }
                         Err(e) if e.code == OFCCompOp => {
-                            trace.suggest(OFCCompOp);
+                            trace.suggest(OFCCompOp, e.span);
                             break trace.ok(expr1.span(), loop_rest, expr1);
                         }
                         Err(e) => break trace.err(e),
@@ -227,13 +227,13 @@ impl<'s> GeneralExpr<'s> for AddExpr {
                                     expr1 = OFAst::add(expr1, op, expr2);
                                 }
                                 Err(e) => {
-                                    trace.suggest(OFCMul);
+                                    trace.suggest(OFCMul, e.span);
                                     break trace.err(e);
                                 }
                             }
                         }
                         Err(e) if e.code == OFCAddOp => {
-                            trace.suggest(OFCAddOp);
+                            trace.suggest(OFCAddOp, e.span);
                             break trace.ok(expr1.span(), loop_rest, expr1);
                         }
                         Err(e) => break trace.err(e),
@@ -286,12 +286,12 @@ impl<'s> GeneralExpr<'s> for MulExpr {
                                 expr1 = OFAst::mul(expr1, op, expr2);
                             }
                             Err(e) => {
-                                trace.suggest(OFCPow);
+                                trace.suggest(OFCPow, e.span);
                                 break trace.err(e);
                             }
                         },
                         Err(e) if e.code == OFCMulOp => {
-                            trace.suggest(OFCMulOp);
+                            trace.suggest(OFCMulOp, e.span);
                             break trace.ok(expr1.span(), loop_rest, expr1);
                         }
                         Err(e) => break trace.err(e),
@@ -336,7 +336,6 @@ impl<'s> GeneralExpr<'s> for PowExpr {
             Ok((mut loop_rest, mut expr1)) => {
                 //
                 loop {
-                    trace.suggest(OFCPowOp);
                     match Self::operator(trace, eat_space(loop_rest)) {
                         Ok((rest2, op)) => {
                             //
@@ -351,7 +350,7 @@ impl<'s> GeneralExpr<'s> for PowExpr {
                             }
                         }
                         Err(e) if e.code == OFCPowOp => {
-                            trace.suggest(OFCPowOp);
+                            trace.suggest(OFCPowOp, e.span);
                             break trace.ok(expr1.span(), loop_rest, expr1);
                         }
                         Err(e) => break trace.err(e),
@@ -405,7 +404,7 @@ impl<'s> GeneralExpr<'s> for PostfixExpr {
                             expr = OFAst::postfix(expr, tok);
                         }
                         Err(e) if e.code == OFCPostfixOp => {
-                            trace.suggest(OFCPostfixOp);
+                            trace.suggest(OFCPostfixOp, e.span);
                             break (loop_rest, expr);
                         }
                         Err(e) => return trace.err(e),
@@ -462,7 +461,7 @@ impl<'s> GeneralExpr<'s> for PrefixExpr {
                     op_vec.push(op);
                 }
                 Err(e) if e.code == OFCPrefixOp => {
-                    trace.suggest(OFCPrefixOp);
+                    trace.suggest(OFCPrefixOp, e.span);
                     break loop_rest;
                 }
                 Err(e) => return trace.err(e),
@@ -510,7 +509,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCNumber => {
-                trace.suggest(OFCNumber);
+                trace.suggest(OFCNumber, e.span);
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -522,7 +521,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCString => {
-                trace.suggest(OFCString);
+                trace.suggest(OFCString, e.span);
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -534,7 +533,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCParentheses => {
-                trace.suggest(OFCParentheses);
+                trace.suggest(OFCParentheses, e.span);
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -546,7 +545,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCReference => {
-                trace.suggest(OFCReference);
+                trace.suggest(OFCReference, e.span);
                 /* skip, no reference */
             }
             Err(e) => return trace.err(e),
@@ -558,7 +557,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCFnCall => {
-                trace.suggest(OFCFnCall);
+                trace.suggest(OFCFnCall, e.span);
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -570,7 +569,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCNamed => {
-                trace.suggest(OFCNamed);
+                trace.suggest(OFCNamed, e.span);
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -743,7 +742,7 @@ impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
         let (rest, col) = match tokens::col(rest) {
             Ok((rest, col)) => (rest, col),
             Err(e) if e.code == OFCAlpha => {
-                trace.suggest(OFCDollar);
+                trace.suggest(OFCDollar, e.span);
                 return trace.err(e);
             }
             Err(e) => {
@@ -778,7 +777,7 @@ impl<'s> GeneralTerm<'s, OFRow<'s>> for RowTerm {
         let (rest, row) = match tokens::row(rest) {
             Ok((rest, row)) => (rest, row),
             Err(e) if e.code == OFCDigit => {
-                trace.suggest(OFCDollar);
+                trace.suggest(OFCDollar, e.span);
                 return trace.err(e);
             }
             Err(e) => {
@@ -1137,7 +1136,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                     }
                     Err(e) if e.code == OFCSemikolon => {
                         // Optional
-                        trace.suggest(OFCSemikolon);
+                        trace.suggest(OFCSemikolon, e.span);
                     }
                     Err(e) => {
                         return trace.err(e);
@@ -1162,7 +1161,6 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                     };
 
                     // Followed by a separator.
-                    trace.suggest(OFCSeparator);
                     let sep1 = match tokens::semikolon(eat_space(loop_rest)) {
                         Ok((rest2, sep1)) => {
                             loop_rest = rest2;
@@ -1170,7 +1168,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         }
                         Err(e) if e.code == OFCSemikolon => {
                             // Optional
-                            trace.suggest(OFCSemikolon);
+                            trace.suggest(OFCSemikolon, e.span);
                             None
                         }
                         Err(e) => {
@@ -1272,7 +1270,7 @@ impl<'s> GeneralTerm<'s, Option<OFIri<'s>>> for IriTerm {
 
             // Fail to start any of these
             Err(e) if e.code == OFCSingleQuoteStart || e.code == OFCHashtag => {
-                trace.suggest(OFCIri);
+                trace.suggest(OFCIri, e.span);
                 trace.ok(empty(rest), rest, None)
             }
             Err(e) if e.code == OFCString => trace.err(e),
@@ -1311,7 +1309,7 @@ impl<'s> GeneralTerm<'s, Option<OFSheetName<'s>>> for SheetNameTerm {
                 (span, rest1, Some(term))
             }
             Err(e) if e.code == OFCSingleQuoteStart => {
-                trace.suggest(OFCSheetName);
+                trace.suggest(OFCSheetName, e.span);
                 (empty(rest), rest, None)
             }
             Err(e) if e.code == OFCString || e.code == OFCSingleQuoteEnd => {
@@ -1412,7 +1410,7 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                 (rest1, Some(term))
             }
             Err(e) if e.code == OFCIdentifier => {
-                tracer.suggest(OFCIdentifier);
+                tracer.suggest(OFCIdentifier, e.span);
                 (rest, None)
             }
             Err(e) => return tracer.err(e),
@@ -1440,7 +1438,7 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
                     (rest1, Some(term))
                 }
                 Err(e) if e.code == OFCIdentifier => {
-                    tracer.suggest(OFCIdentifier);
+                    tracer.suggest(OFCIdentifier, e.span);
                     (rest, None)
                 }
                 Err(e) => return tracer.err(e),

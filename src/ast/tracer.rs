@@ -26,7 +26,7 @@ pub struct Tracer<'s> {
     pub expect: RefCell<Vec<Expect<'s>>>,
 
     /// Suggestions
-    pub suggest: RefCell<Vec<Suggest>>,
+    pub suggest: RefCell<Vec<Suggest<'s>>>,
 }
 
 // Functions and Tracks.
@@ -123,9 +123,9 @@ impl<'s> Tracer<'s> {
     ///
     /// Keeps a list of suggestions that can be used for user interaction.
     /// This list accumulates endlessly until clear_suggestions is called.
-    pub fn suggest(&self, suggest: OFCode) {
+    pub fn suggest(&self, suggest: OFCode, span: Span<'s>) {
         self.detail(format!("suggest {:?}", suggest));
-        self.add_suggest(suggest);
+        self.add_suggest(suggest, span);
     }
 
     /// Return the suggestions as a String.
@@ -144,16 +144,16 @@ impl<'s> Tracer<'s> {
         });
     }
 
-    fn add_suggest(&self, suggest: OFCode) {
+    fn add_suggest(&self, code: OFCode, span: Span<'s>) {
         match self.suggest.borrow_mut().last_mut() {
             None => unreachable!(),
             Some(su) => {
                 if let Some(&last) = su.codes.last() {
-                    if last != suggest {
-                        su.codes.push(suggest);
+                    if last.1 != code {
+                        su.codes.push((span, code));
                     }
                 } else {
-                    su.codes.push(suggest);
+                    su.codes.push((span, code));
                 }
             }
         }
@@ -177,6 +177,7 @@ impl<'s> Tracer<'s> {
                 }
             }
         }
+        // dbg!(&su_vec);
     }
 }
 
@@ -188,7 +189,7 @@ impl<'s> Tracer<'s> {
     /// be any number of these, if at least one of many options is required.
     pub fn expect(&self, code: OFCode, span: Span<'s>) {
         if self.in_optional() {
-            self.suggest(code);
+            self.suggest(code, span);
         } else {
             self.add_expect(code, span);
         }
@@ -407,14 +408,14 @@ impl<'s> Debug for Expect<'s> {
 }
 
 #[derive(Default)]
-pub struct Suggest {
+pub struct Suggest<'s> {
     pub func: OFCode,
-    pub codes: Vec<OFCode>,
-    pub next: Vec<Suggest>,
+    pub codes: Vec<(Span<'s>, OFCode)>,
+    pub next: Vec<Suggest<'s>>,
 }
 
 // debug impl
-impl Suggest {
+impl<'s> Suggest<'s> {
     fn indent(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
         for _ in 0..indent * 4 {
             write!(f, " ")?;
@@ -435,10 +436,10 @@ impl Suggest {
         Ok(())
     }
 
-    fn dbg_suggest(f: &mut Formatter<'_>, suggest: &Suggest, indent: u32) -> fmt::Result {
+    fn dbg_suggest(f: &mut Formatter<'_>, suggest: &Suggest<'s>, indent: u32) -> fmt::Result {
         write!(f, "{} : ", suggest.func)?;
-        for code in &suggest.codes {
-            write!(f, "{:?} ", code)?;
+        for (span, code) in &suggest.codes {
+            write!(f, "{:?} {} ", code, span.location_offset())?;
         }
 
         for su in &suggest.next {
@@ -451,7 +452,7 @@ impl Suggest {
     }
 }
 
-impl Debug for Suggest {
+impl<'s> Debug for Suggest<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Self::dbg_suggest(f, self, 0)?;
         Ok(())
