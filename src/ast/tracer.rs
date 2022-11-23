@@ -6,7 +6,7 @@
 
 use crate::ast::{ParseResult, Span};
 use crate::error::{OFCode, ParseOFError};
-use std::cell::{Ref, RefCell};
+use std::cell::RefCell;
 use std::fmt;
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
@@ -14,17 +14,308 @@ use std::fmt::{Debug, Formatter};
 /// Follows the parsing.
 #[derive(Default)]
 pub struct Tracer<'s> {
-    /// Last fn tracked via enter.
+    /// Function call stack.
     pub func: RefCell<Vec<OFCode>>,
-    /// In an optional branch.
+    /// Collected tracks.
+    pub tracks: RefCell<Vec<Track<'s>>>,
+
+    /// Optional flag stack.
     pub optional: RefCell<Vec<OFCode>>,
+
+    /// Expected
+    pub expect: RefCell<Vec<Expect<'s>>>,
 
     /// Suggestions
     pub suggest: RefCell<Vec<Suggest>>,
-    /// Expected
-    pub expect: RefCell<Vec<OFCode>>,
-    /// Collected tracks.
-    pub tracks: RefCell<Vec<Track<'s>>>,
+}
+
+// Functions and Tracks.
+impl<'s> Tracer<'s> {
+    /// New one.
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    fn push_func(&self, func: OFCode) {
+        self.func.borrow_mut().push(func);
+    }
+
+    fn func(&self) -> OFCode {
+        *self.func.borrow().last().unwrap()
+    }
+
+    fn pop_func(&self) {
+        self.func.borrow_mut().pop();
+    }
+
+    fn track_enter(&self, span: Span<'s>) {
+        self.tracks
+            .borrow_mut()
+            .push(Track::Enter(self.func(), span));
+    }
+
+    fn track_step(&self, step: &'static str, span: Span<'s>) {
+        self.tracks
+            .borrow_mut()
+            .push(Track::Step(self.func(), step, span));
+    }
+
+    fn track_detail(&self, step: String) {
+        self.tracks
+            .borrow_mut()
+            .push(Track::Detail(self.func(), step));
+    }
+
+    fn track_ok(&self, rest: Span<'s>, span: Span<'s>) {
+        self.tracks
+            .borrow_mut()
+            .push(Track::Ok(self.func(), span, rest));
+    }
+
+    fn track_error(&self, err: &ParseOFError<'s>) {
+        self.tracks.borrow_mut().push(Track::Error(
+            self.func(),
+            self.in_optional(),
+            err.to_string(),
+            err.span,
+        ));
+    }
+
+    fn track_exit(&self) {
+        self.tracks.borrow_mut().push(Track::Exit(self.func()));
+    }
+}
+
+// Optional machinery.
+impl<'s> Tracer<'s> {
+    /// About to enter an optional part of the parser.
+    ///
+    /// All calls to optional are noted in a stack, so recursion
+    /// works fine. The stack is cleaned up when a function with
+    /// this name is exited via one of the exit functions.
+    ///
+    /// This can savely be called before and after enter of the function.
+    pub fn optional(&self, func: OFCode) {
+        self.optional.borrow_mut().push(func);
+    }
+
+    /// In an optional branch.
+    fn in_optional(&self) -> bool {
+        self.optional.borrow().last().is_some()
+    }
+
+    /// Looses one optional layer if the function matches.
+    /// Called by each exit function.
+    fn pop_optional(&self) {
+        let mut optional = self.optional.borrow_mut();
+
+        if let Some(code) = optional.last() {
+            if *code == self.func() {
+                optional.pop();
+            }
+        }
+    }
+}
+
+// Suggest machinery
+impl<'s> Tracer<'s> {
+    /// Suggested tokens.
+    ///
+    /// Keeps a list of suggestions that can be used for user interaction.
+    /// This list accumulates endlessly until clear_suggestions is called.
+    pub fn suggest(&self, suggest: OFCode) {
+        self.detail(format!("suggest {:?}", suggest));
+        self.add_suggest(suggest);
+    }
+
+    /// Return the suggestions as a String.
+    pub fn suggest_str(&self) -> String {
+        let mut buf = String::new();
+        for s in &*self.suggest.borrow() {
+            let _ = write!(buf, "{:?}, ", s);
+        }
+        buf
+    }
+
+    fn push_suggest(&self, func: OFCode) {
+        self.suggest.borrow_mut().push(Suggest {
+            func,
+            ..Default::default()
+        });
+    }
+
+    fn add_suggest(&self, suggest: OFCode) {
+        match self.suggest.borrow_mut().last_mut() {
+            None => unreachable!(),
+            Some(su) => {
+                if let Some(&last) = su.codes.last() {
+                    if last != suggest {
+                        su.codes.push(suggest);
+                    }
+                } else {
+                    su.codes.push(suggest);
+                }
+            }
+        }
+    }
+
+    // Pops the suggestions for the current function.
+    fn pop_suggest(&self) {
+        let mut su_vec = self.suggest.borrow_mut();
+
+        match su_vec.pop() {
+            None => unreachable!(),
+            Some(su) => {
+                match su_vec.last_mut() {
+                    None => su_vec.push(su), // was the last, keep
+                    Some(last) => {
+                        // add to last
+                        if !su.codes.is_empty() {
+                            last.next.push(su);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Expect machinery
+impl<'s> Tracer<'s> {
+    /// Expected tokens.
+    ///
+    /// Collect information about mandatory expected tokens. There can
+    /// be any number of these, if at least one of many options is required.
+    pub fn expect(&self, code: OFCode, span: Span<'s>) {
+        if self.in_optional() {
+            self.suggest(code);
+        } else {
+            self.add_expect(code, span);
+        }
+    }
+
+    pub fn is_expected(&self, code: OFCode) -> bool {
+        for expect in &*self.expect.borrow() {
+            if expect.code == code {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// Expected tokens.
+    ///
+    /// Returns the list of expected tokens as a String.
+    pub fn expect_str(&self) -> String {
+        let mut buf = String::new();
+        for s in &*self.expect.borrow() {
+            let _ = write!(buf, "{:?} ", s);
+        }
+        buf
+    }
+
+    fn add_expect(&self, code: OFCode, span: Span<'s>) {
+        // check the last one. if it's the same code in a different
+        // function we can deduplicate.
+        let duplicate = match self.expect.borrow().last() {
+            None => false,
+            Some(expect) => expect.code == code,
+        };
+
+        if !duplicate {
+            self.expect.borrow_mut().push(Expect {
+                func: self.func(),
+                span,
+                code,
+            })
+        }
+    }
+}
+
+impl<'s> Tracer<'s> {
+    /// Entering a parser.
+    ///
+    /// For the tracing to work, all exit-points of a function have to
+    /// be accounted for.
+    ///
+    /// That means at each exit point you have to call either:
+    /// * ok
+    /// * parse
+    /// * map_nom
+    /// * nom
+    /// * map_tok
+    /// * tok  
+    pub fn enter(&self, func: OFCode, span: Span<'s>) {
+        self.push_func(func);
+        self.push_suggest(func);
+
+        self.track_enter(span);
+    }
+
+    /// Extra step.
+    ///
+    /// Panics
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn step(&self, step: &'static str, span: Span<'s>) {
+        self.track_step(step, span);
+    }
+
+    /// Extra information.
+    ///
+    /// Panics
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn detail<T: Into<String>>(&self, step: T) {
+        self.track_detail(step.into());
+    }
+
+    /// Ok in a parser.
+    ///
+    /// Returns the given value for ease of use.
+    /// Records the success with function, parsed span and rest span.
+    ///
+    /// Panics
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn ok<'t, T>(&'t self, span: Span<'s>, rest: Span<'s>, val: T) -> ParseResult<'s, T> {
+        self.track_ok(rest, span);
+        self.track_exit();
+
+        self.pop_optional();
+        self.pop_suggest();
+        self.pop_func();
+
+        Ok((rest, val))
+    }
+
+    /// Error in a parser.
+    ///
+    /// Keeps track of the error.
+    /// Marks the current function as complete.
+    ///
+    /// Panics
+    ///
+    /// Panics if there was no call to enter() before.
+    pub fn err<'t, T>(&'t self, mut err: ParseOFError<'s>) -> ParseResult<'s, T> {
+        // if the error doesn't match the current function
+        // we track the error and change the code.
+        if err.code != self.func() {
+            self.expect(err.code, err.span);
+            self.track_error(&err);
+            err.code = self.func();
+        }
+
+        self.expect(err.code, err.span);
+        self.track_error(&err);
+        self.track_exit();
+
+        self.pop_optional();
+        self.pop_suggest();
+        self.pop_func();
+
+        Err(err)
+    }
 }
 
 impl<'s> Debug for Tracer<'s> {
@@ -82,375 +373,6 @@ impl<'s> Debug for Tracer<'s> {
     }
 }
 
-impl<'s> Tracer<'s> {
-    /// New one.
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    /// Entering a parser.
-    ///
-    /// For the tracing to work, all exit-points of a function have to
-    /// be accounted for.
-    ///
-    /// That means at each exit point you have to call either:
-    /// * ok
-    /// * parse
-    /// * map_nom
-    /// * nom
-    /// * map_tok
-    /// * tok  
-    pub fn enter(&self, func: OFCode, span: Span<'s>) {
-        self.func.borrow_mut().push(func);
-        self.suggest.borrow_mut().push(Suggest {
-            func: func.to_string(),
-            codes: vec![],
-            suggest: vec![],
-        });
-        self.tracks.borrow_mut().push(Track::Enter(func, span));
-    }
-
-    /// Extra step.
-    ///
-    /// Panics
-    ///
-    /// Panics if there was no call to enter() before.
-    pub fn step(&self, step: &'static str, span: Span<'s>) {
-        let func = *self.func.borrow().last().unwrap();
-        self.tracks.borrow_mut().push(Track::Step(func, step, span));
-    }
-
-    /// Extra information.
-    ///
-    /// Panics
-    ///
-    /// Panics if there was no call to enter() before.
-    pub fn detail<T: Into<String>>(&self, step: T) {
-        let func = *self.func.borrow().last().unwrap();
-        self.tracks
-            .borrow_mut()
-            .push(Track::Detail(func, step.into()));
-    }
-
-    /// About to enter an optional part of the parser.
-    ///
-    /// All calls to optional are noted in a stack, so recursion
-    /// works fine. The stack is cleaned up if a function with
-    /// this name is exited via one of the exit functions.
-    ///
-    /// This can savely be called before and after enter of the function.
-    pub fn optional(&self, func: OFCode) {
-        self.optional.borrow_mut().push(func);
-    }
-
-    /// In an optional branch.
-    pub fn in_optional(&self) -> bool {
-        self.optional.borrow().last().is_some()
-    }
-
-    /// Looses one optional layer if the function matches.
-    /// Called by each exit function.
-    fn maybe_drop_optional(&self, func: OFCode) {
-        let mut b_optional = self.optional.borrow_mut();
-        if let Some(opt) = b_optional.last() {
-            if *opt == func {
-                b_optional.pop();
-            }
-        }
-    }
-
-    /// Suggested tokens.
-    ///
-    /// Keeps a list of suggestions that can be used for user interaction.
-    /// This list accumulates endlessly until clear_suggestions is called.
-    pub fn suggest(&self, suggest: OFCode) {
-        self.detail(format!("suggest {:?}", suggest));
-
-        match self.suggest.borrow_mut().last_mut() {
-            None => unreachable!(),
-            Some(su) => {
-                if let Some(&last) = su.codes.last() {
-                    if last != suggest {
-                        su.codes.push(suggest);
-                    }
-                } else {
-                    su.codes.push(suggest);
-                }
-            }
-        }
-    }
-
-    /// Returns the suggested tokens.
-    /// Leaves the contained vec empty!
-    // pub fn suggest_vec(&self) -> Ref<'_, Vec<OFCode>> {
-    //     todo!() // self.suggest.borrow()
-    // }
-
-    /// Return the suggestions as a String.
-    pub fn suggest_str(&self) -> String {
-        let mut buf = String::new();
-        for s in &*self.suggest.borrow() {
-            let _ = write!(buf, "{:?}, ", s);
-        }
-        buf
-    }
-
-    /// Remove all suggestions and expectations.
-    ///
-    /// Call this any time when the parser reaches a point where the
-    /// former suggestions from the parser are voided.
-    /// This are usually tokens that prevent backtracking before this point.
-    pub fn clear_suggest(&self) {
-        //self.detail("clear suggestions");
-        //self.suggest.borrow_mut().clear();
-    }
-
-    /// Remove all expectations.
-    ///
-    /// Call this any time when the parser reaches a point where the
-    /// former suggestions from the parser are voided.
-    /// This are usually tokens that prevent backtracking before this point.
-    pub fn clear_expect(&self) {
-        // self.detail("clear expectations");
-        // self.expect.borrow_mut().clear();
-    }
-
-    /// Expected tokens.
-    ///
-    /// Collect information about mandatory expected tokens. There can
-    /// be any number of these, if at least one of many options is required.
-    pub fn expect(&self, suggest: OFCode) {
-        if self.in_optional() {
-            self.suggest(suggest);
-        } else {
-            let last = self.expect.borrow().last().map(|v| *v);
-            if let Some(last) = last {
-                if last != suggest {
-                    self.detail(format!("expect {:?}", suggest));
-                    self.expect.borrow_mut().push(suggest);
-                }
-            } else {
-                self.detail(format!("expect {:?}", suggest));
-                self.expect.borrow_mut().push(suggest);
-            }
-        }
-    }
-
-    /// Returns the expected tokens.
-    /// Leaves the contained vec empty!
-    pub fn expect_vec(&self) -> Ref<'_, Vec<OFCode>> {
-        self.expect.borrow()
-    }
-
-    /// Expected tokens.
-    ///
-    /// Returns the list of expected tokens as a String.
-    pub fn expect_str(&self) -> String {
-        let mut buf = String::new();
-        for s in &*self.expect.borrow() {
-            let _ = write!(buf, "{:?}, ", s);
-        }
-        buf
-    }
-
-    #[track_caller]
-    fn dump_and_panic(&self, result: ParseOFError<'s>) -> ! {
-        eprintln!("{:?}", self);
-        eprintln!(
-            "found '{}' expected {} suggest {}",
-            result.span(),
-            self.expect_str(),
-            self.suggest_str()
-        );
-        eprintln!();
-        eprintln!("=> {}", result);
-
-        unreachable!();
-    }
-
-    // translate
-    fn map_parse_of_error(&self, mut err: ParseOFError<'s>, code: OFCode) -> ParseOFError<'s> {
-        // Translates the code with some exceptions.
-        if err.code != OFCode::OFCNomError
-            && err.code != OFCode::OFCNomFailure
-            && err.code != OFCode::OFCParseIncomplete
-        {
-            err.code = code;
-        }
-
-        err
-    }
-
-    fn auto_expect(&self, err: &ParseOFError<'s>) {
-        // Auto expect.
-        if err.code != OFCode::OFCNomError
-            && err.code != OFCode::OFCNomFailure
-            && err.code != OFCode::OFCParseIncomplete
-        {
-            self.expect(err.code);
-        }
-    }
-
-    // Fills the machinery ...
-    // Keeps track of the new error.
-    // Leaves the current function as is.
-    fn track_parseoferror(&self, err: &ParseOFError<'s>) {
-        let func_vec = self.func.borrow();
-        let func = *func_vec.last().unwrap();
-        self.tracks.borrow_mut().push(Track::Error(
-            func,
-            self.in_optional(),
-            err.to_string(),
-            *err.span(),
-        ));
-    }
-
-    // Pops the suggestions for the current function.
-    fn shuffle_suggest_at_exit(&self) {
-        let mut su_vec = self.suggest.borrow_mut();
-
-        match su_vec.pop() {
-            None => unreachable!(),
-            Some(su) => {
-                match su_vec.last_mut() {
-                    None => su_vec.push(su), // was the last, keep
-                    Some(last) => {
-                        // add to last
-                        if !su.codes.is_empty() {
-                            last.suggest.push(su);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Fills the machinery ...
-    // Keeps track of the new error.
-    // Marks the current function as complete.
-    fn track_parseoferror_and_exit(&self, err: &ParseOFError<'s>) {
-        let func = self.func.borrow_mut().pop().unwrap();
-
-        self.tracks.borrow_mut().push(Track::Error(
-            func,
-            self.in_optional(),
-            err.to_string(),
-            *err.span(),
-        ));
-
-        self.maybe_drop_optional(func);
-        self.shuffle_suggest_at_exit();
-
-        self.tracks.borrow_mut().push(Track::Exit(func));
-    }
-
-    // Records the success of a function.
-    fn track_ok_and_exit(&self, span: Span<'s>, rest: Span<'s>) {
-        let func = self.func.borrow_mut().pop().unwrap();
-
-        self.tracks.borrow_mut().push(Track::Ok(func, span, rest));
-
-        self.maybe_drop_optional(func);
-        self.shuffle_suggest_at_exit();
-
-        self.tracks.borrow_mut().push(Track::Exit(func));
-    }
-
-    /// Ok in a parser.
-    ///
-    /// Returns the given value for ease of use.
-    /// Records the success with function, parsed span and rest span.
-    ///
-    /// Panics
-    ///
-    /// Panics if there was no call to enter() before.
-    pub fn ok<'t, T>(&'t self, span: Span<'s>, rest: Span<'s>, val: T) -> ParseResult<'s, T> {
-        self.track_ok_and_exit(span, rest);
-        Ok((rest, val))
-    }
-
-    /// Error in a parser.
-    ///
-    /// Keeps track of the error.
-    /// Marks the current function as complete.
-    ///
-    /// Panics
-    ///
-    /// Panics if there was no call to enter() before.
-    pub fn err<'t, T>(&'t self, mut err: ParseOFError<'s>) -> ParseResult<'s, T> {
-        let func_code = *self.func.borrow_mut().last().unwrap();
-
-        // expect the code of the given error.
-        self.auto_expect(&err);
-        // track the given error, if it's different.
-        if err.code != func_code {
-            self.track_parseoferror(&err);
-        }
-
-        // change the error code to the current function.
-        err.code = func_code;
-        self.auto_expect(&err);
-
-        self.track_parseoferror_and_exit(&err);
-
-        Err(err)
-    }
-
-    // // translate ...
-    // fn map_nom_error(
-    //     &self,
-    //     err_fn: fn(span: Span<'s>) -> ParseOFError<'s>,
-    //     nom: nom::Err<nom::error::Error<Span<'s>>>,
-    // ) -> ParseOFError<'s> {
-    //     match nom {
-    //         nom::Err::Error(e) => err_fn(e.input),
-    //         nom::Err::Failure(e) => ParseOFError::new(OFCode::OFCNomFailure, e.input),
-    //         nom::Err::Incomplete(_) => unreachable!(),
-    //     }
-    // }
-
-    // /// Error in a parser.
-    // ///
-    // /// Maps a nom::Err::Error to one of the ParseOFErrors.
-    // /// If the error is a nom::Err::Failure it is mapped to ParseOFError::ErrNomFailure.
-    // /// Records the information in the error with the current function.
-    // /// Marks the current function as complete.
-    // ///
-    // /// Panics
-    // ///
-    // /// If the error is a nom::Err::Incomplete.
-    // /// Panics if there was no call to enter() before.
-    // pub fn err_map_nom<'t, T>(
-    //     &'t self,
-    //     err_fn: fn(span: Span<'s>) -> ParseOFError<'s>,
-    //     nom: nom::Err<nom::error::Error<Span<'s>>>,
-    // ) -> ParseResult<'s, T> {
-    //     let err = self.map_nom_error(err_fn, nom);
-    //     self.err_track_parseoferror_exit(&err);
-    //     Err(err)
-    // }
-
-    // /// Error in a parser.
-    // ///
-    // /// Maps a nom::Err::Error to ParseOFError::ErrNomError.
-    // /// If the error is a nom::Err::Failure it is mapped to ParseOFError::ErrNomFailure.
-    // /// Records the information in the error with the current function.
-    // /// Marks the current function as complete.
-    // ///
-    // /// Panics
-    // ///
-    // /// If the error is a nom::Err::Incomplete.
-    // /// Panics if there was no call to enter() before.
-    // pub fn err_nom<'t, T>(
-    //     &'t self,
-    //     nom: nom::Err<nom::error::Error<Span<'s>>>,
-    // ) -> ParseResult<'s, T> {
-    //     let err = self.map_nom_error(ParseOFError::err, nom);
-    //     self.err_track_parseoferror_exit(&err);
-    //     Err(err)
-    // }
-}
-
 /// Helps with keeping tracks in the parsers.
 ///
 /// This can be squeezed between the call to another parser and the ?-operator.
@@ -471,13 +393,27 @@ impl<'s, 't, O> TrackParseResult<'s, 't, O> for ParseResult<'s, O> {
     }
 }
 
-#[derive(Default)]
-pub struct Suggest {
-    pub func: String,
-    pub codes: Vec<OFCode>,
-    pub suggest: Vec<Suggest>,
+pub struct Expect<'s> {
+    pub func: OFCode,
+    pub span: Span<'s>,
+    pub code: OFCode,
 }
 
+impl<'s> Debug for Expect<'s> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "[{}: {} \"{}\"]", self.func, self.code, self.span)?;
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+pub struct Suggest {
+    pub func: OFCode,
+    pub codes: Vec<OFCode>,
+    pub next: Vec<Suggest>,
+}
+
+// debug impl
 impl Suggest {
     fn indent(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
         for _ in 0..indent * 4 {
@@ -505,7 +441,7 @@ impl Suggest {
             write!(f, "{:?} ", code)?;
         }
 
-        for su in &suggest.suggest {
+        for su in &suggest.next {
             writeln!(f)?;
             Self::arrow(f, indent + 1)?;
             Self::dbg_suggest(f, su, indent + 1)?;
@@ -536,19 +472,6 @@ pub enum Track<'s> {
     Error(OFCode, bool, String, Span<'s>),
     /// Exit the function
     Exit(OFCode),
-}
-
-impl<'s> Track<'s> {
-    pub fn span(&self) -> Option<&Span<'s>> {
-        match self {
-            Track::Enter(_, s) => Some(s),
-            Track::Step(_, _, s) => Some(s),
-            Track::Ok(_, _, s) => Some(s),
-            Track::Error(_, _, _, s) => Some(s),
-            Track::Detail(_, _) => None,
-            Track::Exit(_) => None,
-        }
-    }
 }
 
 impl<'s> Debug for Track<'s> {

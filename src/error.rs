@@ -13,8 +13,11 @@ pub struct ParseOFError<'s> {
 }
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Default)]
 pub enum OFCode {
+    #[default]
+    OFCDefault,
+
     /// Nom error.
     OFCNomError,
     /// Nom failure.
@@ -88,14 +91,12 @@ impl<'s> ParseOFError<'s> {
         }
     }
 
-    /// Return the error code.
-    pub fn code(&self) -> OFCode {
-        self.code
+    pub fn is_special(&self) -> bool {
+        self.code.is_special()
     }
 
-    /// Return the span.
-    pub fn span(&self) -> &Span<'s> {
-        &self.span
+    pub fn is_parser(&self) -> bool {
+        !self.code.is_special()
     }
 
     /// Create a ParseOFError from a nom::Err
@@ -105,16 +106,6 @@ impl<'s> ParseOFError<'s> {
             nom::Err::Failure(e) => ParseOFError::new(OFCNomFailure, e.input),
             nom::Err::Incomplete(_) => unreachable!(),
         }
-    }
-
-    /// NomError variant.
-    pub fn err(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(OFCNomError, span)
-    }
-
-    /// NomFailure variant.
-    pub fn fail(span: Span<'s>) -> ParseOFError<'s> {
-        ParseOFError::new(OFCNomFailure, span)
     }
 
     /// ParseIncomplete variant.
@@ -295,6 +286,15 @@ impl<'s> ParseOFError<'s> {
 }
 
 impl<'s> Error for ParseOFError<'s> {}
+
+impl OFCode {
+    pub fn is_special(&self) -> bool {
+        match self {
+            OFCDefault | OFCNomError | OFCNomFailure | OFCParseIncomplete => true,
+            _ => false,
+        }
+    }
+}
 
 impl Display for OFCode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

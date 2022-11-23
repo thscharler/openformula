@@ -264,7 +264,7 @@ impl<'a> CheckFailToken for ParseResult<'a, Span<'a>> {
             Err(e) => {
                 if e.code != kind {
                     println!("Failed with the wrong ErrorKind:");
-                    println!("    '{}' => result={} <> kind={:?}", e.span(), e, kind);
+                    println!("    '{}' => result={} <> kind={:?}", e.span, e, kind);
                     assert!(false);
                 }
             }
@@ -339,7 +339,7 @@ impl<'a> CheckFailToken for ParseResult<'a, (Option<Span<'a>>, Span<'a>)> {
             Err(e) => {
                 if e.code != kind {
                     println!("Failed with the wrong ErrorKind:");
-                    println!("    '{}' => result={} <> kind={:?}", e.span(), e, kind);
+                    println!("    '{}' => result={} <> kind={:?}", e.span, e, kind);
                     assert!(false);
                 }
             }

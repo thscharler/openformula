@@ -163,7 +163,6 @@ impl<'s> GeneralExpr<'s> for CompareExpr {
                 loop {
                     match Self::operator(trace, eat_space(loop_rest)) {
                         Ok((rest2, op)) => {
-                            trace.clear_suggest();
                             //
                             match AddExpr::parse(trace, eat_space(rest2)) {
                                 Ok((rest3, expr2)) => {
@@ -221,7 +220,6 @@ impl<'s> GeneralExpr<'s> for AddExpr {
                 loop {
                     match Self::operator(trace, eat_space(loop_rest)) {
                         Ok((rest2, op)) => {
-                            trace.clear_suggest();
                             //
                             match MulExpr::parse(trace, eat_space(rest2)) {
                                 Ok((rest3, expr2)) => {
@@ -282,20 +280,16 @@ impl<'s> GeneralExpr<'s> for MulExpr {
                 //
                 loop {
                     match Self::operator(trace, eat_space(loop_rest)) {
-                        Ok((rest2, op)) => {
-                            trace.clear_suggest();
-
-                            match PowExpr::parse(trace, eat_space(rest2)) {
-                                Ok((rest3, expr2)) => {
-                                    loop_rest = rest3;
-                                    expr1 = OFAst::mul(expr1, op, expr2);
-                                }
-                                Err(e) => {
-                                    trace.suggest(OFCPow);
-                                    break trace.err(e);
-                                }
+                        Ok((rest2, op)) => match PowExpr::parse(trace, eat_space(rest2)) {
+                            Ok((rest3, expr2)) => {
+                                loop_rest = rest3;
+                                expr1 = OFAst::mul(expr1, op, expr2);
                             }
-                        }
+                            Err(e) => {
+                                trace.suggest(OFCPow);
+                                break trace.err(e);
+                            }
+                        },
                         Err(e) if e.code == OFCMulOp => {
                             trace.suggest(OFCMulOp);
                             break trace.ok(expr1.span(), loop_rest, expr1);
@@ -345,7 +339,6 @@ impl<'s> GeneralExpr<'s> for PowExpr {
                     trace.suggest(OFCPowOp);
                     match Self::operator(trace, eat_space(loop_rest)) {
                         Ok((rest2, op)) => {
-                            trace.clear_suggest();
                             //
                             match PostfixExpr::parse(trace, eat_space(rest2)) {
                                 Ok((rest3, expr2)) => {
@@ -1167,7 +1160,6 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         }
                         Err(e) => return trace.err(e),
                     };
-                    trace.clear_suggest();
 
                     // Followed by a separator.
                     trace.suggest(OFCSeparator);
