@@ -19,9 +19,6 @@ pub struct Tracer<'s> {
     /// Collected tracks.
     pub tracks: RefCell<Vec<Track<'s>>>,
 
-    /// Optional flag stack.
-    pub optional: RefCell<Vec<OFCode>>,
-
     /// Expected
     pub expect: RefCell<Option<Expect<'s>>>,
     pub stashed: RefCell<Vec<Expect<'s>>>,
@@ -69,47 +66,13 @@ impl<'s> Tracer<'s> {
     }
 
     fn track_error(&self, err: &ParseOFError<'s>) {
-        self.tracks.borrow_mut().push(Track::Error(
-            self.func(),
-            self.in_optional(),
-            err.to_string(),
-            err.span,
-        ));
+        self.tracks
+            .borrow_mut()
+            .push(Track::Error(self.func(), err.to_string(), err.span));
     }
 
     fn track_exit(&self) {
         self.tracks.borrow_mut().push(Track::Exit(self.func()));
-    }
-}
-
-// Optional machinery.
-impl<'s> Tracer<'s> {
-    /// About to enter an optional part of the parser.
-    ///
-    /// All calls to optional are noted in a stack, so recursion
-    /// works fine. The stack is cleaned up when a function with
-    /// this name is exited via one of the exit functions.
-    ///
-    /// This can savely be called before and after enter of the function.
-    pub fn optional(&self, func: OFCode) {
-        self.optional.borrow_mut().push(func);
-    }
-
-    /// In an optional branch.
-    fn in_optional(&self) -> bool {
-        self.optional.borrow().last().is_some()
-    }
-
-    /// Looses one optional layer if the function matches.
-    /// Called by each exit function.
-    fn pop_optional(&self) {
-        let mut optional = self.optional.borrow_mut();
-
-        if let Some(code) = optional.last() {
-            if *code == self.func() {
-                optional.pop();
-            }
-        }
     }
 }
 
@@ -180,6 +143,12 @@ impl<'s> Tracer<'s> {
     }
 }
 
+#[derive(PartialEq)]
+enum ExpectDuplicate {
+    New,
+    Duplicate,
+}
+
 // Expect machinery
 impl<'s> Tracer<'s> {
     // Each ParseOFError stands for a failed expectation.
@@ -188,13 +157,13 @@ impl<'s> Tracer<'s> {
     // The point of origin gives the main code, everything up in the call hierarchy
     // are parent hints, every error below that has been marked as potentially interesting
     // and has been stashed away stands for some alternative that could have been met.
-    fn expect(&self, err: &mut ParseOFError<'s>, stash: Option<Expect<'s>>) {
+    fn expect(&self, err: &mut ParseOFError<'s>, stash: Option<Expect<'s>>) -> ExpectDuplicate {
         if let Some(exp) = &mut err.expect {
             // error in the middle of back tracing.
 
             // the same error is tracked twice in the caller and the callee.
             // these can be filtered out immediately.
-            if exp.same_as_last_par(err.code) {
+            if !exp.same_as_last_par(err.code) {
                 // there is already the original code.
                 // all new codes come from higher in the call stack
                 // and are added as parent codes.
@@ -207,8 +176,10 @@ impl<'s> Tracer<'s> {
                     // should be in sync!?
                     unreachable!();
                 }
+
+                ExpectDuplicate::New
             } else {
-                // ignore dup
+                ExpectDuplicate::Duplicate
             }
         } else {
             // new error.
@@ -231,6 +202,8 @@ impl<'s> Tracer<'s> {
                 }
             }
             *self.expect.borrow_mut() = Some(trexp);
+
+            ExpectDuplicate::New
         }
     }
 
@@ -340,7 +313,6 @@ impl<'s> Tracer<'s> {
         self.track_ok(rest, span);
         self.track_exit();
 
-        self.pop_optional();
         self.pop_stash();
         self.pop_suggest();
         self.pop_func();
@@ -368,16 +340,17 @@ impl<'s> Tracer<'s> {
         // if the error doesn't match the current function
         // we track the error and change the code.
         if err.code != self.func() {
-            self.expect(&mut err, None);
-            self.track_error(&err);
+            if self.expect(&mut err, None) == ExpectDuplicate::New {
+                self.track_error(&err);
+            }
             err.code = self.func();
         }
 
-        self.expect(&mut err, st);
-        self.track_error(&err);
+        if self.expect(&mut err, st) == ExpectDuplicate::New {
+            self.track_error(&err);
+        }
         self.track_exit();
 
-        self.pop_optional();
         self.pop_suggest();
         self.pop_func();
 
@@ -406,7 +379,7 @@ impl<'s> Debug for Tracer<'s> {
                 Track::Ok(_, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
                 }
-                Track::Error(_, _, _, _) => {
+                Track::Error(_, _, _) => {
                     writeln!(f, "{}{:?}", indent, tr)?;
                 }
                 Track::Exit(_) => {
@@ -419,12 +392,6 @@ impl<'s> Debug for Tracer<'s> {
         write!(f, "    func=")?;
         for func in &*self.func.borrow() {
             write!(f, "{:?} ", func)?;
-        }
-        writeln!(f)?;
-
-        write!(f, "    optional=")?;
-        for optional in &*self.optional.borrow() {
-            write!(f, "{:?} ", optional)?;
         }
         writeln!(f)?;
 
@@ -474,7 +441,7 @@ pub enum Track<'s> {
     /// Function where this occurred and the remaining span.
     Ok(OFCode, Span<'s>, Span<'s>),
     /// Function where this occurred and some error info.
-    Error(OFCode, bool, String, Span<'s>),
+    Error(OFCode, String, Span<'s>),
     /// Exit the function
     Exit(OFCode),
 }
@@ -498,14 +465,8 @@ impl<'s> Debug for Track<'s> {
                     write!(f, "{}: -> no match", func)?;
                 }
             }
-            Track::Error(func, opt, err_str, _err_span) => {
-                write!(
-                    f,
-                    "{}: {} err={} ",
-                    func,
-                    if *opt { "OPT" } else { "!!!" },
-                    err_str
-                )?;
+            Track::Error(func, err_str, _err_span) => {
+                write!(f, "{}: err={} ", func, err_str)?;
             }
             Track::Exit(func) => {
                 write!(f, "return {}: ", func)?;

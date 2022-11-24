@@ -128,7 +128,6 @@ struct CompareExpr;
 impl<'s> CompareExpr {
     fn operator<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFCompOp<'s>> {
         trace.enter(OFCCompOp, rest);
-        trace.optional(OFCCompOp);
         match tokens::comparison_op(rest) {
             Ok((rest, tok)) => match *tok {
                 "=" => trace.ok(tok, rest, OFCompOp::Equal(tok)),
@@ -190,7 +189,6 @@ struct AddExpr;
 impl<'s> AddExpr {
     fn operator<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFAddOp<'s>> {
         trace.enter(OFCAddOp, rest);
-        trace.optional(OFCAddOp);
         match tokens::add_op(rest) {
             Ok((rest, tok)) => match *tok {
                 "+" => trace.ok(tok, rest, OFAddOp::Add(tok)),
@@ -250,7 +248,6 @@ struct MulExpr;
 impl<'s> MulExpr {
     fn operator<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFMulOp<'s>> {
         trace.enter(OFCMulOp, rest);
-        trace.optional(OFCMulOp);
         match tokens::mul_op(rest) {
             Ok((rest, tok)) => match *tok {
                 "*" => trace.ok(tok, rest, OFMulOp::Multiply(tok)),
@@ -308,7 +305,6 @@ struct PowExpr;
 impl<'s> PowExpr {
     fn operator<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFPowOp<'s>> {
         trace.enter(OFCPowOp, rest);
-        trace.optional(OFCPowOp);
         match tokens::pow_op(rest) {
             Ok((rest, tok)) => match *tok {
                 "^" => trace.ok(tok, rest, OFPowOp::Power(tok)),
@@ -371,7 +367,6 @@ impl PostfixExpr {
         rest: Span<'s>,
     ) -> ParseResult<'s, OFPostfixOp<'s>> {
         trace.enter(OFCPostfixOp, rest);
-        trace.optional(OFCPostfixOp);
         match tokens::postfix_op(rest) {
             Ok((rest, tok)) => match *tok {
                 "%" => trace.ok(tok, rest, OFPostfixOp::Percent(tok)),
@@ -427,7 +422,6 @@ impl PrefixExpr {
         rest: Span<'s>,
     ) -> ParseResult<'s, OFPrefixOp<'s>> {
         trace.enter(OFCPrefixOp, rest);
-        trace.optional(OFCPrefixOp);
         match tokens::prefix_op(rest) {
             Ok((rest, tok)) => match *tok {
                 "+" => trace.ok(tok, rest, OFPrefixOp::Plus(tok)),
@@ -503,7 +497,6 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::id(), rest);
 
-        trace.optional(NumberExpr::id());
         match NumberExpr::parse(trace, eat_space(rest)) {
             Ok((rest, expr)) => {
                 return trace.ok(expr.span(), rest, expr);
@@ -515,7 +508,6 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
             Err(e) => return trace.err(e),
         }
 
-        trace.optional(StringExpr::id());
         match StringExpr::parse(trace, rest) {
             Ok((rest, expr)) => {
                 return trace.ok(expr.span(), rest, expr);
@@ -527,7 +519,6 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
             Err(e) => return trace.err(e),
         }
 
-        trace.optional(ParenthesesExpr::id());
         match ParenthesesExpr::parse(trace, rest) {
             Ok((rest, expr)) => {
                 return trace.ok(expr.span(), rest, expr);
@@ -539,7 +530,6 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
             Err(e) => return trace.err(e),
         }
 
-        trace.optional(ReferenceExpr::id());
         match ReferenceExpr::parse(trace, rest) {
             Ok((rest, expr)) => {
                 return trace.ok(expr.span(), rest, expr);
@@ -551,7 +541,6 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
             Err(e) => return trace.err(e),
         }
 
-        trace.optional(FnCallExpr::id());
         match FnCallExpr::parse(trace, rest) {
             Ok((rest, expr)) => {
                 return trace.ok(expr.span(), rest, expr);
@@ -563,7 +552,6 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
             Err(e) => return trace.err(e),
         }
 
-        trace.optional(NamedExpr::id());
         match NamedExpr::parse(trace, rest) {
             Ok((rest, expr)) => {
                 return trace.ok(expr.span(), rest, expr);
@@ -671,7 +659,6 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         trace.enter(Self::id(), rest);
 
-        trace.optional(CellRangeExpr::id());
         match CellRangeExpr::parse(trace, eat_space(rest)) {
             Ok((rest, token)) => {
                 return trace.ok(token.span(), rest, token);
@@ -683,7 +670,6 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Err(e) => return trace.err(e),
         };
 
-        trace.optional(CellRefExpr::id());
         match CellRefExpr::parse(trace, eat_space(rest)) {
             Ok((rest, token)) => {
                 return trace.ok(token.span(), rest, token);
@@ -695,7 +681,6 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Err(e) => return trace.err(e),
         }
 
-        trace.optional(ColRangeExpr::id());
         match ColRangeExpr::parse(trace, eat_space(rest)) {
             Ok((rest, token)) => {
                 return trace.ok(token.span(), rest, token);
@@ -707,7 +692,6 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
             Err(e) => return trace.err(e),
         }
 
-        trace.optional(RowRangeExpr::id());
         match RowRangeExpr::parse(trace, eat_space(rest)) {
             Ok((rest, token)) => {
                 return trace.ok(token.span(), rest, token);
@@ -830,9 +814,7 @@ impl<'s> GeneralExpr<'s> for CellRefExpr {
     fn parse<'t>(tracer: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         tracer.enter(Self::id(), rest);
 
-        tracer.optional(IriTerm::id());
         let (rest, iri) = IriTerm::parse(tracer, eat_space(rest)).track(tracer)?;
-        tracer.optional(SheetNameTerm::id());
         let (rest, sheet) = SheetNameTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, dot) = DotTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, col) = ColTerm::parse(tracer, eat_space(rest)).track(tracer)?;
@@ -888,9 +870,7 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
     fn parse<'t>(tracer: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         tracer.enter(Self::id(), rest);
 
-        tracer.optional(IriTerm::id());
         let (rest, iri) = IriTerm::parse(tracer, eat_space(rest)).track(tracer)?;
-        tracer.optional(SheetNameTerm::id());
         let (rest, sheet) = SheetNameTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, dot) = DotTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, col) = ColTerm::parse(tracer, eat_space(rest)).track(tracer)?;
@@ -898,7 +878,6 @@ impl<'s> GeneralExpr<'s> for CellRangeExpr {
 
         let (rest, _colon) = ColonTerm::parse(tracer, eat_space(rest)).track(tracer)?;
 
-        tracer.optional(SheetNameTerm::id());
         let (rest, to_sheet) = SheetNameTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, _to_dot) = DotTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, to_col) = ColTerm::parse(tracer, eat_space(rest)).track(tracer)?;
@@ -954,16 +933,13 @@ impl<'s> GeneralExpr<'s> for ColRangeExpr {
     fn parse<'t>(tracer: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>> {
         tracer.enter(Self::id(), rest);
 
-        tracer.optional(IriTerm::id());
         let (rest, iri) = IriTerm::parse(tracer, eat_space(rest)).track(tracer)?;
-        tracer.optional(SheetNameTerm::id());
         let (rest, sheet) = SheetNameTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, dot) = DotTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, col) = ColTerm::parse(tracer, eat_space(rest)).track(tracer)?;
 
         let (rest, _colon) = ColonTerm::parse(tracer, eat_space(rest)).track(tracer)?;
 
-        tracer.optional(SheetNameTerm::id());
         let (rest, to_sheet) = SheetNameTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, _to_dot) = DotTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, to_col) = ColTerm::parse(tracer, eat_space(rest)).track(tracer)?;
@@ -1019,16 +995,13 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
         tracer.enter(Self::id(), rest);
 
         // NOTE: Check suggestions. Maybe add a span to the suggestion?
-        tracer.optional(IriTerm::id());
         let (rest, iri) = IriTerm::parse(tracer, eat_space(rest)).track(tracer)?;
-        tracer.optional(SheetNameTerm::id());
         let (rest, sheet) = SheetNameTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, dot) = DotTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, row) = RowTerm::parse(tracer, eat_space(rest)).track(tracer)?;
 
         let (rest, _colon) = ColonTerm::parse(tracer, eat_space(rest)).track(tracer)?;
 
-        tracer.optional(SheetNameTerm::id());
         let (rest, to_sheet) = SheetNameTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, _to_dot) = DotTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, to_row) = RowTerm::parse(tracer, eat_space(rest)).track(tracer)?;
@@ -1393,9 +1366,7 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
         //
         tracer.enter(Self::id(), rest);
 
-        tracer.optional(IriTerm::id());
         let (rest, iri) = IriTerm::parse(tracer, eat_space(rest)).track(tracer)?;
-        tracer.optional(SheetNameTerm::id());
         let (rest, sheet_name) = SheetNameTerm::parse(tracer, eat_space(rest)).track(tracer)?;
         let (rest, _dot) = DotTerm::parse(tracer, eat_space(rest)).track(tracer)?;
 

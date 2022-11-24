@@ -442,7 +442,7 @@ impl<'s> Suggest<'s> {
     pub fn same_as_last(&self, code: OFCode) -> bool {
         match self.codes.last() {
             None => false,
-            Some((sug_code, _)) => sug_code == code,
+            Some((sug_code, _)) => *sug_code == code,
         }
     }
 }
