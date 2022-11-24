@@ -133,6 +133,7 @@ impl<'s> Tracer<'s> {
         buf
     }
 
+    // Creates a new Suggest frame when entering a function.
     fn push_suggest(&self, func: OFCode) {
         self.suggest.borrow_mut().push(Suggest {
             func,
@@ -141,26 +142,24 @@ impl<'s> Tracer<'s> {
         });
     }
 
+    // Adds a suggestion for the current function.
     fn add_suggest(&self, code: OFCode, span: Span<'s>) {
         match self.suggest.borrow_mut().last_mut() {
             None => unreachable!(),
             Some(su) => {
-                if let Some((last, _)) = su.codes.last() {
-                    if *last != code {
-                        su.codes.push((code, span));
-                    }
-                } else {
+                if !su.same_as_last(code) {
                     su.codes.push((code, span));
                 }
             }
         }
     }
 
+    // does what it says.
     fn clone_suggest<'t>(&'t self) -> Suggest<'s> {
         self.suggest.borrow().last().unwrap().clone()
     }
 
-    // Pops the suggestions for the current function.
+    // pops the suggestions for the current function.
     fn pop_suggest(&self) {
         let mut su_vec = self.suggest.borrow_mut();
 
@@ -190,22 +189,26 @@ impl<'s> Tracer<'s> {
     // are parent hints, every error below that has been marked as potentially interesting
     // and has been stashed away stands for some alternative that could have been met.
     fn expect(&self, err: &mut ParseOFError<'s>, stash: Option<Expect<'s>>) {
-        self.suggest(err.code, err.span);
-
         if let Some(exp) = &mut err.expect {
             // error in the middle of back tracing.
 
-            // there is already the original code.
-            // all new codes come from higher in the call stack
-            // and are added as parent codes.
-            exp.add_par(Expect::new(self.func(), err.code, err.span));
-
-            // same in the tracer.
-            if let Some(exp) = &mut *self.expect.borrow_mut() {
+            // the same error is tracked twice in the caller and the callee.
+            // these can be filtered out immediately.
+            if exp.same_as_last_par(err.code) {
+                // there is already the original code.
+                // all new codes come from higher in the call stack
+                // and are added as parent codes.
                 exp.add_par(Expect::new(self.func(), err.code, err.span));
+
+                // same in the tracer.
+                if let Some(exp) = &mut *self.expect.borrow_mut() {
+                    exp.add_par(Expect::new(self.func(), err.code, err.span));
+                } else {
+                    // should be in sync!?
+                    unreachable!();
+                }
             } else {
-                // should be in sync!?
-                unreachable!();
+                // ignore dup
             }
         } else {
             // new error.

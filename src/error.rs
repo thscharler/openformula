@@ -365,14 +365,27 @@ impl<'s> Expect<'s> {
         }
     }
 
+    /// The same error is tracked twice if not special processing happens.
+    /// Those can be filtered out immediately.
+    pub fn same_as_last_par(&self, code: OFCode) -> bool {
+        match self.par.last() {
+            None => false,
+            Some(exp) => exp.code == code,
+        }
+    }
+
+    /// Add a parent expect. Gives some context in which branch exactly
+    /// the error occurred.
     pub fn add_par(&mut self, exp: Expect<'s>) {
         self.par.push(exp);
     }
 
+    /// Add one of the alternatives that where not met.
     pub fn add_alt(&mut self, exp: Expect<'s>) {
         self.alt.push(exp);
     }
 
+    /// Is this one of the expect codes?
     pub fn is_expected(&self, code: OFCode) -> bool {
         if self.code == code {
             return true;
@@ -422,6 +435,16 @@ pub struct Suggest<'s> {
     pub func: OFCode,
     pub codes: Vec<(OFCode, Span<'s>)>,
     pub next: Vec<Suggest<'s>>,
+}
+
+impl<'s> Suggest<'s> {
+    /// Help to filter out duplicates.
+    pub fn same_as_last(&self, code: OFCode) -> bool {
+        match self.codes.last() {
+            None => false,
+            Some((sug_code, _)) => sug_code == code,
+        }
+    }
 }
 
 impl<'s> Debug for Suggest<'s> {
