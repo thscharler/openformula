@@ -1,3 +1,5 @@
+pub mod debug_error;
+
 use crate::ast::conv::{ParseColnameError, ParseRownameError};
 use crate::ast::Span;
 use crate::error::OFCode::*;
@@ -218,50 +220,13 @@ impl<'s> ParseOFError<'s> {
 
 impl<'s> Debug for ParseOFError<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "ParseOFError: {} for \"{}\"", self.code, self.span)?;
-        write!(f, "[")?;
-        if let Some(expect) = &self.expect {
-            for expect in expect {
-                write!(f, "{} ", expect)?;
-            }
-        }
-        write!(f, "]")?;
-        writeln!(f)?;
-        writeln!(f)?;
-        if let Some(suggest) = &self.suggest {
-            writeln!(f, "{:?}", suggest)?;
-            suggest.write_depth_1(f, self.span)?;
-        }
-        writeln!(f)?;
-        writeln!(f)?;
-        if let Some(suggest) = &self.suggest {
-            writeln!(f, "{:?}", suggest)?;
-            suggest.write_depth_0(f, self.span)?;
-        }
-        Ok(())
+        debug_error::debug_parse_of_error(f, self)
     }
 }
 
 impl<'s> Display for ParseOFError<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?} ", self.code)?;
-        if let Some(expect) = &self.expect {
-            write!(f, "[")?;
-            for expect in expect {
-                write!(f, "{} ", expect.expect)?;
-            }
-            write!(f, "] ")?;
-        }
-        // no suggest
-        write!(
-            f,
-            "for span={}::{}:{} '{}'",
-            self.span.location_offset(),
-            self.span.location_line(),
-            self.span.get_column(),
-            self.span.fragment()
-        )?;
-        Ok(())
+        debug_error::display_parse_of_error(f, self)
     }
 }
 
@@ -378,30 +343,13 @@ impl<'s, T> LocateError<'s, T, ParseColnameError> for Result<T, ParseColnameErro
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct OFSpan<'s> {
-    pub span: Span<'s>,
-    pub code: OFCode,
-}
-
-impl<'s> Debug for OFSpan<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{} \"{}\"", self.code, self.span)?;
-        Ok(())
-    }
-}
-
-impl<'s> Display for OFSpan<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{} \"{}\"", self.code, self.span)?;
-        Ok(())
-    }
-}
+// Expect ----------------------------------------------------------------
 
 #[derive(Clone)]
 pub struct Expect<'s> {
     pub func: OFCode,
-    pub expect: OFSpan<'s>,
+    pub code: OFCode,
+    pub span: Span<'s>,
 }
 
 pub trait AddExpect<'s> {
@@ -414,177 +362,45 @@ impl<'s> AddExpect<'s> for Vec<Expect<'s>> {
         // function we can deduplicate.
         let duplicate = match self.last() {
             None => false,
-            Some(expect) => expect.expect.code == code,
+            Some(expect) => expect.code == code,
         };
 
         if !duplicate {
-            self.push(Expect {
-                func,
-                expect: OFSpan { span, code },
-            })
+            self.push(Expect { func, code, span })
         }
     }
 }
 
 impl<'s> Display for Expect<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.func, self.expect)?;
-        Ok(())
+        write!(f, "{}: {}", self.func, self.code)
     }
 }
 
 impl<'s> Debug for Expect<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.expect.code, self.expect.span)?;
-        Ok(())
+        write!(
+            f,
+            "{}: {:?} {}:\"{}\"",
+            self.func,
+            self.code,
+            self.span.location_offset(),
+            self.span
+        )
     }
 }
 
-#[derive(Default, Clone)]
+// Suggest ---------------------------------------------------------------
+
+#[derive(Clone)]
 pub struct Suggest<'s> {
     pub func: OFCode,
-    pub codes: Vec<OFSpan<'s>>,
+    pub codes: Vec<(OFCode, Span<'s>)>,
     pub next: Vec<Suggest<'s>>,
-}
-
-// debug impl
-impl<'s> Suggest<'s> {
-    fn write_indent_depth_0(
-        &self,
-        f: &mut Formatter<'_>,
-        full_span: Span<'s>,
-        indent: u32,
-    ) -> fmt::Result {
-        for OFSpan { span, code } in &self.codes {
-            dbg::span(f, full_span, indent)?;
-            dbg::tick(f, span.location_offset(), indent)?;
-            dbg::hint(f, span.location_offset(), *code, indent)?;
-        }
-        Ok(())
-    }
-
-    pub fn write_depth_1(&self, f: &mut Formatter<'_>, full_span: Span<'s>) -> fmt::Result {
-        for suggest in &self.next {
-            suggest.write_indent_depth_0(f, full_span, 0)?;
-            writeln!(f)?;
-        }
-        Ok(())
-    }
-
-    pub fn write_depth_0(&self, f: &mut Formatter<'_>, full_span: Span<'s>) -> fmt::Result {
-        self.write_indent_depth_0(f, full_span, 0)
-    }
-
-    fn dbg_suggest(f: &mut Formatter<'_>, suggest: &Suggest<'s>, indent: u32) -> fmt::Result {
-        write!(f, "{} : ", suggest.func)?;
-        for OFSpan { span, code } in &suggest.codes {
-            write!(f, "{} {}:\"{}\" ", code, span.location_offset(), span)?;
-        }
-
-        for su in &suggest.next {
-            writeln!(f)?;
-            dbg::arrow(f, indent + 1)?;
-            Self::dbg_suggest(f, su, indent + 1)?;
-        }
-
-        Ok(())
-    }
 }
 
 impl<'s> Debug for Suggest<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Self::dbg_suggest(f, self, 0)?;
-        Ok(())
-    }
-}
-
-mod dbg {
-    use crate::ast::Span;
-    use crate::error::OFCode;
-    use std::fmt;
-    use std::fmt::Formatter;
-
-    // pub struct FormatHint<'s> {
-    //     pub base: &'s str,
-    //     pub hints: Vec<(u32, String)>,
-    // }
-    //
-    // impl<'s> Display for FormatHint<'s> {
-    //     fn fmt(&mut self, f: &mut Formatter<'_>) -> fmt::Result {
-    //         self.hints.sort();
-    //
-    //         writeln!(f, "{}", self.base)?;
-    //
-    //         let mut posmap = HashMap::new();
-    //         for (i, (pos, hint)) in self.hints.iter().enumerate() {
-    //             posmap.insert(pos as usize, (i, hint));
-    //         }
-    //
-    //         for r in 0..self.hints.len() {
-    //             for c in 0..self.base.len() {
-    //                 match posmap.get(&c) {
-    //                     None => write!(f, " ")?,
-    //                     Some((in_r, hint)) => {
-    //                         if r < *in_r {
-    //                             write!(f, "|")?;
-    //                         } else if r == *in_r {
-    //                             write!(f, hint)?;
-    //                         } else {
-    //                             write!(f, " ")?;
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //
-    //         Ok(())
-    //     }
-    // }
-
-    pub fn indent(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
-        for _ in 0..indent * 4 {
-            write!(f, " ")?;
-        }
-        Ok(())
-    }
-
-    pub fn arrow(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
-        if indent > 0 {
-            for _ in 0..((indent - 1) * 4) {
-                write!(f, " ")?;
-            }
-            for _ in ((indent - 1) * 4)..(indent * 4) - 2 {
-                write!(f, "-")?;
-            }
-            write!(f, "> ")?;
-        }
-        Ok(())
-    }
-
-    pub fn span(f: &mut Formatter<'_>, span: Span<'_>, ind: u32) -> fmt::Result {
-        indent(f, ind)?;
-        write!(f, "{}", span)?;
-        writeln!(f)?;
-        Ok(())
-    }
-
-    pub fn tick(f: &mut Formatter<'_>, offset: usize, ind: u32) -> fmt::Result {
-        indent(f, ind)?;
-        for _ in 0..offset {
-            write!(f, " ")?;
-        }
-        write!(f, "^")?;
-        writeln!(f)?;
-        Ok(())
-    }
-
-    pub fn hint(f: &mut Formatter<'_>, offset: usize, hint: OFCode, ind: u32) -> fmt::Result {
-        indent(f, ind)?;
-        for _ in 0..offset {
-            write!(f, " ")?;
-        }
-        write!(f, "{}", hint)?;
-        writeln!(f)?;
-        Ok(())
+        debug_error::debug_suggest(f, self, 0)
     }
 }

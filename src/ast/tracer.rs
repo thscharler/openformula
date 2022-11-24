@@ -5,7 +5,7 @@
 //!
 
 use crate::ast::{ParseResult, Span};
-use crate::error::{AddExpect, Expect, OFCode, OFSpan, ParseOFError, Suggest};
+use crate::error::{debug_error, AddExpect, Expect, OFCode, ParseOFError, Suggest};
 use std::cell::RefCell;
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
@@ -139,7 +139,8 @@ impl<'s> Tracer<'s> {
     fn push_suggest(&self, func: OFCode) {
         self.suggest.borrow_mut().push(Suggest {
             func,
-            ..Default::default()
+            codes: Vec::new(),
+            next: Vec::new(),
         });
     }
 
@@ -147,12 +148,12 @@ impl<'s> Tracer<'s> {
         match self.suggest.borrow_mut().last_mut() {
             None => unreachable!(),
             Some(su) => {
-                if let Some(&last) = su.codes.last() {
-                    if last.code != code {
-                        su.codes.push(OFSpan { span, code });
+                if let Some((last, _)) = su.codes.last() {
+                    if *last != code {
+                        su.codes.push((code, span));
                     }
                 } else {
-                    su.codes.push(OFSpan { span, code });
+                    su.codes.push((code, span));
                 }
             }
         }
@@ -207,7 +208,7 @@ impl<'s> Tracer<'s> {
 
     pub fn is_expected(&self, code: OFCode) -> bool {
         for expect in &*self.expect.borrow() {
-            if expect.expect.code == code {
+            if expect.code == code {
                 return true;
             }
         }
@@ -352,25 +353,28 @@ impl<'s> Debug for Tracer<'s> {
             }
         }
 
-        write!(f, "    func=")?;
+        write!(f, "    FUNC=")?;
         for func in &*self.func.borrow() {
             write!(f, "{:?} ", func)?;
         }
         writeln!(f)?;
 
-        write!(f, "    optional=")?;
+        write!(f, "    OPTIONAL=")?;
         for optional in &*self.optional.borrow() {
             write!(f, "{:?} ", optional)?;
         }
         writeln!(f)?;
 
-        write!(f, "    expect=")?;
+        writeln!(f, "    EXPECT=")?;
         for expect in &*self.expect.borrow() {
-            write!(f, "{:?} ", expect)?;
+            writeln!(f, "        {:?} ", expect)?;
         }
         writeln!(f)?;
 
-        write!(f, "    suggest={:?}", self.suggest.borrow())?;
+        writeln!(f, "    SUGGEST")?;
+        for sug in &*self.suggest.borrow() {
+            debug_error::debug_suggest(f, sug, 2)?;
+        }
 
         Ok(())
     }
