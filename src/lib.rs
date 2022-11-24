@@ -36,6 +36,8 @@
 // TODO: documentation
 #![allow(missing_docs)]
 
+extern crate core;
+
 pub mod ast;
 pub mod cellref;
 pub mod error;

@@ -10,7 +10,7 @@ use std::fmt::{Debug, Display, Formatter, Write};
 pub struct ParseOFError<'s> {
     pub code: OFCode,
     pub span: Span<'s>,
-    pub expect: Option<Vec<Expect<'s>>>,
+    pub expect: Option<Expect<'s>>,
     pub suggest: Option<Suggest<'s>>,
 }
 
@@ -350,23 +350,44 @@ pub struct Expect<'s> {
     pub func: OFCode,
     pub code: OFCode,
     pub span: Span<'s>,
+    pub par: Vec<Expect<'s>>,
+    pub alt: Vec<Expect<'s>>,
 }
 
-pub trait AddExpect<'s> {
-    fn add_expect(&mut self, func: OFCode, span: Span<'s>, code: OFCode);
-}
+impl<'s> Expect<'s> {
+    pub fn new(func: OFCode, code: OFCode, span: Span<'s>) -> Self {
+        Self {
+            func,
+            code,
+            span,
+            par: Vec::new(),
+            alt: Vec::new(),
+        }
+    }
 
-impl<'s> AddExpect<'s> for Vec<Expect<'s>> {
-    fn add_expect(&mut self, func: OFCode, span: Span<'s>, code: OFCode) {
-        // check the last one. if it's the same code in a different
-        // function we can deduplicate.
-        let duplicate = match self.last() {
-            None => false,
-            Some(expect) => expect.code == code,
-        };
+    pub fn add_par(&mut self, exp: Expect<'s>) {
+        self.par.push(exp);
+    }
 
-        if !duplicate {
-            self.push(Expect { func, code, span })
+    pub fn add_alt(&mut self, exp: Expect<'s>) {
+        self.alt.push(exp);
+    }
+
+    pub fn is_expected(&self, code: OFCode) -> bool {
+        if self.code == code {
+            return true;
+        } else {
+            for exp in &self.par {
+                if exp.is_expected(code) {
+                    return true;
+                }
+            }
+            for exp in &self.alt {
+                if exp.is_expected(code) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }
@@ -381,12 +402,16 @@ impl<'s> Debug for Expect<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}: {:?} {}:\"{}\"",
+            "{}: {:?} {}:\"{}\" ",
             self.func,
             self.code,
             self.span.location_offset(),
             self.span
-        )
+        )?;
+        for exp in &self.alt {
+            <Expect<'_> as Debug>::fmt(exp, f)?;
+        }
+        Ok(())
     }
 }
 

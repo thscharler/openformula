@@ -509,7 +509,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCNumber => {
-                trace.suggest(OFCNumber, e.span);
+                trace.stash_expect();
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -521,7 +521,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCString => {
-                trace.suggest(OFCString, e.span);
+                trace.stash_expect();
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -533,7 +533,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCParentheses => {
-                trace.suggest(OFCParentheses, e.span);
+                trace.stash_expect();
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -545,7 +545,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCReference => {
-                trace.suggest(OFCReference, e.span);
+                trace.stash_expect();
                 /* skip, no reference */
             }
             Err(e) => return trace.err(e),
@@ -557,7 +557,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCFnCall => {
-                trace.suggest(OFCFnCall, e.span);
+                trace.stash_expect();
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -569,13 +569,11 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCNamed => {
-                trace.suggest(OFCNamed, e.span);
+                trace.stash_expect();
                 /* skip */
             }
             Err(e) => return trace.err(e),
         }
-
-        // TODO: NamedExpr
 
         trace.err(ParseOFError::elementary(rest))
     }

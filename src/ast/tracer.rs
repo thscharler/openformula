@@ -5,10 +5,11 @@
 //!
 
 use crate::ast::{ParseResult, Span};
-use crate::error::{debug_error, AddExpect, Expect, OFCode, ParseOFError, Suggest};
+use crate::error::{debug_error, Expect, OFCode, ParseOFError, Suggest};
 use std::cell::RefCell;
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
+use std::mem;
 
 /// Follows the parsing.
 #[derive(Default)]
@@ -22,7 +23,8 @@ pub struct Tracer<'s> {
     pub optional: RefCell<Vec<OFCode>>,
 
     /// Expected
-    pub expect: RefCell<Vec<Expect<'s>>>,
+    pub expect: RefCell<Option<Expect<'s>>>,
+    pub stashed: RefCell<Vec<Expect<'s>>>,
 
     /// Suggestions
     pub suggest: RefCell<Vec<Suggest<'s>>>,
@@ -30,11 +32,6 @@ pub struct Tracer<'s> {
 
 // Functions and Tracks.
 impl<'s> Tracer<'s> {
-    /// New one.
-    pub fn new() -> Self {
-        Default::default()
-    }
-
     fn push_func(&self, func: OFCode) {
         self.func.borrow_mut().push(func);
     }
@@ -186,33 +183,97 @@ impl<'s> Tracer<'s> {
 
 // Expect machinery
 impl<'s> Tracer<'s> {
-    /// Expected tokens.
-    ///
-    /// Collect information about mandatory expected tokens. There can
-    /// be any number of these, if at least one of many options is required.
-    pub fn expect(&self, err: &mut ParseOFError<'s>) {
-        // track for the err
-        if let Some(expect) = &mut err.expect {
-            expect.add_expect(self.func(), err.span, err.code);
-        }
+    // Each ParseOFError stands for a failed expectation.
+    //
+    // We keep track of it through all of the call hierarchy.
+    // The point of origin gives the main code, everything up in the call hierarchy
+    // are parent hints, every error below that has been marked as potentially interesting
+    // and has been stashed away stands for some alternative that could have been met.
+    fn expect(&self, err: &mut ParseOFError<'s>, stash: Option<Expect<'s>>) {
+        self.suggest(err.code, err.span);
 
-        // track here
-        if self.in_optional() {
-            self.suggest(err.code, err.span);
+        if let Some(exp) = &mut err.expect {
+            // error in the middle of back tracing.
+
+            // there is already the original code.
+            // all new codes come from higher in the call stack
+            // and are added as parent codes.
+            exp.add_par(Expect::new(self.func(), err.code, err.span));
+
+            // same in the tracer.
+            if let Some(exp) = &mut *self.expect.borrow_mut() {
+                exp.add_par(Expect::new(self.func(), err.code, err.span));
+            } else {
+                // should be in sync!?
+                unreachable!();
+            }
         } else {
-            self.expect
-                .borrow_mut()
-                .add_expect(self.func(), err.span, err.code);
+            // new error.
+
+            // new original code.
+            let mut exp = Expect::new(self.func(), err.code, err.span);
+            // add stashed as alternatives
+            if let Some(st_exp) = &stash {
+                for alt_exp in &st_exp.alt {
+                    exp.add_alt(alt_exp.clone())
+                }
+            }
+            err.expect = Some(exp);
+
+            // tracer takes the same, but we reuse instead of cloning.
+            let mut trexp = Expect::new(self.func(), err.code, err.span);
+            if let Some(st_exp) = stash {
+                for alt in st_exp.alt {
+                    trexp.add_alt(alt);
+                }
+            }
+            *self.expect.borrow_mut() = Some(trexp);
         }
     }
 
-    pub fn is_expected(&self, code: OFCode) -> bool {
-        for expect in &*self.expect.borrow() {
-            if expect.code == code {
-                return true;
-            }
+    // returns the stash for the current function, if any.
+    fn pop_stash(&'_ self) -> Option<Expect<'s>> {
+        let stash_stack = &mut *self.stashed.borrow_mut();
+        let stash = match stash_stack.last() {
+            None => None,
+            Some(alt) if alt.func == self.func() => stash_stack.pop(),
+            Some(_) => None,
+        };
+        stash
+    }
+
+    /// Stashes away all potential errors that may reoccur later als alternative explanations.
+    /// Used for sequences of alternatives that are checked. The error for each alternative
+    /// is stashed away and used again if none of the alternatives matches.
+    pub fn stash_expect(&self) {
+        let exp = mem::replace(&mut *self.expect.borrow_mut(), None);
+
+        // use one dummy Expect with the current function code to collect
+        // potential alternatives. use a stack of those and cleanup on ok() or err().
+        if let Some(exp) = exp {
+            let mut stash_stack = self.stashed.borrow_mut();
+            let stash = stash_stack.last_mut();
+
+            match stash {
+                None => {
+                    let mut stash = Expect::new(self.func(), exp.code, exp.span);
+                    stash.alt.push(exp);
+                    stash_stack.push(stash);
+                }
+                Some(stash) => {
+                    stash.alt.push(exp);
+                }
+            };
         }
-        return false;
+    }
+
+    /// Is this one of the expected error codes?
+    pub fn is_expected(&self, code: OFCode) -> bool {
+        if let Some(exp) = &*self.expect.borrow() {
+            return exp.is_expected(code);
+        } else {
+            return false;
+        }
     }
 
     /// Expected tokens.
@@ -220,26 +281,24 @@ impl<'s> Tracer<'s> {
     /// Returns the list of expected tokens as a String.
     pub fn expect_str(&self) -> String {
         let mut buf = String::new();
-        for s in &*self.expect.borrow() {
-            let _ = write!(buf, "{:?} ", s);
+
+        if let Some(exp) = &*self.expect.borrow() {
+            let _ = write!(buf, "{:?} ", exp);
         }
         buf
     }
 }
 
 impl<'s> Tracer<'s> {
+    /// New one.
+    pub fn new() -> Self {
+        Default::default()
+    }
+
     /// Entering a parser.
     ///
-    /// For the tracing to work, all exit-points of a function have to
-    /// be accounted for.
-    ///
-    /// That means at each exit point you have to call either:
-    /// * ok
-    /// * parse
-    /// * map_nom
-    /// * nom
-    /// * map_tok
-    /// * tok  
+    /// For the tracing to work, all exit-points of a function have to be accounted for.
+    /// That means at each exit point you have to call either ok() or err().
     pub fn enter(&self, func: OFCode, span: Span<'s>) {
         self.push_func(func);
         self.push_suggest(func);
@@ -247,7 +306,7 @@ impl<'s> Tracer<'s> {
         self.track_enter(span);
     }
 
-    /// Extra step.
+    /// One step in the parser, that is of of interest.
     ///
     /// Panics
     ///
@@ -256,7 +315,7 @@ impl<'s> Tracer<'s> {
         self.track_step(step, span);
     }
 
-    /// Extra information.
+    /// Even more detailed information for the logs.
     ///
     /// Panics
     ///
@@ -265,10 +324,11 @@ impl<'s> Tracer<'s> {
         self.track_detail(step.into());
     }
 
-    /// Ok in a parser.
+    /// Ok in a parser. Records the success with function, parsed span and rest span.
+    /// Returns the given result value wrapped in Result::Ok(). This is in symmetry with err.
+    /// And makes it easier to check if all return points of a function are covered by Tracer.
     ///
-    /// Returns the given value for ease of use.
-    /// Records the success with function, parsed span and rest span.
+    /// Marks the current function as complete.
     ///
     /// Panics
     ///
@@ -278,6 +338,7 @@ impl<'s> Tracer<'s> {
         self.track_exit();
 
         self.pop_optional();
+        self.pop_stash();
         self.pop_suggest();
         self.pop_func();
 
@@ -286,7 +347,7 @@ impl<'s> Tracer<'s> {
 
     /// Error in a parser.
     ///
-    /// Keeps track of the error.
+    /// Keeps track of the error and collects the error as a failed expectation.
     /// Marks the current function as complete.
     ///
     /// Panics
@@ -298,19 +359,18 @@ impl<'s> Tracer<'s> {
         if err.suggest.is_none() {
             err.suggest = Some(self.clone_suggest());
         }
-        if err.expect.is_none() {
-            err.expect = Some(Vec::new());
-        }
+
+        let st = self.pop_stash();
 
         // if the error doesn't match the current function
         // we track the error and change the code.
         if err.code != self.func() {
-            self.expect(&mut err);
+            self.expect(&mut err, None);
             self.track_error(&err);
             err.code = self.func();
         }
 
-        self.expect(&mut err);
+        self.expect(&mut err, st);
         self.track_error(&err);
         self.track_exit();
 
@@ -353,25 +413,25 @@ impl<'s> Debug for Tracer<'s> {
             }
         }
 
-        write!(f, "    FUNC=")?;
+        write!(f, "    func=")?;
         for func in &*self.func.borrow() {
             write!(f, "{:?} ", func)?;
         }
         writeln!(f)?;
 
-        write!(f, "    OPTIONAL=")?;
+        write!(f, "    optional=")?;
         for optional in &*self.optional.borrow() {
             write!(f, "{:?} ", optional)?;
         }
         writeln!(f)?;
 
-        writeln!(f, "    EXPECT=")?;
-        for expect in &*self.expect.borrow() {
-            writeln!(f, "        {:?} ", expect)?;
+        writeln!(f, "    expect=")?;
+        if let Some(exp) = &*self.expect.borrow() {
+            writeln!(f, "        {:?} ", exp)?;
         }
         writeln!(f)?;
 
-        writeln!(f, "    SUGGEST")?;
+        writeln!(f, "    suggest=")?;
         for sug in &*self.suggest.borrow() {
             debug_error::debug_suggest(f, sug, 2)?;
         }
@@ -435,14 +495,13 @@ impl<'s> Debug for Track<'s> {
                     write!(f, "{}: -> no match", func)?;
                 }
             }
-            Track::Error(func, opt, err_str, err_span) => {
+            Track::Error(func, opt, err_str, _err_span) => {
                 write!(
                     f,
-                    "{}: {} err=({}) span='{}'",
+                    "{}: {} err={} ",
                     func,
                     if *opt { "OPT" } else { "!!!" },
-                    err_str,
-                    err_span
+                    err_str
                 )?;
             }
             Track::Exit(func) => {
