@@ -111,73 +111,46 @@ impl<'s> Tracer<'s> {
     }
 
     fn push_suggest(&self, func: OFCode) {
-        let sug_vec = &mut *self.suggest.borrow_mut();
-
-        match sug_vec.last_mut() {
-            Some(sg) if sg.func == func => {
-                // reenter the same function recursively. add new suggestion unconditionally
-                sug_vec.push(Suggest::new_none(func));
-            }
-            _ => {}
-        }
+        self.suggest.borrow_mut().push(Suggest {
+            func,
+            codes: Vec::new(),
+            next: Vec::new(),
+        });
     }
 
     // Adds a suggestion for the current function.
     fn add_suggest(&self, code: OFCode, span: Span<'s>) {
-        let sug_vec = &mut *self.suggest.borrow_mut();
+        match self.suggest.borrow_mut().last_mut() {
+            None => unreachable!(),
+            Some(su) => {
+                if !su.same_as_last(code) {
+                    su.codes.push((code, span));
+                }
+            }
+        }
+    }
 
-        match sug_vec.last_mut() {
-            Some(sg) if sg.func == self.func() => {
-                self.detail(format!("add_suggest append {}: {}", self.func(), code));
-                sg.codes.push((code, span));
-            }
-            _ => {
-                self.detail(format!("add_suggest new {}: {}", self.func(), code));
-                sug_vec.push(Suggest::new(self.func(), code, span));
-            }
-        };
+    // does what it says.
+    fn clone_suggest<'t>(&'t self) -> Suggest<'s> {
+        self.suggest.borrow().last().unwrap().clone()
     }
 
     // pops the suggestions for the current function.
     fn pop_suggest(&self) {
         let mut su_vec = self.suggest.borrow_mut();
 
-        self.detail(format!(
-            "pop in {} <- {:?}",
-            self.func(),
-            self.par_func().map(|v| v.to_string())
-        ));
         match su_vec.pop() {
-            Some(mut sg) if sg.func == self.func() => {
-                self.detail(format!("  found self func"));
-                match (su_vec.last_mut(), self.par_func()) {
-                    (Some(sg2), Some(par_func)) if sg2.func == par_func => {
-                        // parent is correct, append there.
-                        self.detail(format!("add to {}.next", par_func));
-                        sg2.next.push(sg);
-                    }
-                    (_, Some(par_func)) => {
-                        // parent doesn't match or there is no one, we change this suggest
-                        // to be the correct parent.
-                        sg.func = par_func;
-                        self.detail(format!("add as {}", par_func));
-                        su_vec.push(sg);
-                    }
-                    (_, None) => {
-                        // no more parent functions, we're done and keep the last suggestion as is.
-                        self.detail("at top");
-                        su_vec.push(sg);
+            None => unreachable!(),
+            Some(su) => {
+                match su_vec.last_mut() {
+                    None => su_vec.push(su), // was the last, keep
+                    Some(last) => {
+                        // add to last
+                        if !su.codes.is_empty() || !su.next.is_empty() {
+                            last.next.push(su);
+                        }
                     }
                 }
-            }
-            Some(sg) => {
-                self.detail(format!("  not self func"));
-                // something unconnected to us. don't touch.
-                su_vec.push(sg);
-            }
-            None => {
-                self.detail(format!("  none active"));
-                // nothing there.
             }
         }
     }
@@ -373,14 +346,7 @@ impl<'s> Tracer<'s> {
         // First encounter with this error.
         // Fill in the current suggestions and initialize the error tracking.
         if err.suggest.is_none() {
-            match self.suggest.borrow().last() {
-                Some(sg) if sg.func == self.func() => {
-                    err.suggest = Some(sg.clone());
-                }
-                _ => {
-                    // not matching, no suggestions.
-                }
-            }
+            err.suggest = Some(self.clone_suggest());
         }
 
         let st = self.pop_stash();

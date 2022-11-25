@@ -7,8 +7,11 @@ pub fn debug_parse_of_error<'s>(f: &mut Formatter<'_>, err: &ParseOFError<'s>) -
     if let Some(expect) = &err.expect {
         debug_expect(f, expect, 0)?;
     }
-
-    // todo: suggest ...
+    writeln!(f)?;
+    writeln!(f, "DEBUG_SUGGEST: ")?;
+    if let Some(sug) = &err.suggest {
+        debug_suggest(f, sug, 0)?;
+    }
 
     Ok(())
 }

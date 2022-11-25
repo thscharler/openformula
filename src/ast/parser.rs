@@ -715,7 +715,7 @@ impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
     }
 
     fn lah(_i: Span<'s>) -> bool {
-        todo!()
+        todo!("lah")
     }
 
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFCol<'s>> {
@@ -750,7 +750,7 @@ impl<'s> GeneralTerm<'s, OFRow<'s>> for RowTerm {
     }
 
     fn lah(_i: Span<'s>) -> bool {
-        todo!()
+        todo!("lah")
     }
 
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFRow<'s>> {
@@ -1301,8 +1301,7 @@ impl<'s> GeneralTerm<'s, ()> for ColonTerm {
     }
 
     fn lah(_i: Span<'s>) -> bool {
-        // TODO: lah_colon(i)
-        false
+        todo!("lah")
     }
 
     fn parse<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, ()> {

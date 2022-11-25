@@ -28,8 +28,8 @@ pub fn expr() {
 pub fn expr_fail() {
     // TestRun::parse("471X", Expr::parse).fail().q();
     // TestRun::parse(r#""strdata"#, Expr::parse).fail().q();
-    // TestRun::parse("1+", Expr::parse).fail().q();
-    TestRun::parse("(1+1", Expr::parse).fail().q();
+    TestRun::parse("1+", Expr::parse).fail().q();
+    // TestRun::parse("(1+1", Expr::parse).fail().q();
     // TestRun::parse("XX", Expr::parse).fail().q();
     // TestRun::parse("4*5+", Expr::parse).fail().q();
     // TestRun::parse("4+5*", Expr::parse).fail().q();
