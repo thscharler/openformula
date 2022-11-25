@@ -438,6 +438,22 @@ pub struct Suggest<'s> {
 }
 
 impl<'s> Suggest<'s> {
+    pub fn new(func: OFCode, code: OFCode, span: Span<'s>) -> Self {
+        Self {
+            func,
+            codes: vec![(code, span)],
+            next: Vec::new(),
+        }
+    }
+
+    pub fn new_none(func: OFCode) -> Self {
+        Self {
+            func,
+            codes: Vec::new(),
+            next: Vec::new(),
+        }
+    }
+
     /// Help to filter out duplicates.
     pub fn same_as_last(&self, code: OFCode) -> bool {
         match self.codes.last() {

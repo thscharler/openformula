@@ -29,14 +29,28 @@ pub struct Tracer<'s> {
 
 // Functions and Tracks.
 impl<'s> Tracer<'s> {
+    // enter function
     fn push_func(&self, func: OFCode) {
         self.func.borrow_mut().push(func);
     }
 
+    // current function
     fn func(&self) -> OFCode {
         *self.func.borrow().last().unwrap()
     }
 
+    // parent function
+    fn par_func(&self) -> Option<OFCode> {
+        let func_vec = &*self.func.borrow();
+        if func_vec.len() > 1 {
+            func_vec.get(func_vec.len() - 2)
+        } else {
+            None
+        }
+        .map(|v| *v)
+    }
+
+    // leave current function
     fn pop_func(&self) {
         self.func.borrow_mut().pop();
     }
@@ -96,48 +110,74 @@ impl<'s> Tracer<'s> {
         buf
     }
 
-    // Creates a new Suggest frame when entering a function.
     fn push_suggest(&self, func: OFCode) {
-        self.suggest.borrow_mut().push(Suggest {
-            func,
-            codes: Vec::new(),
-            next: Vec::new(),
-        });
+        let sug_vec = &mut *self.suggest.borrow_mut();
+
+        match sug_vec.last_mut() {
+            Some(sg) if sg.func == func => {
+                // reenter the same function recursively. add new suggestion unconditionally
+                sug_vec.push(Suggest::new_none(func));
+            }
+            _ => {}
+        }
     }
 
     // Adds a suggestion for the current function.
     fn add_suggest(&self, code: OFCode, span: Span<'s>) {
-        match self.suggest.borrow_mut().last_mut() {
-            None => unreachable!(),
-            Some(su) => {
-                if !su.same_as_last(code) {
-                    su.codes.push((code, span));
-                }
-            }
-        }
-    }
+        let sug_vec = &mut *self.suggest.borrow_mut();
 
-    // does what it says.
-    fn clone_suggest<'t>(&'t self) -> Suggest<'s> {
-        self.suggest.borrow().last().unwrap().clone()
+        match sug_vec.last_mut() {
+            Some(sg) if sg.func == self.func() => {
+                self.detail(format!("add_suggest append {}: {}", self.func(), code));
+                sg.codes.push((code, span));
+            }
+            _ => {
+                self.detail(format!("add_suggest new {}: {}", self.func(), code));
+                sug_vec.push(Suggest::new(self.func(), code, span));
+            }
+        };
     }
 
     // pops the suggestions for the current function.
     fn pop_suggest(&self) {
         let mut su_vec = self.suggest.borrow_mut();
 
+        self.detail(format!(
+            "pop in {} <- {:?}",
+            self.func(),
+            self.par_func().map(|v| v.to_string())
+        ));
         match su_vec.pop() {
-            None => unreachable!(),
-            Some(su) => {
-                match su_vec.last_mut() {
-                    None => su_vec.push(su), // was the last, keep
-                    Some(last) => {
-                        // add to last
-                        if !su.codes.is_empty() || !su.next.is_empty() {
-                            last.next.push(su);
-                        }
+            Some(mut sg) if sg.func == self.func() => {
+                self.detail(format!("  found self func"));
+                match (su_vec.last_mut(), self.par_func()) {
+                    (Some(sg2), Some(par_func)) if sg2.func == par_func => {
+                        // parent is correct, append there.
+                        self.detail(format!("add to {}.next", par_func));
+                        sg2.next.push(sg);
+                    }
+                    (_, Some(par_func)) => {
+                        // parent doesn't match or there is no one, we change this suggest
+                        // to be the correct parent.
+                        sg.func = par_func;
+                        self.detail(format!("add as {}", par_func));
+                        su_vec.push(sg);
+                    }
+                    (_, None) => {
+                        // no more parent functions, we're done and keep the last suggestion as is.
+                        self.detail("at top");
+                        su_vec.push(sg);
                     }
                 }
+            }
+            Some(sg) => {
+                self.detail(format!("  not self func"));
+                // something unconnected to us. don't touch.
+                su_vec.push(sg);
+            }
+            None => {
+                self.detail(format!("  none active"));
+                // nothing there.
             }
         }
     }
@@ -311,10 +351,11 @@ impl<'s> Tracer<'s> {
     /// Panics if there was no call to enter() before.
     pub fn ok<'t, T>(&'t self, span: Span<'s>, rest: Span<'s>, val: T) -> ParseResult<'s, T> {
         self.track_ok(rest, span);
-        self.track_exit();
 
         self.pop_stash();
         self.pop_suggest();
+
+        self.track_exit();
         self.pop_func();
 
         Ok((rest, val))
@@ -332,7 +373,14 @@ impl<'s> Tracer<'s> {
         // First encounter with this error.
         // Fill in the current suggestions and initialize the error tracking.
         if err.suggest.is_none() {
-            err.suggest = Some(self.clone_suggest());
+            match self.suggest.borrow().last() {
+                Some(sg) if sg.func == self.func() => {
+                    err.suggest = Some(sg.clone());
+                }
+                _ => {
+                    // not matching, no suggestions.
+                }
+            }
         }
 
         let st = self.pop_stash();
@@ -349,9 +397,10 @@ impl<'s> Tracer<'s> {
         if self.expect(&mut err, st) == ExpectDuplicate::New {
             self.track_error(&err);
         }
-        self.track_exit();
 
         self.pop_suggest();
+
+        self.track_exit();
         self.pop_func();
 
         Err(err)
