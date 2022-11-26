@@ -5,7 +5,7 @@
 //!
 
 use crate::ast::{ParseResult, Span};
-use crate::error::{debug_error, Expect, OFCode, ParseOFError, Suggest};
+use crate::error::{Expect, OFCode, ParseOFError, Suggest};
 use std::cell::RefCell;
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
@@ -259,9 +259,9 @@ impl<'s> Tracer<'s> {
     /// Is this one of the expected error codes?
     pub fn is_expected(&self, code: OFCode) -> bool {
         if let Some(exp) = &*self.expect.borrow() {
-            return exp.is_expected(code);
+            exp.is_expected(code)
         } else {
-            return false;
+            false
         }
     }
 
@@ -410,15 +410,14 @@ impl<'s> Debug for Tracer<'s> {
         }
         writeln!(f)?;
 
-        writeln!(f, "    expect=")?;
+        write!(f, "    expect=")?;
         if let Some(exp) = &*self.expect.borrow() {
-            writeln!(f, "        {:?} ", exp)?;
+            writeln!(f, "{:?} ", exp)?;
         }
-        writeln!(f)?;
 
-        writeln!(f, "    suggest=")?;
+        write!(f, "    suggest=")?;
         for sug in &*self.suggest.borrow() {
-            debug_error::debug_suggest(f, sug, 2)?;
+            writeln!(f, "{:?} ", sug)?;
         }
 
         Ok(())

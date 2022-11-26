@@ -63,7 +63,7 @@ impl<'s, O> TestRun<'s, O>
 where
     O: Debug,
 {
-    const STATE: RunState = RunState::Trace;
+    const STATE: RunState = RunState::CheckTrace;
 
     /// Runs the parser and records the results.
     /// Use ok(), err(), ... to check specifics.
@@ -195,7 +195,7 @@ where
     /// Finish the test with q()
     #[must_use]
     pub fn expect(&self, code: OFCode) -> &Self {
-        if self.trace.is_expected(code) {
+        if !self.trace.is_expected(code) {
             println!(
                 "FAIL: {:?} is not an expected token. [{}]",
                 code,
@@ -260,7 +260,8 @@ where
             }
             Err(e) => {
                 println!("{:?}", &self.trace);
-                println!("=> {:?}", e);
+                println!("=> error");
+                println!("{:?}", e);
             }
         }
         self

@@ -2,6 +2,7 @@ pub mod debug_error;
 
 use crate::ast::conv::{ParseColnameError, ParseRownameError};
 use crate::ast::Span;
+use crate::error::debug_error::debug_expect_single;
 use crate::error::OFCode::*;
 use std::error::Error;
 use std::fmt;
@@ -413,18 +414,7 @@ impl<'s> Display for Expect<'s> {
 
 impl<'s> Debug for Expect<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}: {:?} {}:\"{}\" ",
-            self.func,
-            self.code,
-            self.span.location_offset(),
-            self.span
-        )?;
-        for exp in &self.alt {
-            <Expect<'_> as Debug>::fmt(exp, f)?;
-        }
-        Ok(())
+        debug_expect_single(f, self, 0)
     }
 }
 
@@ -449,6 +439,6 @@ impl<'s> Suggest<'s> {
 
 impl<'s> Debug for Suggest<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        debug_error::debug_suggest(f, self, 0)
+        debug_error::debug_suggest_single(f, self, 0)
     }
 }
