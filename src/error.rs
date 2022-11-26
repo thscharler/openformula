@@ -10,6 +10,7 @@ use std::fmt::{Debug, Display, Formatter, Write};
 pub struct ParseOFError<'s> {
     pub code: OFCode,
     pub span: Span<'s>,
+    pub tracing: bool,
     pub suggest2: Vec<Suggest2<'s>>,
     pub expect2: Vec<Expect2<'s>>,
 }
@@ -19,6 +20,7 @@ impl<'s> ParseOFError<'s> {
         Self {
             code,
             span,
+            tracing: false,
             suggest2: Vec::new(),
             expect2: Vec::new(),
         }

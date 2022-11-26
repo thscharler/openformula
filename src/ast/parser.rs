@@ -664,7 +664,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
                 return trace.ok(token.span(), rest, token);
             }
             Err(e) if e.code == OFCCellRange => {
-                //trace.suggest(OFCellRange);
+                trace.stash(e);
                 // Not matched, ok.
             }
             Err(e) => return trace.err(e),
@@ -675,7 +675,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
                 return trace.ok(token.span(), rest, token);
             }
             Err(e) if e.code == OFCCellRef => {
-                //trace.suggest(OFCellRef);
+                trace.stash(e);
                 // Not matched, ok.
             }
             Err(e) => return trace.err(e),
@@ -686,7 +686,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
                 return trace.ok(token.span(), rest, token);
             }
             Err(e) if e.code == OFCColRange => {
-                //trace.suggest(OFColRange);
+                trace.stash(e);
                 // Not matched, ok.
             }
             Err(e) => return trace.err(e),
@@ -697,7 +697,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
                 return trace.ok(token.span(), rest, token);
             }
             Err(e) if e.code == OFCRowRange => {
-                //trace.suggest(OFRowRange);
+                trace.stash(e);
                 // Not matched, ok.
             }
             Err(e) => return trace.err(e),
@@ -1450,103 +1450,5 @@ pub fn check_eof<'s>(
         Ok(())
     } else {
         Err(err(i))
-    }
-}
-
-#[allow(unsafe_code)]
-#[cfg(test)]
-mod tests {
-    use crate::ast::parser::GeneralExpr;
-    use crate::ast::parser::{ElementaryExpr, Expr};
-    use crate::ast::tracer::Tracer;
-    use crate::ast::{OFAst, ParseResult, Span};
-
-    fn run_test2<'s>(
-        str: &'s str,
-        testfn: for<'t> fn(&'t Tracer<'s>, Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>>,
-    ) {
-        let tracer = Tracer::new();
-        {
-            println!();
-            println!("{}", str);
-            match testfn(&tracer, Span::new(str)) {
-                Ok((rest, tok)) => {
-                    println!("{:?}", &tracer);
-                    println!("=> {:?} | {}", tok, rest);
-                }
-                Err(e) => {
-                    println!("{:?}", &tracer);
-                    println!();
-                    println!("=> {}", e);
-                    println!(
-                        "   Found '{}' expected {} suggest {}",
-                        e.span(),
-                        tracer.expect_str(),
-                        tracer.suggest_str()
-                    );
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_elementary() {
-        let tests = ["471", r#""strdata""#, "1+1", "(1+1)"];
-        for test in tests {
-            run_test2(test, ElementaryExpr::parse);
-        }
-    }
-
-    #[test]
-    fn test_comp() {
-        let tests = ["471 >0", "1==1", "(1<>1)"];
-        for test in tests {
-            run_test2(test, Expr::parse);
-        }
-    }
-
-    #[test]
-    fn test_expr() {
-        let tests = [
-            "471",
-            r#""strdata""#,
-            "1+1",
-            "(1+1)",
-            "X",
-            "4*5+1",
-            "4+5*2",
-            "22 * FUN ( 77 ) ",
-            "17 + FUN(  )",
-            "11 ^ FUN(   ;;66)",
-            "1+2*3^4",
-            "27+(19*.A5)",
-        ];
-        for test in tests {
-            run_test2(test, Expr::parse);
-        }
-    }
-
-    #[test]
-    fn test_expr_fail() {
-        let tests = [
-            // "471X",
-            // r#""strdata"#,
-            // "1+",
-            // "(1+1",
-            // "XX",
-            // "4*5+",
-            // "4+5*",
-            "22 * $FUN()",
-            "22 * FUN ( 77  ",
-            "22 * FUN ( 77  ",
-            "22 * FUN 77 ) ",
-            "17 + FUN(  ",
-            "17 + FUN  )",
-            "11 ^ FUN(   ;;66)",
-            "11 ^ FUN(   ;;X)",
-        ];
-        for test in tests {
-            run_test2(test, Expr::parse);
-        }
     }
 }

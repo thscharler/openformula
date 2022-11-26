@@ -40,9 +40,10 @@ pub fn display_parse_of_error<'s>(
     f: &mut Formatter<'_>,
     err: &ParseOFError<'s>,
 ) -> std::fmt::Result {
-    write!(f, "OFError {} ", err.code)?;
+    write!(f, "{}: ", err.code)?;
     for exp in &err.expect2 {
         display_expect2_single(f, exp, 0)?;
+        write!(f, " ")?;
     }
     // no suggest
     write!(
@@ -68,13 +69,22 @@ pub fn debug_expect2_multi(
 ) -> fmt::Result {
     for exp in exp_vec {
         indent(f, ind)?;
-        write!(f, "{}:\"{}\"", exp.code, exp.span)?;
+        write!(
+            f,
+            "{}:{}:\"{}\"",
+            exp.code,
+            exp.span.location_offset(),
+            exp.span
+        )?;
         if !exp.parents.is_empty() {
             write!(f, " <")?;
-            for p in &exp.parents {
-                write!(f, "{} ", p)?;
+            for (i, p) in exp.parents.iter().enumerate() {
+                if i > 0 {
+                    write!(f, " ")?;
+                }
+                write!(f, "{}", p)?;
             }
-            write!(f, "> ")?;
+            write!(f, ">")?;
         }
         writeln!(f)?;
     }
@@ -91,10 +101,13 @@ pub fn debug_expect2_single(
         write!(f, "{}:\"{}\"", exp.code, exp.span)?;
         if !exp.parents.is_empty() {
             write!(f, " <")?;
-            for p in &exp.parents {
-                write!(f, "{} ", p)?;
+            for (i, p) in exp.parents.iter().enumerate() {
+                if i > 0 {
+                    write!(f, " ")?;
+                }
+                write!(f, "{}", p)?;
             }
-            write!(f, "> ")?;
+            write!(f, ">")?;
         }
     }
 
@@ -119,13 +132,22 @@ pub fn debug_suggest2_multi(
 ) -> fmt::Result {
     for sug in sug_vec {
         indent(f, ind)?;
-        write!(f, "{}:\"{}\"", sug.code, sug.span)?;
+        write!(
+            f,
+            "{}:{}:\"{}\"",
+            sug.code,
+            sug.span.location_offset(),
+            sug.span
+        )?;
         if !sug.parents.is_empty() {
             write!(f, " <")?;
-            for p in &sug.parents {
-                write!(f, "{} ", p)?;
+            for (i, p) in sug.parents.iter().enumerate() {
+                if i > 0 {
+                    write!(f, " ")?;
+                }
+                write!(f, "{}", p)?;
             }
-            write!(f, "> ")?;
+            write!(f, ">")?;
         }
         writeln!(f)?;
     }
@@ -142,10 +164,13 @@ pub fn debug_suggest2_single(
         write!(f, "{}:\"{}\"", sug.code, sug.span)?;
         if !sug.parents.is_empty() {
             write!(f, " <")?;
-            for p in &sug.parents {
-                write!(f, "{} ", p)?;
+            for (i, p) in sug.parents.iter().enumerate() {
+                if i > 0 {
+                    write!(f, " ")?;
+                }
+                write!(f, "{}", p)?;
             }
-            write!(f, "> ")?;
+            write!(f, ">")?;
         }
     }
 

@@ -69,15 +69,16 @@ impl<'s> Tracer<'s> {
         self.append_suggest(err.suggest2);
     }
 
-    /// Write a track for any error that originates from a non-traced function.
-    pub fn external(&self, err: ParseOFError<'s>) {
-        self.add_expect(err.code, err.span);
-        // todo: append expect + suggest
-        self.track_error(&err);
-    }
-
     /// Write a track for an error.
     pub fn err<'t, T>(&'t self, mut err: ParseOFError<'s>) -> ParseResult<'s, T> {
+        // Freshly created error.
+        if !err.tracing {
+            err.tracing = true;
+            if err.code != self.func() {
+                self.add_expect(err.code, err.span);
+            }
+        }
+
         // when backtracking we always replace the current error code.
         err.code = self.func();
 
