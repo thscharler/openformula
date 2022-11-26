@@ -10,9 +10,6 @@ use std::fmt::{Debug, Display, Formatter, Write};
 pub struct ParseOFError<'s> {
     pub code: OFCode,
     pub span: Span<'s>,
-    pub expect: Option<Expect<'s>>,
-    pub suggest: Option<Suggest<'s>>,
-
     pub suggest2: Vec<Suggest2<'s>>,
     pub expect2: Vec<Expect2<'s>>,
 }
@@ -22,8 +19,6 @@ impl<'s> ParseOFError<'s> {
         Self {
             code,
             span,
-            expect: None,
-            suggest: None,
             suggest2: Vec::new(),
             expect2: Vec::new(),
         }
@@ -365,115 +360,6 @@ impl<'s, T> LocateError<'s, T, ParseColnameError> for Result<T, ParseColnameErro
         match self {
             Ok(v) => Ok(v),
             Err(_) => Err(ParseOFError::new(OFCColname, span)),
-        }
-    }
-}
-
-// Expect ----------------------------------------------------------------
-
-#[derive(Clone)]
-pub struct Expect<'s> {
-    pub func: OFCode,
-    pub code: OFCode,
-    pub span: Span<'s>,
-    pub par: Vec<Expect<'s>>,
-    pub alt: Vec<Expect<'s>>,
-}
-
-impl<'s> Expect<'s> {
-    pub fn new(func: OFCode, code: OFCode, span: Span<'s>) -> Self {
-        Self {
-            func,
-            code,
-            span,
-            par: Vec::new(),
-            alt: Vec::new(),
-        }
-    }
-
-    /// The same error is tracked twice if not special processing happens.
-    /// Those can be filtered out immediately.
-    pub fn same_as_last_par(&self, code: OFCode) -> bool {
-        match self.par.last() {
-            None => false,
-            Some(exp) => exp.code == code,
-        }
-    }
-
-    /// Add a parent expect. Gives some context in which branch exactly
-    /// the error occurred.
-    pub fn add_par(&mut self, exp: Expect<'s>) {
-        self.par.push(exp);
-    }
-
-    /// Add one of the alternatives that where not met.
-    pub fn add_alt(&mut self, exp: Expect<'s>) {
-        self.alt.push(exp);
-    }
-
-    /// Is this one of the expect codes?
-    pub fn is_expected(&self, code: OFCode) -> bool {
-        if self.code == code {
-            return true;
-        } else {
-            for exp in &self.par {
-                if exp.is_expected(code) {
-                    return true;
-                }
-            }
-            for exp in &self.alt {
-                if exp.is_expected(code) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
-}
-
-impl<'s> Display for Expect<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_error::display_expect_single(f, self)
-    }
-}
-
-impl<'s> Debug for Expect<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if f.alternate() {
-            debug_error::debug_expect_multi(f, self, 0)
-        } else {
-            debug_error::debug_expect_single(f, self, 0)
-        }
-    }
-}
-
-// Suggest ---------------------------------------------------------------
-
-#[derive(Clone)]
-pub struct Suggest<'s> {
-    pub func: OFCode,
-    pub codes: Vec<(OFCode, Span<'s>)>,
-    pub next: Vec<Suggest<'s>>,
-}
-
-impl<'s> Suggest<'s> {
-    /// Help to filter out duplicates.
-    pub fn same_as_last(&self, code: OFCode) -> bool {
-        match self.codes.last() {
-            None => false,
-            Some((sug_code, _)) => *sug_code == code,
-        }
-    }
-}
-
-// TODO: Display
-
-impl<'s> Debug for Suggest<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if f.alternate() {
-            debug_error::debug_suggest_multi(f, self, 0)
-        } else {
-            debug_error::debug_suggest_single(f, self, 0)
         }
     }
 }
