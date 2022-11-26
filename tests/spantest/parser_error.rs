@@ -195,13 +195,21 @@ where
     /// Finish the test with q()
     #[must_use]
     pub fn expect(&self, code: OFCode) -> &Self {
-        if !self.trace.is_expected(code) {
-            println!(
-                "FAIL: {:?} is not an expected token. [{}]",
-                code,
-                self.trace.expect_str()
-            );
-            self.flag_fail();
+        match &self.result {
+            Ok(_) => {
+                println!("FAIL: {:?} was ok not an error.", code,);
+                self.flag_fail();
+            }
+            Err(e) => {
+                if !e.is_expected(code) {
+                    println!(
+                        "FAIL: {:?} is not an expected token. [{}]",
+                        code,
+                        e.expect_str()
+                    );
+                    self.flag_fail();
+                }
+            }
         }
 
         self
@@ -244,7 +252,7 @@ where
                 println!("=> token={:?} rest=\"{}\"", token, rest);
             }
             Err(e) => {
-                println!("=> {}", e);
+                println!("=> error={:#?}", e);
             }
         }
         self
@@ -260,8 +268,8 @@ where
             }
             Err(e) => {
                 println!("{:?}", &self.trace);
-                println!("=> error");
-                println!("{:?}", e);
+                println!("=> error=");
+                println!("{:#?}", e);
             }
         }
         self

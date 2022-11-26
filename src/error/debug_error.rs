@@ -1,4 +1,4 @@
-use crate::error::{Expect, ParseOFError, Suggest};
+use crate::error::{Expect, Expect2, ParseOFError, Suggest, Suggest2};
 use std::fmt;
 use std::fmt::Formatter;
 
@@ -16,6 +16,15 @@ pub fn debug_parse_of_error_single<'s>(
         debug_suggest_single(f, sug, 1)?;
     }
 
+    if !err.expect2.is_empty() {
+        writeln!(f, "expect2=")?;
+        debug_expect2_single(f, &err.expect2, 1)?;
+    }
+    if !err.suggest2.is_empty() {
+        write!(f, "suggest2=")?;
+        debug_suggest2_single(f, &err.suggest2, 1)?;
+    }
+
     Ok(())
 }
 
@@ -31,6 +40,15 @@ pub fn debug_parse_of_error_multi<'s>(
     if let Some(sug) = &err.suggest {
         writeln!(f, "suggest=")?;
         debug_suggest_multi(f, sug, 1)?;
+    }
+
+    if !err.expect2.is_empty() {
+        writeln!(f, "expect2=")?;
+        debug_expect2_multi(f, &err.expect2, 1)?;
+    }
+    if !err.suggest2.is_empty() {
+        writeln!(f, "suggest2=")?;
+        debug_suggest2_multi(f, &err.suggest2, 1)?;
     }
 
     Ok(())
@@ -251,4 +269,88 @@ fn rec_suggest_single(f: &mut Formatter<'_>, sug: &Suggest<'_>, ind: usize) -> f
 
 pub fn debug_suggest_single(f: &mut Formatter<'_>, sug: &Suggest<'_>, ind: usize) -> fmt::Result {
     rec_suggest_single(f, sug, ind)
+}
+
+// expect2
+
+pub fn debug_expect2_multi(
+    f: &mut Formatter<'_>,
+    exp_vec: &Vec<Expect2<'_>>,
+    ind: usize,
+) -> fmt::Result {
+    for exp in exp_vec {
+        indent(f, ind)?;
+        write!(f, "{}:\"{}\"", exp.code, exp.span)?;
+        if !exp.parents.is_empty() {
+            write!(f, " <")?;
+            for p in &exp.parents {
+                write!(f, "{} ", p)?;
+            }
+            write!(f, "> ")?;
+        }
+        writeln!(f)?;
+    }
+
+    Ok(())
+}
+
+pub fn debug_expect2_single(
+    f: &mut Formatter<'_>,
+    exp_vec: &Vec<Expect2<'_>>,
+    _ind: usize,
+) -> fmt::Result {
+    for exp in exp_vec {
+        write!(f, "{}:\"{}\"", exp.code, exp.span)?;
+        if !exp.parents.is_empty() {
+            write!(f, " <")?;
+            for p in &exp.parents {
+                write!(f, "{} ", p)?;
+            }
+            write!(f, "> ")?;
+        }
+    }
+
+    Ok(())
+}
+
+// suggest2
+
+pub fn debug_suggest2_multi(
+    f: &mut Formatter<'_>,
+    sug_vec: &Vec<Suggest2<'_>>,
+    ind: usize,
+) -> fmt::Result {
+    for sug in sug_vec {
+        indent(f, ind)?;
+        write!(f, "{}:\"{}\"", sug.code, sug.span)?;
+        if !sug.parents.is_empty() {
+            write!(f, " <")?;
+            for p in &sug.parents {
+                write!(f, "{} ", p)?;
+            }
+            write!(f, "> ")?;
+        }
+        writeln!(f)?;
+    }
+
+    Ok(())
+}
+
+pub fn debug_suggest2_single(
+    f: &mut Formatter<'_>,
+    sug_vec: &Vec<Suggest2<'_>>,
+    _ind: usize,
+) -> fmt::Result {
+    for sug in sug_vec {
+        write!(f, "{}:\"{}\"", sug.code, sug.span)?;
+        if !sug.parents.is_empty() {
+            write!(f, " <")?;
+            for p in &sug.parents {
+                write!(f, "{} ", p)?;
+            }
+            write!(f, "> ")?;
+        }
+    }
+
+    Ok(())
 }

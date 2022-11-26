@@ -12,6 +12,9 @@ pub struct ParseOFError<'s> {
     pub span: Span<'s>,
     pub expect: Option<Expect<'s>>,
     pub suggest: Option<Suggest<'s>>,
+
+    pub suggest2: Vec<Suggest2<'s>>,
+    pub expect2: Vec<Expect2<'s>>,
 }
 
 impl<'s> ParseOFError<'s> {
@@ -21,6 +24,8 @@ impl<'s> ParseOFError<'s> {
             span,
             expect: None,
             suggest: None,
+            suggest2: Vec::new(),
+            expect2: Vec::new(),
         }
     }
 
@@ -30,6 +35,23 @@ impl<'s> ParseOFError<'s> {
 
     pub fn is_parser(&self) -> bool {
         !self.code.is_special()
+    }
+
+    pub fn is_expected(&self, code: OFCode) -> bool {
+        for exp in &self.expect2 {
+            if exp.code == code {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    pub fn expect_str(&self) -> String {
+        let mut buf = String::new();
+        for exp in &self.expect2 {
+            let _ = write!(buf, "{} ", exp.code);
+        }
+        buf
     }
 
     /// Create a ParseOFError from a nom::Err
@@ -453,5 +475,51 @@ impl<'s> Debug for Suggest<'s> {
         } else {
             debug_error::debug_suggest_single(f, self, 0)
         }
+    }
+}
+
+// Suggest2 --------------------------------------------------------------
+
+#[derive(Clone)]
+pub struct Suggest2<'s> {
+    pub code: OFCode,
+    pub span: Span<'s>,
+    pub parents: Vec<OFCode>,
+}
+
+impl<'s> Debug for Suggest2<'s> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:\"{}\"", self.code, self.span)?;
+        if !self.parents.is_empty() {
+            write!(f, "<")?;
+            for p in &self.parents {
+                write!(f, "{} ", p)?;
+            }
+            write!(f, "> ")?;
+        }
+        Ok(())
+    }
+}
+
+// Expect2 ---------------------------------------------------------------
+
+#[derive(Clone)]
+pub struct Expect2<'s> {
+    pub code: OFCode,
+    pub span: Span<'s>,
+    pub parents: Vec<OFCode>,
+}
+
+impl<'s> Debug for Expect2<'s> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:\"{}\"", self.code, self.span)?;
+        if !self.parents.is_empty() {
+            write!(f, "<")?;
+            for p in &self.parents {
+                write!(f, "{} ", p)?;
+            }
+            write!(f, "> ")?;
+        }
+        Ok(())
     }
 }

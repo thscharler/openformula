@@ -502,7 +502,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCNumber => {
-                trace.stash_expect();
+                trace.stash(e);
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -513,7 +513,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCString => {
-                trace.stash_expect();
+                trace.stash(e);
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -524,7 +524,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCParentheses => {
-                trace.stash_expect();
+                trace.stash(e);
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -535,7 +535,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCReference => {
-                trace.stash_expect();
+                trace.stash(e);
                 /* skip, no reference */
             }
             Err(e) => return trace.err(e),
@@ -546,7 +546,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCFnCall => {
-                trace.stash_expect();
+                trace.stash(e);
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -557,7 +557,7 @@ impl<'s> GeneralExpr<'s> for ElementaryExpr {
                 return trace.ok(expr.span(), rest, expr);
             }
             Err(e) if e.code == OFCNamed => {
-                trace.stash_expect();
+                trace.stash(e);
                 /* skip */
             }
             Err(e) => return trace.err(e),
@@ -1107,7 +1107,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                     }
                     Err(e) if e.code == OFCSemikolon => {
                         // Optional
-                        trace.stash_expect();
+                        trace.stash(e);
                     }
                     Err(e) => {
                         return trace.err(e);
@@ -1125,7 +1125,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         }
                         Err(e) if e.code == OFCExpr => {
                             // Optional
-                            trace.stash_expect();
+                            trace.stash(e);
                             None
                         }
                         Err(e) => return trace.err(e),
@@ -1139,7 +1139,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         }
                         Err(e) if e.code == OFCSemikolon => {
                             // Optional
-                            trace.stash_expect();
+                            trace.stash(e);
                             None
                         }
                         Err(e) => {

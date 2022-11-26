@@ -260,7 +260,7 @@ impl<'s> Tracer<'s> {
     /// Stashes away all potential errors that may reoccur later als alternative explanations.
     /// Used for sequences of alternatives that are checked. The error for each alternative
     /// is stashed away and used again if none of the alternatives matches.
-    pub fn stash_expect(&self) {
+    pub fn stash(&self, err: ParseOFError<'s>) {
         let exp = mem::replace(&mut *self.expect.borrow_mut(), None);
 
         // use one dummy Expect with the current function code to collect
