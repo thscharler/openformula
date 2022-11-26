@@ -2,7 +2,27 @@ use crate::error::{Expect, ParseOFError, Suggest};
 use std::fmt;
 use std::fmt::Formatter;
 
-pub fn debug_parse_of_error<'s>(f: &mut Formatter<'_>, err: &ParseOFError<'s>) -> std::fmt::Result {
+pub fn debug_parse_of_error_single<'s>(
+    f: &mut Formatter<'_>,
+    err: &ParseOFError<'s>,
+) -> std::fmt::Result {
+    write!(f, "ParseOFError {} \"{}\"", err.code, err.span)?;
+    if let Some(expect) = &err.expect {
+        write!(f, "expect=")?;
+        debug_expect_single(f, expect, 1)?;
+    }
+    if let Some(sug) = &err.suggest {
+        write!(f, "suggest=")?;
+        debug_suggest_single(f, sug, 1)?;
+    }
+
+    Ok(())
+}
+
+pub fn debug_parse_of_error_multi<'s>(
+    f: &mut Formatter<'_>,
+    err: &ParseOFError<'s>,
+) -> std::fmt::Result {
     writeln!(f, "ParseOFError {} \"{}\"", err.code, err.span)?;
     if let Some(expect) = &err.expect {
         writeln!(f, "expect=")?;
@@ -42,15 +62,16 @@ fn indent(f: &mut Formatter<'_>, ind: usize) -> fmt::Result {
 // Expect
 
 pub fn display_expect_single(f: &mut Formatter<'_>, exp: &Expect<'_>) -> fmt::Result {
-    write!(f, " {}: {}", exp.func, exp.code)?;
+    write!(f, " {}: {} (", exp.func, exp.code)?;
     for alt_exp in &exp.alt {
-        write!(f, " +")?;
+        write!(f, " a ")?;
         display_expect_single(f, alt_exp)?;
     }
     for par_exp in &exp.par {
-        write!(f, " ?")?;
+        write!(f, " p ")?;
         display_expect_single(f, par_exp)?;
     }
+    write!(f, ")")?;
 
     Ok(())
 }

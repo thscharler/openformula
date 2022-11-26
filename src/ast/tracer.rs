@@ -5,7 +5,7 @@
 //!
 
 use crate::ast::{ParseResult, Span};
-use crate::error::{debug_error, Expect, OFCode, ParseOFError, Suggest};
+use crate::error::{Expect, OFCode, ParseOFError, Suggest};
 use std::cell::RefCell;
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
@@ -35,7 +35,7 @@ pub struct Stashed<'s> {
 impl<'s> Debug for Stashed<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for st in &self.stashed {
-            debug_error::debug_expect_multi(f, st, 0)?;
+            writeln!(f, "{:?}", st)?;
         }
         Ok(())
     }
@@ -354,7 +354,9 @@ impl<'s> Tracer<'s> {
     pub fn ok<'t, T>(&'t self, span: Span<'s>, rest: Span<'s>, val: T) -> ParseResult<'s, T> {
         self.track_ok(rest, span);
 
-        self.pop_stash();
+        if let Some(st) = self.pop_stash() {
+            self.detail(format!("forget stash {}: {:?}", self.func(), st));
+        }
         self.pop_suggest();
 
         self.track_exit();
