@@ -5,7 +5,7 @@
 //!
 
 use crate::ast::{ParseResult, Span};
-use crate::error::{Expect, OFCode, ParseOFError, Suggest};
+use crate::error::{debug_error, Expect, OFCode, ParseOFError, Suggest};
 use std::cell::RefCell;
 use std::fmt::Write;
 use std::fmt::{Debug, Formatter};
@@ -21,10 +21,24 @@ pub struct Tracer<'s> {
 
     /// Expected
     pub expect: RefCell<Option<Expect<'s>>>,
-    pub stashed: RefCell<Vec<Expect<'s>>>,
+    pub stashed: RefCell<Vec<Stashed<'s>>>,
 
     /// Suggestions
     pub suggest: RefCell<Vec<Suggest<'s>>>,
+}
+
+pub struct Stashed<'s> {
+    pub func: OFCode,
+    pub stashed: Vec<Expect<'s>>,
+}
+
+impl<'s> Debug for Stashed<'s> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        for st in &self.stashed {
+            debug_error::debug_expect_multi(f, st, 0)?;
+        }
+        Ok(())
+    }
 }
 
 // Functions and Tracks.
@@ -170,9 +184,24 @@ impl<'s> Tracer<'s> {
     // The point of origin gives the main code, everything up in the call hierarchy
     // are parent hints, every error below that has been marked as potentially interesting
     // and has been stashed away stands for some alternative that could have been met.
-    fn expect(&self, err: &mut ParseOFError<'s>, stash: Option<Expect<'s>>) -> ExpectDuplicate {
+    fn expect(&self, err: &mut ParseOFError<'s>, stashed: Option<Stashed<'s>>) -> ExpectDuplicate {
         if let Some(exp) = &mut err.expect {
             // error in the middle of back tracing.
+
+            // add stashed as alternatives
+            if let Some(mut stashed) = stashed {
+                // add stashed expects as alternatives.
+                exp.alt.append(&mut stashed.stashed.clone());
+
+                // same in the tracer.
+                if let Some(tr_exp) = &mut *self.expect.borrow_mut() {
+                    tr_exp.alt.append(&mut stashed.stashed);
+                } else {
+                    // should be in sync!?
+                    unreachable!();
+                }
+            }
+            // todo: tracer += expect
 
             // the same error is tracked twice in the caller and the callee.
             // these can be filtered out immediately.
@@ -183,8 +212,8 @@ impl<'s> Tracer<'s> {
                 exp.add_par(Expect::new(self.func(), err.code, err.span));
 
                 // same in the tracer.
-                if let Some(exp) = &mut *self.expect.borrow_mut() {
-                    exp.add_par(Expect::new(self.func(), err.code, err.span));
+                if let Some(tr_exp) = &mut *self.expect.borrow_mut() {
+                    tr_exp.add_par(Expect::new(self.func(), err.code, err.span));
                 } else {
                     // should be in sync!?
                     unreachable!();
@@ -200,19 +229,16 @@ impl<'s> Tracer<'s> {
             // new original code.
             let mut exp = Expect::new(self.func(), err.code, err.span);
             // add stashed as alternatives
-            if let Some(st_exp) = &stash {
-                for alt_exp in &st_exp.alt {
-                    exp.add_alt(alt_exp.clone())
-                }
+            if let Some(stashed) = &stashed {
+                let mut clone = stashed.stashed.clone();
+                exp.alt.append(&mut clone);
             }
             err.expect = Some(exp);
 
             // tracer takes the same, but we reuse instead of cloning.
             let mut trexp = Expect::new(self.func(), err.code, err.span);
-            if let Some(st_exp) = stash {
-                for alt in st_exp.alt {
-                    trexp.add_alt(alt);
-                }
+            if let Some(mut stashed) = stashed {
+                trexp.alt.append(&mut stashed.stashed);
             }
             *self.expect.borrow_mut() = Some(trexp);
 
@@ -221,7 +247,7 @@ impl<'s> Tracer<'s> {
     }
 
     // returns the stash for the current function, if any.
-    fn pop_stash(&'_ self) -> Option<Expect<'s>> {
+    fn pop_stash(&'_ self) -> Option<Stashed<'s>> {
         let stash_stack = &mut *self.stashed.borrow_mut();
         let stash = match stash_stack.last() {
             None => None,
@@ -241,17 +267,20 @@ impl<'s> Tracer<'s> {
         // potential alternatives. use a stack of those and cleanup on ok() or err().
         if let Some(exp) = exp {
             let mut stash_stack = self.stashed.borrow_mut();
-            let stash = stash_stack.last_mut();
 
-            match stash {
+            match stash_stack.last_mut() {
                 None => {
-                    let mut stash = Expect::new(self.func(), exp.code, exp.span);
-                    stash.alt.push(exp);
+                    let mut stash = Stashed {
+                        func: self.func(),
+                        stashed: Vec::new(),
+                    };
+                    stash.stashed.push(exp);
                     stash_stack.push(stash);
                 }
-                Some(stash) => {
-                    stash.alt.push(exp);
+                Some(stash) if stash.func == self.func() => {
+                    stash.stashed.push(exp);
                 }
+                Some(_) => {}
             };
         }
     }
@@ -349,8 +378,6 @@ impl<'s> Tracer<'s> {
             err.suggest = Some(self.clone_suggest());
         }
 
-        let st = self.pop_stash();
-
         // if the error doesn't match the current function
         // we track the error and change the code.
         if err.code != self.func() {
@@ -360,6 +387,8 @@ impl<'s> Tracer<'s> {
             err.code = self.func();
         }
 
+        // add stash if any.
+        let st = self.pop_stash();
         if self.expect(&mut err, st) == ExpectDuplicate::New {
             self.track_error(&err);
         }
