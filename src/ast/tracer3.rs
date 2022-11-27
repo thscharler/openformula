@@ -70,7 +70,9 @@ impl<'s> Tracer<'s> {
         let expect = self.pop_expect();
         self.track_expect(Usage::Drop, expect.list);
         let suggest = self.pop_suggest();
-        self.track_suggest(Usage::Drop, suggest.list);
+        // Keep suggests, sort them out later.
+        self.append_suggest(suggest.list);
+        //self.track_suggest(Usage::Drop, suggest.list);
 
         self.track_exit();
         self.pop_func();
