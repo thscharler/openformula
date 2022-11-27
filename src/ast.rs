@@ -300,12 +300,6 @@ impl<'a> OFAst<'a> {
     }
 }
 
-impl<'a> Debug for OFAst<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_ast(f, self, 0)
-    }
-}
-
 impl<'a> Display for OFAst<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -395,7 +389,7 @@ pub struct OFEmpty<'a> {
 
 impl<'a> Node<'a> for OFEmpty<'a> {
     fn name(&self) -> &str {
-        "empty"
+        "Empty"
     }
 
     fn span(&self) -> Span<'a> {
@@ -404,12 +398,6 @@ impl<'a> Node<'a> for OFEmpty<'a> {
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "")
-    }
-}
-
-impl<'a> Debug for OFEmpty<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_empty(f, self)
     }
 }
 
@@ -440,7 +428,7 @@ pub struct OFCompare<'a> {
 
 impl<'a> Node<'a> for OFCompare<'a> {
     fn name(&self) -> &str {
-        "compare"
+        "Compare"
     }
 
     fn span(&self) -> Span<'a> {
@@ -471,12 +459,6 @@ impl<'a> BinaryNode<'a> for OFCompare<'a> {
 
     fn right(&self) -> &OFAst<'a> {
         self.right.as_ref()
-    }
-}
-
-impl<'a> Debug for OFCompare<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_binary(f, self, 0)
     }
 }
 
@@ -526,7 +508,7 @@ impl<'a> Operator<'a> for OFCompOp<'a> {
 
 impl<'a> Node<'a> for OFCompOp<'a> {
     fn name(&self) -> &str {
-        "compare op"
+        "CompareOp"
     }
 
     /// Extracts the span from each variant.
@@ -567,7 +549,7 @@ pub struct OFAdd<'a> {
 
 impl<'a> Node<'a> for OFAdd<'a> {
     fn name(&self) -> &str {
-        "add"
+        "Add"
     }
 
     fn span(&self) -> Span<'a> {
@@ -598,12 +580,6 @@ impl<'a> BinaryNode<'a> for OFAdd<'a> {
 
     fn right(&self) -> &OFAst<'a> {
         self.right.as_ref()
-    }
-}
-
-impl<'a> Debug for OFAdd<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_binary(f, self, 0)
     }
 }
 
@@ -641,7 +617,7 @@ impl<'a> Operator<'a> for OFAddOp<'a> {
 
 impl<'a> Node<'a> for OFAddOp<'a> {
     fn name(&self) -> &str {
-        "add op"
+        "AddOp"
     }
 
     /// Extracts the span from each variant.
@@ -678,7 +654,7 @@ pub struct OFMul<'a> {
 
 impl<'a> Node<'a> for OFMul<'a> {
     fn name(&self) -> &str {
-        "mul"
+        "Mul"
     }
 
     fn span(&self) -> Span<'a> {
@@ -709,12 +685,6 @@ impl<'a> BinaryNode<'a> for OFMul<'a> {
 
     fn right(&self) -> &OFAst<'a> {
         self.right.as_ref()
-    }
-}
-
-impl<'a> Debug for OFMul<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_binary(f, self, 0)
     }
 }
 
@@ -752,7 +722,7 @@ impl<'a> Operator<'a> for OFMulOp<'a> {
 
 impl<'a> Node<'a> for OFMulOp<'a> {
     fn name(&self) -> &str {
-        "mul op"
+        "MulOp"
     }
 
     /// Extracts the span from each variant.
@@ -789,7 +759,7 @@ pub struct OFPow<'a> {
 
 impl<'a> Node<'a> for OFPow<'a> {
     fn name(&self) -> &str {
-        "pow"
+        "Pow"
     }
 
     fn span(&self) -> Span<'a> {
@@ -823,12 +793,6 @@ impl<'a> BinaryNode<'a> for OFPow<'a> {
     }
 }
 
-impl<'a> Debug for OFPow<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_binary(f, self, 0)
-    }
-}
-
 impl<'a> Display for OFPow<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{} {} {}", self.left, self.op, self.right)
@@ -858,7 +822,7 @@ impl<'a> Operator<'a> for OFPowOp<'a> {
 
 impl<'a> Node<'a> for OFPowOp<'a> {
     fn name(&self) -> &str {
-        "pow op"
+        "PowOp"
     }
 
     fn span(&self) -> Span<'a> {
@@ -891,7 +855,7 @@ pub struct OFPostfix<'a> {
 
 impl<'a> Node<'a> for OFPostfix<'a> {
     fn name(&self) -> &str {
-        "postfix"
+        "Postfix"
     }
 
     fn span(&self) -> Span<'a> {
@@ -900,12 +864,6 @@ impl<'a> Node<'a> for OFPostfix<'a> {
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.expr.enc(), self.op.enc())
-    }
-}
-
-impl<'a> Debug for OFPostfix<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_postfix(f, self, 0)
     }
 }
 
@@ -938,7 +896,7 @@ impl<'a> Operator<'a> for OFPostfixOp<'a> {
 
 impl<'a> Node<'a> for OFPostfixOp<'a> {
     fn name(&self) -> &str {
-        "postfix op"
+        "PostfixOp"
     }
 
     fn span(&self) -> Span<'a> {
@@ -971,7 +929,7 @@ pub struct OFPrefix<'a> {
 
 impl<'a> Node<'a> for OFPrefix<'a> {
     fn name(&self) -> &str {
-        "prefix"
+        "Prefix"
     }
 
     fn span(&self) -> Span<'a> {
@@ -980,12 +938,6 @@ impl<'a> Node<'a> for OFPrefix<'a> {
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.op.enc(), self.expr.enc())
-    }
-}
-
-impl<'a> Debug for OFPrefix<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_prefix(f, self, 0)
     }
 }
 
@@ -1023,7 +975,7 @@ impl<'a> Operator<'a> for OFPrefixOp<'a> {
 
 impl<'a> Node<'a> for OFPrefixOp<'a> {
     fn name(&self) -> &str {
-        "prefix op"
+        "PrefixOp"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1056,7 +1008,7 @@ pub struct OFNumber<'a> {
 
 impl<'a> Node<'a> for OFNumber<'a> {
     fn name(&self) -> &str {
-        "number"
+        "Number"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1065,12 +1017,6 @@ impl<'a> Node<'a> for OFNumber<'a> {
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.num)
-    }
-}
-
-impl<'a> Debug for OFNumber<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_elem(f, self)
     }
 }
 
@@ -1096,7 +1042,7 @@ pub struct OFString<'a> {
 
 impl<'a> Node<'a> for OFString<'a> {
     fn name(&self) -> &str {
-        "string"
+        "String"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1105,12 +1051,6 @@ impl<'a> Node<'a> for OFString<'a> {
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "\"{}\"", conv::quote_double(&self.str))
-    }
-}
-
-impl<'a> Debug for OFString<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_elem(f, self)
     }
 }
 
@@ -1136,7 +1076,7 @@ pub struct OFIri<'a> {
 
 impl<'a> Node<'a> for OFIri<'a> {
     fn name(&self) -> &str {
-        "iri"
+        "Iri"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1145,12 +1085,6 @@ impl<'a> Node<'a> for OFIri<'a> {
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "'{}'#", conv::quote_single(&self.iri))
-    }
-}
-
-impl<'a> Debug for OFIri<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_elem(f, self)
     }
 }
 
@@ -1180,7 +1114,7 @@ pub struct OFSheetName<'a> {
 
 impl<'a> Node<'a> for OFSheetName<'a> {
     fn name(&self) -> &str {
-        "sheet_name"
+        "SheetName"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1190,12 +1124,6 @@ impl<'a> Node<'a> for OFSheetName<'a> {
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
         format::fmt_abs(f, self.abs)?;
         write!(f, "'{}'.", conv::quote_single(&self.name))
-    }
-}
-
-impl<'a> Debug for OFSheetName<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_elem(f, self)
     }
 }
 
@@ -1227,7 +1155,7 @@ pub struct OFRow<'a> {
 
 impl<'a> Node<'a> for OFRow<'a> {
     fn name(&self) -> &str {
-        "row"
+        "Row"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1238,12 +1166,6 @@ impl<'a> Node<'a> for OFRow<'a> {
         format::fmt_abs(f, self.abs)?;
         format::fmt_row_name(f, self.row)?;
         Ok(())
-    }
-}
-
-impl<'a> Debug for OFRow<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_elem(f, self)
     }
 }
 
@@ -1275,7 +1197,7 @@ pub struct OFCol<'a> {
 
 impl<'a> Node<'a> for OFCol<'a> {
     fn name(&self) -> &str {
-        "col"
+        "Col"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1286,12 +1208,6 @@ impl<'a> Node<'a> for OFCol<'a> {
         format::fmt_abs(f, self.abs)?;
         format::fmt_col_name(f, self.col)?;
         Ok(())
-    }
-}
-
-impl<'a> Debug for OFCol<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_elem(f, self)
     }
 }
 
@@ -1330,7 +1246,7 @@ impl<'a> OFSimpleNamed<'a> {
 
 impl<'a> Node<'a> for OFSimpleNamed<'a> {
     fn name(&self) -> &str {
-        "simple_named"
+        "SimpleNamed"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1343,12 +1259,6 @@ impl<'a> Node<'a> for OFSimpleNamed<'a> {
         } else {
             write!(f, "{}", self.ident)
         }
-    }
-}
-
-impl<'a> Debug for OFSimpleNamed<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_elem(f, self)
     }
 }
 
@@ -1382,7 +1292,7 @@ pub struct OFNamed<'a> {
 
 impl<'a> Node<'a> for OFNamed<'a> {
     fn name(&self) -> &str {
-        "identifier"
+        "Identifier"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1404,12 +1314,6 @@ impl<'a> Node<'a> for OFNamed<'a> {
         }
         write!(f, "{}", self.simple)?;
         Ok(())
-    }
-}
-
-impl<'a> Debug for OFNamed<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_elem(f, self)
     }
 }
 
@@ -1450,7 +1354,7 @@ pub struct OFCellRef<'a> {
 
 impl<'a> Node<'a> for OFCellRef<'a> {
     fn name(&self) -> &str {
-        "cell-ref"
+        "CellRef"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1465,12 +1369,6 @@ impl<'a> Node<'a> for OFCellRef<'a> {
             write!(f, "{}", table.enc())?;
         }
         write!(f, "{}{}", self.col.enc(), self.row.enc())
-    }
-}
-
-impl<'a> Debug for OFCellRef<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_elem(f, self)
     }
 }
 
@@ -1511,7 +1409,7 @@ pub struct OFCellRange<'a> {
 
 impl<'a> Node<'a> for OFCellRange<'a> {
     fn name(&self) -> &str {
-        "cell-range"
+        "CellRange"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1532,12 +1430,6 @@ impl<'a> Node<'a> for OFCellRange<'a> {
         }
         write!(f, "{}{}", self.to_col.enc(), self.to_row.enc())?;
         Ok(())
-    }
-}
-
-impl<'a> Debug for OFCellRange<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_elem(f, self)
     }
 }
 
@@ -1591,7 +1483,7 @@ pub struct OFRowRange<'a> {
 
 impl<'a> Node<'a> for OFRowRange<'a> {
     fn name(&self) -> &str {
-        "row-range"
+        "RowRange"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1612,12 +1504,6 @@ impl<'a> Node<'a> for OFRowRange<'a> {
         }
         write!(f, "{}", self.to_row.enc())?;
         Ok(())
-    }
-}
-
-impl<'a> Debug for OFRowRange<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_elem(f, self)
     }
 }
 
@@ -1669,7 +1555,7 @@ pub struct OFColRange<'a> {
 
 impl<'a> Node<'a> for OFColRange<'a> {
     fn name(&self) -> &str {
-        "col-range"
+        "ColRange"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1690,12 +1576,6 @@ impl<'a> Node<'a> for OFColRange<'a> {
         }
         write!(f, "{}", self.to_col.enc())?;
         Ok(())
-    }
-}
-
-impl<'a> Debug for OFColRange<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_elem(f, self)
     }
 }
 
@@ -1742,7 +1622,7 @@ pub struct OFParens<'a> {
 
 impl<'a> Node<'a> for OFParens<'a> {
     fn name(&self) -> &str {
-        "parens"
+        "Parens"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1751,12 +1631,6 @@ impl<'a> Node<'a> for OFParens<'a> {
 
     fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "({})", self.expr.enc())
-    }
-}
-
-impl<'a> Debug for OFParens<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_parens(f, self, 0)
     }
 }
 
@@ -1783,7 +1657,7 @@ pub struct OFFnCall<'a> {
 
 impl<'a> Node<'a> for OFFnCall<'a> {
     fn name(&self) -> &str {
-        "fn-call"
+        "FnCall"
     }
 
     fn span(&self) -> Span<'a> {
@@ -1800,12 +1674,6 @@ impl<'a> Node<'a> for OFFnCall<'a> {
         }
         write!(f, ")")?;
         Ok(())
-    }
-}
-
-impl<'a> Debug for OFFnCall<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        debug_ast::debug_fn_call(f, self, 0)
     }
 }
 
@@ -1836,7 +1704,7 @@ pub struct OFFnName<'a> {
 
 impl<'a> Node<'a> for OFFnName<'a> {
     fn name(&self) -> &str {
-        "fn-name"
+        "FnName"
     }
 
     /// Returns the span for each variant.

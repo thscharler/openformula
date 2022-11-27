@@ -65,7 +65,7 @@ impl<'s, O> TestRun<'s, O>
 where
     O: Debug,
 {
-    const STATE: RunState = RunState::CheckTrace;
+    const STATE: RunState = RunState::Dump;
 
     /// Runs the parser and records the results.
     /// Use ok(), err(), ... to check specifics.
@@ -281,13 +281,16 @@ where
 
     /// Dump the result.
     pub fn dump(&self) -> &Self {
-        println!("when parsing '{}'", self.span);
+        println!();
+        println!("when parsing '{}' =>", self.span);
         match &self.result {
             Ok((rest, token)) => {
-                println!("=> token={:?} rest=\"{}\"", token, rest);
+                println!("rest {}:\"{}\"", rest.location_offset(), rest);
+                println!("{:0?}", token);
             }
             Err(e) => {
-                println!("=> error={:1?}", e);
+                println!("error");
+                println!("{:1?}", e);
             }
         }
         self
@@ -305,15 +308,17 @@ where
             }
         }
 
-        println!("when parsing '{}'", self.span);
+        println!();
+        println!("when parsing '{}' =>", self.span);
         match &self.result {
             Ok((rest, token)) => {
                 println!("{}", Q(self));
-                println!("=> token={:?} rest=\"{}\"", token, rest);
+                println!("rest {}:\"{}\"", rest.location_offset(), rest);
+                println!("{:0?}", token);
             }
             Err(e) => {
                 println!("{}", Q(self));
-                println!("=> error=");
+                println!("error");
                 println!("{:1?}", e);
             }
         }

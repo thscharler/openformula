@@ -396,9 +396,20 @@ pub struct Expect2<'s> {
     pub parents: Vec<OFCode>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum DebugWidth {
     Short,
     Medium,
     Long,
+}
+
+impl From<Option<usize>> for DebugWidth {
+    fn from(value: Option<usize>) -> Self {
+        match value {
+            None | Some(0) => DebugWidth::Short,
+            Some(1) => DebugWidth::Medium,
+            Some(2) => DebugWidth::Long,
+            _ => DebugWidth::Short,
+        }
+    }
 }

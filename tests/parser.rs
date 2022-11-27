@@ -107,12 +107,12 @@ pub fn expr_fail() {
 #[test]
 pub fn postfix() {
     TestRun::parse("", PostfixExpr::parse)
-        .filter(&filter_ops_and_ref)
-        .fail()
+        .err(OFCPostfix)
+        .expect(OFCElementary)
         .q();
     TestRun::parse("5", PostfixExpr::parse)
         .filter(&filter_ops_and_ref)
-        .fail()
+        .okok()
         .q();
     TestRun::parse("5%", PostfixExpr::parse)
         .filter(&filter_ops_and_ref)
