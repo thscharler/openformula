@@ -260,11 +260,7 @@ impl<'s> Tracer<'s> {
     }
 
     fn parent_vec(&self) -> Vec<OFCode> {
-        let mut f_vec = Vec::new();
-        for f in &*self.func.borrow() {
-            f_vec.push(*f);
-        }
-        f_vec
+        self.func.borrow().clone()
     }
 }
 

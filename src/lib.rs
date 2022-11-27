@@ -42,7 +42,6 @@
 #![warn(variant_size_differences)]
 #![deny(dead_code)]
 #![deny(clippy::needless_lifetimes)]
-// TODO: documentation
 #![deny(missing_docs)]
 
 extern crate core;
