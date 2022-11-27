@@ -2,8 +2,8 @@ mod spantest;
 
 use openformula::ast::parser::{
     CellRangeExpr, CellRefExpr, ColRangeExpr, ColTerm, ElementaryExpr, Expr, FnCallExpr,
-    GeneralExpr, GeneralTerm, IriTerm, NamedExpr, NumberExpr, ParenthesesExpr, PrefixExpr,
-    ReferenceExpr, RowRangeExpr, RowTerm, SheetNameTerm, StringExpr,
+    GeneralExpr, GeneralTerm, IriTerm, NamedExpr, NumberExpr, ParenthesesExpr, PostfixExpr,
+    PrefixExpr, ReferenceExpr, RowRangeExpr, RowTerm, SheetNameTerm, StringExpr,
 };
 use openformula::ast::tracer::Track;
 use openformula::ast::{OFAst, OFIri, OFSheetName};
@@ -17,8 +17,8 @@ fn filter_ops_and_ref(t: &Track<'_>) -> bool {
     if [
         OFCPrefix,
         OFCPrefixOp,
-        OFCPostfix,
-        OFCPostfixOp,
+        // OFCPostfix,
+        // OFCPostfixOp,
         OFCPow,
         OFCPowOp,
         OFCMul,
@@ -98,13 +98,27 @@ pub fn expr_fail() {
         .q();
 }
 
-// TODO: Expr
 // TODO: CompareExpr
 // TODO: AddExpr
 // TODO: MulExpr
 // TODO: PowExpr
 // TODO: PostfixExpr
-// TODO: PrefixExpr
+
+#[test]
+pub fn postfix() {
+    TestRun::parse("", PostfixExpr::parse)
+        .filter(&filter_ops_and_ref)
+        .fail()
+        .q();
+    TestRun::parse("5", PostfixExpr::parse)
+        .filter(&filter_ops_and_ref)
+        .fail()
+        .q();
+    TestRun::parse("5%", PostfixExpr::parse)
+        .filter(&filter_ops_and_ref)
+        .fail()
+        .q();
+}
 
 #[test]
 pub fn prefix() {

@@ -16,13 +16,6 @@ impl<'s> Debug for ParseOFError<'s> {
 impl<'s> Debug for Suggest2<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:\"{}\"", self.code, self.span)?;
-        if !self.parents.is_empty() {
-            write!(f, "<")?;
-            for p in &self.parents {
-                write!(f, "{} ", p)?;
-            }
-            write!(f, "> ")?;
-        }
         Ok(())
     }
 }
@@ -30,13 +23,6 @@ impl<'s> Debug for Suggest2<'s> {
 impl<'s> Debug for Expect2<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}:\"{}\"", self.code, self.span)?;
-        if !self.parents.is_empty() {
-            write!(f, "<")?;
-            for p in &self.parents {
-                write!(f, "{} ", p)?;
-            }
-            write!(f, "> ")?;
-        }
         Ok(())
     }
 }

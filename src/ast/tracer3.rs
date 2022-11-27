@@ -3,7 +3,7 @@ use crate::ast::{ParseResult, Span};
 use crate::error::{DebugWidth, Expect2, OFCode, ParseOFError, Suggest2};
 use std::cell::RefCell;
 use std::fmt;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 
 pub mod debug_tracer;
@@ -51,7 +51,7 @@ impl<'s> Tracer<'s> {
 
     /// Adds a suggestion for the current stack frame.
     pub fn suggest(&self, suggest: OFCode, span: Span<'s>) {
-        self.debug(format!("suggest {:?}", suggest));
+        self.debug(format!("suggest {}:\"{}\" ...", suggest, span));
         self.add_suggest(suggest, span);
     }
 
@@ -69,7 +69,8 @@ impl<'s> Tracer<'s> {
 
         let expect = self.pop_expect();
         self.track_expect(Usage::Drop, expect.list);
-        self.pop_suggest();
+        let suggest = self.pop_suggest();
+        self.track_suggest(Usage::Drop, suggest.list);
 
         self.track_exit();
         self.pop_func();
@@ -93,6 +94,7 @@ impl<'s> Tracer<'s> {
         err.expect2.append(&mut exp.list);
 
         let mut sug = self.pop_suggest();
+        self.track_suggest(Usage::Use, sug.list.clone());
         err.suggest2.append(&mut sug.list);
 
         self.track_error(&err);
@@ -321,6 +323,16 @@ pub enum Usage {
     Track,
     Drop,
     Use,
+}
+
+impl Display for Usage {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Usage::Track => write!(f, "track"),
+            Usage::Drop => write!(f, "drop"),
+            Usage::Use => write!(f, "use"),
+        }
+    }
 }
 
 /// One per stack frame.

@@ -251,9 +251,9 @@ impl<'s> ParseOFError<'s> {
 
 impl<'s> Display for ParseOFError<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: ", self.code)?;
+        write!(f, "{} expects ", self.code)?;
         for (i, exp) in self.expect2.iter().enumerate() {
-            if i == 0 {
+            if i > 0 {
                 write!(f, " ")?;
             }
             write!(f, "{}:\"{}\"", exp.code, exp.span)?;
@@ -261,7 +261,7 @@ impl<'s> Display for ParseOFError<'s> {
         // no suggest
         write!(
             f,
-            "for span={} \"{}\"",
+            " for span {} \"{}\"",
             self.span.location_offset(),
             self.span
         )?;

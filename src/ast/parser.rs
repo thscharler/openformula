@@ -358,7 +358,7 @@ impl<'s> GeneralExpr<'s> for PowExpr {
     }
 }
 
-struct PostfixExpr;
+pub struct PostfixExpr;
 
 impl PostfixExpr {
     /// Parses and maps the Span to an OFPostfixOp
