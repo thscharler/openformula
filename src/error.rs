@@ -43,6 +43,19 @@ impl<'s> ParseOFError<'s> {
         return false;
     }
 
+    pub fn is_expected2(&self, code: OFCode, parent: OFCode) -> bool {
+        for exp in &self.expect2 {
+            if exp.code == code {
+                for par in &exp.parents {
+                    if *par == parent {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     pub fn expect_str(&self) -> String {
         let mut buf = String::new();
         for exp in &self.expect2 {
@@ -410,4 +423,13 @@ impl<'s> Debug for Expect2<'s> {
         }
         Ok(())
     }
+}
+
+// DebugWidth ------------------------------------------------------------
+
+#[derive(Clone, Copy)]
+pub enum DebugWidth {
+    Short,
+    Medium,
+    Long,
 }

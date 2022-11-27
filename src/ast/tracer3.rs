@@ -1,7 +1,10 @@
 use crate::ast::{ParseResult, Span};
 use crate::error::{Expect2, OFCode, ParseOFError, Suggest2};
 use std::cell::RefCell;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
+pub mod debug_tracer;
 
 pub struct Tracer<'s> {
     /// Function call stack.
@@ -40,26 +43,14 @@ impl<'s> Tracer<'s> {
     }
 
     /// Some detailed debug information.
-    pub fn detail<T: Into<String>>(&self, step: T) {
-        self.track_detail(step.into());
+    pub fn debug<T: Into<String>>(&self, step: T) {
+        self.track_debug(step.into());
     }
 
     /// Adds a suggestion for the current stack frame.
     pub fn suggest(&self, suggest: OFCode, span: Span<'s>) {
-        self.detail(format!("suggest {:?}", suggest));
+        self.debug(format!("suggest {:?}", suggest));
         self.add_suggest(suggest, span);
-    }
-
-    /// Write a track for an ok result.
-    pub fn ok<'t, T>(&'t self, span: Span<'s>, rest: Span<'s>, val: T) -> ParseResult<'s, T> {
-        self.track_ok(rest, span);
-        self.track_exit();
-
-        self.pop_expect();
-        self.pop_suggest();
-        self.pop_func();
-
-        Ok((rest, val))
     }
 
     /// Keep track of this error.
@@ -69,28 +60,41 @@ impl<'s> Tracer<'s> {
         self.append_suggest(err.suggest2);
     }
 
+    /// Write a track for an ok result.
+    pub fn ok<'t, T>(&'t self, span: Span<'s>, rest: Span<'s>, val: T) -> ParseResult<'s, T> {
+        self.track_ok(rest, span);
+
+        let expect = self.pop_expect();
+        self.track_expect(Usage::Drop, expect.list);
+        self.pop_suggest();
+
+        self.track_exit();
+        self.pop_func();
+
+        Ok((rest, val))
+    }
+
     /// Write a track for an error.
     pub fn err<'t, T>(&'t self, mut err: ParseOFError<'s>) -> ParseResult<'s, T> {
         // Freshly created error.
         if !err.tracing {
             err.tracing = true;
-            if err.code != self.func() {
-                self.add_expect(err.code, err.span);
-            }
+            self.add_expect(err.code, err.span);
         }
 
         // when backtracking we always replace the current error code.
         err.code = self.func();
 
         let mut exp = self.pop_expect();
+        self.track_expect(Usage::Use, exp.list.clone());
         err.expect2.append(&mut exp.list);
 
         let mut sug = self.pop_suggest();
         err.suggest2.append(&mut sug.list);
 
         self.track_error(&err);
-        self.track_exit();
 
+        self.track_exit();
         self.pop_func();
 
         Err(err)
@@ -102,6 +106,7 @@ impl<'s> Tracer<'s> {
     fn push_expect(&self, func: OFCode) {
         self.expect.borrow_mut().push(ExpectTrack {
             func,
+            usage: Usage::Track,
             list: Vec::new(),
         })
     }
@@ -138,6 +143,7 @@ impl<'s> Tracer<'s> {
     fn push_suggest(&self, func: OFCode) {
         self.suggest.borrow_mut().push(SuggestTrack {
             func,
+            usage: Usage::Track,
             list: Vec::new(),
         })
     }
@@ -198,96 +204,70 @@ impl<'s> Tracer<'s> {
 // basic tracking
 impl<'s> Tracer<'s> {
     fn track_enter(&self, span: Span<'s>) {
-        self.track
-            .borrow_mut()
-            .push(Track::Enter(self.func(), span));
+        self.track.borrow_mut().push(Track::Enter(EnterTrack {
+            func: self.func(),
+            span,
+            list: self.parent_vec(),
+        }));
     }
 
     fn track_step(&self, step: &'static str, span: Span<'s>) {
-        self.track
-            .borrow_mut()
-            .push(Track::Step(self.func(), step, span));
+        self.track.borrow_mut().push(Track::Step(StepTrack {
+            func: self.func(),
+            step,
+            span,
+            list: self.parent_vec(),
+        }));
     }
 
-    fn track_detail(&self, step: String) {
-        self.track
-            .borrow_mut()
-            .push(Track::Detail(self.func(), step));
+    fn track_debug(&self, dbg: String) {
+        self.track.borrow_mut().push(Track::Debug(DebugTrack {
+            func: self.func(),
+            dbg,
+            list: self.parent_vec(),
+            _phantom: Default::default(),
+        }));
+    }
+
+    fn track_suggest(&self, usage: Usage, suggest: Vec<Suggest2<'s>>) {
+        self.track.borrow_mut().push(Track::Suggest(SuggestTrack {
+            func: self.func(),
+            usage,
+            list: suggest,
+        }))
+    }
+
+    fn track_expect(&self, usage: Usage, expect: Vec<Expect2<'s>>) {
+        self.track.borrow_mut().push(Track::Expect(ExpectTrack {
+            func: self.func(),
+            usage,
+            list: expect,
+        }))
     }
 
     fn track_ok(&self, rest: Span<'s>, span: Span<'s>) {
-        self.track
-            .borrow_mut()
-            .push(Track::Ok(self.func(), span, rest));
+        self.track.borrow_mut().push(Track::Ok(OkTrack {
+            func: self.func(),
+            span,
+            rest,
+            list: self.parent_vec(),
+        }));
     }
 
     fn track_error(&self, err: &ParseOFError<'s>) {
-        self.track
-            .borrow_mut()
-            .push(Track::Error(self.func(), err.to_string(), err.span));
+        self.track.borrow_mut().push(Track::Err(ErrTrack {
+            func: self.func(),
+            span: err.span,
+            err: err.to_string(),
+            list: self.parent_vec(),
+        }));
     }
 
     fn track_exit(&self) {
-        self.track.borrow_mut().push(Track::Exit(self.func()));
-    }
-}
-
-impl<'s> Debug for Tracer<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "trace")?;
-        let tracks = self.track.borrow();
-
-        let mut indent = String::new();
-        for tr in tracks.iter() {
-            match tr {
-                Track::Enter(_, _) => {
-                    indent.push_str("  ");
-                    writeln!(f, "{}{:?}", indent, tr)?;
-                }
-                Track::Step(_, _, _) => {
-                    writeln!(f, "{}{:?}", indent, tr)?;
-                }
-                Track::Detail(_, _) => {
-                    writeln!(f, "{}{:?}", indent, tr)?;
-                }
-                Track::Ok(_, _, _) => {
-                    writeln!(f, "{}{:?}", indent, tr)?;
-                }
-                Track::Error(_, _, _) => {
-                    writeln!(f, "{}{:?}", indent, tr)?;
-                }
-                Track::Exit(_) => {
-                    indent.pop();
-                    indent.pop();
-                }
-            }
-        }
-
-        if !self.func.borrow().is_empty() {
-            write!(f, "    func=")?;
-            for func in &*self.func.borrow() {
-                write!(f, "{:?} ", func)?;
-            }
-            writeln!(f)?;
-        }
-
-        if !self.expect.borrow().is_empty() {
-            write!(f, "    expect=")?;
-            for exp in &*self.expect.borrow() {
-                writeln!(f, "{:?} ", exp)?;
-            }
-            writeln!(f)?;
-        }
-
-        if !self.suggest.borrow().is_empty() {
-            write!(f, "    suggest=")?;
-            for sug in &*self.suggest.borrow() {
-                writeln!(f, "{:?} ", sug)?;
-            }
-            writeln!(f)?;
-        }
-
-        Ok(())
+        self.track.borrow_mut().push(Track::Exit(ExitTrack {
+            func: self.func(),
+            _phantom: Default::default(),
+        }));
     }
 }
 
@@ -313,80 +293,76 @@ impl<'s, 't, O> TrackParseResult<'s, 't, O> for ParseResult<'s, O> {
     }
 }
 
-// ExpectTrack -----------------------------------------------------------
+// Track -----------------------------------------------------------------
+
+#[derive(Debug)]
+pub enum Usage {
+    Track,
+    Drop,
+    Use,
+}
 
 /// One per stack frame.
-struct ExpectTrack<'s> {
+pub struct ExpectTrack<'s> {
     pub func: OFCode,
+    pub usage: Usage,
     pub list: Vec<Expect2<'s>>,
 }
 
-impl<'s> Debug for ExpectTrack<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {:?}", self.func, self.list)?;
-        Ok(())
-    }
-}
-
-// SuggestTrack ----------------------------------------------------------
-
 /// One per stack frame.
-struct SuggestTrack<'s> {
+pub struct SuggestTrack<'s> {
     pub func: OFCode,
+    pub usage: Usage,
     pub list: Vec<Suggest2<'s>>,
 }
 
-impl<'s> Debug for SuggestTrack<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {:?}", self.func, self.list)?;
-        Ok(())
-    }
+pub struct EnterTrack<'s> {
+    pub func: OFCode,
+    pub span: Span<'s>,
+    pub list: Vec<OFCode>,
 }
 
-// Track -----------------------------------------------------------------
+pub struct StepTrack<'s> {
+    pub func: OFCode,
+    pub step: &'static str,
+    pub span: Span<'s>,
+    pub list: Vec<OFCode>,
+}
+
+pub struct DebugTrack<'s> {
+    pub func: OFCode,
+    pub dbg: String,
+    pub list: Vec<OFCode>,
+    pub _phantom: PhantomData<Span<'s>>,
+}
+
+pub struct OkTrack<'s> {
+    pub func: OFCode,
+    pub span: Span<'s>,
+    pub rest: Span<'s>,
+    pub list: Vec<OFCode>,
+}
+
+pub struct ErrTrack<'s> {
+    pub func: OFCode,
+    pub span: Span<'s>,
+    pub err: String,
+    pub list: Vec<OFCode>,
+}
+
+pub struct ExitTrack<'s> {
+    pub func: OFCode,
+    pub _phantom: PhantomData<Span<'s>>,
+}
 
 /// One track of the parsing trace.
-enum Track<'s> {
-    /// Function where this occurred and the input span.
-    Enter(OFCode, Span<'s>),
-    /// Function with an extra step.
-    Step(OFCode, &'static str, Span<'s>),
-    /// Internal tracing.
-    Detail(OFCode, String),
-    /// Function where this occurred and the remaining span.
-    Ok(OFCode, Span<'s>, Span<'s>),
-    /// Function where this occurred and some error info.
-    Error(OFCode, String, Span<'s>),
-    /// Exit the function
-    Exit(OFCode),
-}
-
-impl<'s> Debug for Track<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Track::Enter(func, input) => {
-                write!(f, "{}: '{}'", func, input)?;
-            }
-            Track::Step(func, step, input) => {
-                write!(f, "{}: {} '{}'", func, step, input)?;
-            }
-            Track::Detail(func, detail) => {
-                write!(f, "{}: {}", func, detail)?;
-            }
-            Track::Ok(func, val, rest) => {
-                if !val.is_empty() {
-                    write!(f, "{}: -> [ {}, '{}' ]", func, val, rest)?;
-                } else {
-                    write!(f, "{}: -> no match", func)?;
-                }
-            }
-            Track::Error(func, err_str, _err_span) => {
-                write!(f, "{}: err={} ", func, err_str)?;
-            }
-            Track::Exit(func) => {
-                write!(f, "return {}: ", func)?;
-            }
-        }
-        Ok(())
-    }
+pub enum Track<'s> {
+    Enter(EnterTrack<'s>),
+    Step(StepTrack<'s>),
+    Debug(DebugTrack<'s>),
+    Expect(ExpectTrack<'s>),
+    Suggest(SuggestTrack<'s>),
+    Ok(OkTrack<'s>),
+    Err(ErrTrack<'s>),
+    Exit(ExitTrack<'s>),
 }

@@ -14,7 +14,6 @@ mod debug_ast;
 pub mod format;
 pub mod parser;
 pub mod tokens;
-//pub mod tracer;
 pub mod tracer3;
 
 pub use tracer3 as tracer;

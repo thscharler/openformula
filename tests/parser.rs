@@ -298,12 +298,11 @@ pub fn celref() {
         .q();
     TestRun::parse(".1", CellRefExpr::parse)
         .err(OFCCellRef)
-        .expect(OFCAlpha)
-        .expect(OFCCol)
+        .expect2(OFCAlpha, OFCCol)
         .q();
     TestRun::parse("A1", CellRefExpr::parse)
         .err(OFCCellRef)
-        .expect(OFCDot)
+        .expect2(OFCDot, OFCCellRef)
         .q();
     TestRun::parse(".$A$1", CellRefExpr::parse)
         .ok(row_col, &(0, 0))
@@ -311,28 +310,23 @@ pub fn celref() {
         .q();
     TestRun::parse(".$A $1", CellRefExpr::parse)
         .err(OFCCellRef)
-        .expect(OFCDigit)
-        .expect(OFCRow)
+        .expect2(OFCDigit, OFCRow)
         .q();
     TestRun::parse(".$ A$1", CellRefExpr::parse)
         .err(OFCCellRef)
-        .expect(OFCAlpha)
-        .expect(OFCCol)
+        .expect2(OFCAlpha, OFCCol)
         .q();
     TestRun::parse(".$A$ 1", CellRefExpr::parse)
         .err(OFCCellRef)
-        .expect(OFCDigit)
-        .expect(OFCRow)
+        .expect2(OFCDigit, OFCRow)
         .q();
     TestRun::parse(".$A$$1", CellRefExpr::parse)
         .err(OFCCellRef)
-        .expect(OFCDigit)
-        .expect(OFCRow)
+        .expect2(OFCDigit, OFCRow)
         .q();
     TestRun::parse(".$$A$$1", CellRefExpr::parse)
         .err(OFCCellRef)
-        .expect(OFCAlpha)
-        .expect(OFCCol)
+        .expect2(OFCAlpha, OFCCol)
         .q();
     TestRun::parse(" 'iri' # $ 'sheet' . $A$1 ", CellRefExpr::parse)
         .ok(iri, "iri")
@@ -424,23 +418,19 @@ pub fn cellrange() {
     TestRun::parse(".A1:.C3", CellRangeExpr::parse).okok().q();
     TestRun::parse(".A1:.3", CellRangeExpr::parse)
         .err(OFCCellRange)
-        .expect(OFCAlpha)
-        .expect(OFCCol)
+        .expect2(OFCAlpha, OFCCol)
         .q();
     TestRun::parse(".A1:.C", CellRangeExpr::parse)
         .err(OFCCellRange)
-        .expect(OFCDigit)
-        .expect(OFCRow)
+        .expect2(OFCDigit, OFCRow)
         .q();
     TestRun::parse(".A:.C3", CellRangeExpr::parse)
         .err(OFCCellRange)
-        .expect(OFCDigit)
-        .expect(OFCRow)
+        .expect2(OFCDigit, OFCRow)
         .q();
     TestRun::parse(".1:.C3", CellRangeExpr::parse)
         .err(OFCCellRange)
-        .expect(OFCAlpha)
-        .expect(OFCCol)
+        .expect2(OFCAlpha, OFCCol)
         .q();
     TestRun::parse(":.C3", CellRangeExpr::parse)
         .err(OFCCellRange)
@@ -501,8 +491,7 @@ pub fn colrange() {
         .q();
     TestRun::parse(".1:", ColRangeExpr::parse)
         .err(OFCColRange)
-        .expect(OFCAlpha)
-        .expect(OFCCol)
+        .expect2(OFCAlpha, OFCCol)
         .q();
     TestRun::parse(".A", ColRangeExpr::parse)
         .err(OFCColRange)

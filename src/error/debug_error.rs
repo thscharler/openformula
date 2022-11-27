@@ -25,8 +25,11 @@ pub fn debug_parse_of_error_multi<'s>(
 ) -> std::fmt::Result {
     writeln!(f, "ParseOFError {} \"{}\"", err.code, err.span)?;
     if !err.expect2.is_empty() {
+        let mut sorted = err.expect2.clone();
+        sorted.sort_by(|a, b| b.span.location_offset().cmp(&a.span.location_offset()));
+
         writeln!(f, "expect2=")?;
-        debug_expect2_multi(f, &err.expect2, 1)?;
+        debug_expect2_multi(f, &sorted, 1)?;
     }
     if !err.suggest2.is_empty() {
         writeln!(f, "suggest2=")?;

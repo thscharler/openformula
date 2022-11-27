@@ -1107,7 +1107,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                     }
                     Err(e) if e.code == OFCSemikolon => {
                         // Optional
-                        trace.stash(e);
+                        trace.suggest(OFCSemikolon, e.span);
                     }
                     Err(e) => {
                         return trace.err(e);
@@ -1139,7 +1139,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
                         }
                         Err(e) if e.code == OFCSemikolon => {
                             // Optional
-                            trace.stash(e);
+                            trace.suggest(OFCSemikolon, e.span);
                             None
                         }
                         Err(e) => {

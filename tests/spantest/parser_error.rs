@@ -215,6 +215,31 @@ where
         self
     }
 
+    /// Checks for an expect value.
+    ///
+    /// Finish the test with q()
+    #[must_use]
+    pub fn expect2(&self, code: OFCode, parent: OFCode) -> &Self {
+        match &self.result {
+            Ok(_) => {
+                println!("FAIL: {:?} was ok not an error.", code,);
+                self.flag_fail();
+            }
+            Err(e) => {
+                if !e.is_expected2(code, parent) {
+                    println!(
+                        "FAIL: {:?} is not an expected token. [{}]",
+                        code,
+                        e.expect_str()
+                    );
+                    self.flag_fail();
+                }
+            }
+        }
+
+        self
+    }
+
     /// Fails the test if any of the checks before failed.
     ///
     /// Panic
