@@ -11,6 +11,8 @@ use openformula::error::OFCode::*;
 
 use spantest::*;
 
+#[allow(dead_code)]
+// can be used as filter for some annoying stuff.
 fn filter_ops_and_ref(t: &Track<'_>) -> bool {
     if [
         OFCPrefix,
@@ -40,16 +42,16 @@ fn filter_ops_and_ref(t: &Track<'_>) -> bool {
 
 #[test]
 pub fn expr() {
-    TestRun::parse("471", Expr::parse).fail().q();
-    TestRun::parse(r#""strdata""#, Expr::parse).fail().q();
-    TestRun::parse("1+1", Expr::parse).fail().q();
-    TestRun::parse("(1+1)", Expr::parse).fail().q();
-    TestRun::parse("4*5+1", Expr::parse).fail().q();
-    TestRun::parse("4+5*2", Expr::parse).fail().q();
-    TestRun::parse("22 * FUN ( 77 )", Expr::parse).fail().q();
-    TestRun::parse("17 + FUN(  )", Expr::parse).fail().q();
-    TestRun::parse("1+2*3^4", Expr::parse).fail().q();
-    TestRun::parse("27+(19*.A5)", Expr::parse).fail().q();
+    TestRun::parse("471", Expr::parse).okok().q();
+    TestRun::parse(r#""strdata""#, Expr::parse).okok().q();
+    TestRun::parse("1+1", Expr::parse).okok().q();
+    TestRun::parse("(1+1)", Expr::parse).okok().q();
+    TestRun::parse("4*5+1", Expr::parse).okok().q();
+    TestRun::parse("4+5*2", Expr::parse).okok().q();
+    TestRun::parse("22 * FUN ( 77 )", Expr::parse).okok().q();
+    TestRun::parse("17 + FUN(  )", Expr::parse).okok().q();
+    TestRun::parse("1+2*3^4", Expr::parse).okok().q();
+    TestRun::parse("27+(19*.A5)", Expr::parse).okok().q();
 }
 
 #[test]
@@ -79,17 +81,21 @@ pub fn expr_fail() {
     TestRun::parse("22 * $FUN()", Expr::parse).err(OFCExpr).q();
     TestRun::parse("22 * FUN ( 77+  ", Expr::parse)
         .err(OFCExpr)
-        // TODO: should be ...
-        .filter(&filter_ops_and_ref)
-        .fail()
+        .expect(OFCParenthesesClose)
         .q();
     TestRun::parse("22 * FUN ( 77  ", Expr::parse)
         .err(OFCExpr)
         .expect(OFCParenthesesClose)
         .q();
-    TestRun::parse("22 * FUN 77 ) ", Expr::parse).fail().q();
-    TestRun::parse("11 ^ FUN(   ;;.A)", Expr::parse).fail().q();
-    TestRun::parse("11 ^ FUN(   ;;X)", Expr::parse).fail().q();
+    TestRun::parse("22 * FUN 77 ) ", Expr::parse)
+        .err(OFCExpr)
+        .expect(OFCParenthesesOpen)
+        .q();
+    TestRun::parse("11 ^ FUN(   ;;.A)", Expr::parse).okok().q();
+    TestRun::parse("11 ^ FUN(   ;;X)", Expr::parse)
+        .err(OFCExpr)
+        .expect(OFCFnCall)
+        .q();
 }
 
 // TODO: Expr

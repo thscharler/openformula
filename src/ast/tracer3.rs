@@ -244,21 +244,25 @@ impl<'s> Tracer<'s> {
     }
 
     fn track_suggest(&self, usage: Usage, suggest: Vec<Suggest2<'s>>) {
-        self.track.borrow_mut().push(Track::Suggest(SuggestTrack {
-            func: self.func(),
-            usage,
-            list: suggest,
-            parents: self.parent_vec(),
-        }))
+        if !suggest.is_empty() {
+            self.track.borrow_mut().push(Track::Suggest(SuggestTrack {
+                func: self.func(),
+                usage,
+                list: suggest,
+                parents: self.parent_vec(),
+            }));
+        }
     }
 
     fn track_expect(&self, usage: Usage, expect: Vec<Expect2<'s>>) {
-        self.track.borrow_mut().push(Track::Expect(ExpectTrack {
-            func: self.func(),
-            usage,
-            list: expect,
-            parents: self.parent_vec(),
-        }))
+        if !expect.is_empty() {
+            self.track.borrow_mut().push(Track::Expect(ExpectTrack {
+                func: self.func(),
+                usage,
+                list: expect,
+                parents: self.parent_vec(),
+            }));
+        }
     }
 
     fn track_ok(&self, rest: Span<'s>, span: Span<'s>) {
