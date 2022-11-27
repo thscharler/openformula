@@ -353,7 +353,7 @@ impl Display for OFCode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut buf = String::new();
         write!(buf, "{:?}", self)?;
-        write!(f, "{}", buf.strip_prefix("OFC").unwrap())?;
+        f.pad(buf.strip_prefix("OFC").unwrap())?;
         Ok(())
     }
 }

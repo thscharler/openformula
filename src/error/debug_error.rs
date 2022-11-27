@@ -1,13 +1,13 @@
-use crate::error::{Expect2, ParseOFError, Suggest2};
+use crate::error::{Expect2, OFCode, ParseOFError, Suggest2};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 
 impl<'s> Debug for ParseOFError<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match f.width() {
-            None | Some(0) => debug_parse_of_error_single(f, self),
-            Some(1) => debug_parse_of_error_multi(f, self),
-            Some(2) => debug_parse_of_error_multi(f, self),
+            None | Some(0) => debug_parse_of_error_short(f, self),
+            Some(1) => debug_parse_of_error_medium(f, self),
+            Some(2) => debug_parse_of_error_long(f, self),
             _ => Ok(()),
         }
     }
@@ -41,14 +41,14 @@ impl<'s> Debug for Expect2<'s> {
     }
 }
 
-pub fn debug_parse_of_error_single<'s>(
+pub fn debug_parse_of_error_short<'s>(
     f: &mut Formatter<'_>,
     err: &ParseOFError<'s>,
 ) -> std::fmt::Result {
     write!(f, "ParseOFError {} \"{}\"", err.code, err.span)?;
     if !err.expect2.is_empty() {
         write!(f, "expect=")?;
-        debug_expect2_single(f, &err.expect2, 1)?;
+        debug_expect2_short(f, &err.expect2, 1)?;
     }
     if !err.suggest2.is_empty() {
         write!(f, "suggest=")?;
@@ -58,7 +58,49 @@ pub fn debug_parse_of_error_single<'s>(
     Ok(())
 }
 
-pub fn debug_parse_of_error_multi<'s>(
+pub fn debug_parse_of_error_medium<'s>(
+    f: &mut Formatter<'_>,
+    err: &ParseOFError<'s>,
+) -> std::fmt::Result {
+    writeln!(f, "ParseOFError {} \"{}\"", err.code, err.span)?;
+    if !err.expect2.is_empty() {
+        let mut sorted = err.expect2.clone();
+        sorted.sort_by(|a, b| b.span.location_offset().cmp(&a.span.location_offset()));
+
+        // per offset
+        let mut grp_offset = 0;
+        let mut grp = Vec::new();
+        let mut subgrp = Vec::new();
+        for exp in &sorted {
+            if exp.span.location_offset() != grp_offset {
+                if subgrp.len() > 0 {
+                    grp.push((grp_offset, subgrp));
+                    subgrp = Vec::new();
+                }
+                grp_offset = exp.span.location_offset();
+            }
+
+            subgrp.push(exp);
+        }
+        if !subgrp.is_empty() {
+            grp.push((grp_offset, subgrp));
+        }
+
+        for (g_off, subgrp) in grp {
+            let first = subgrp.first().unwrap();
+            writeln!(f, "expect {}:\"{}\" ", g_off, first.span)?;
+            debug_expect2_medium(f, &subgrp, 1)?;
+        }
+    }
+    if !err.suggest2.is_empty() {
+        writeln!(f, "suggest=")?;
+        debug_suggest2_multi(f, &err.suggest2, 1)?;
+    }
+
+    Ok(())
+}
+
+pub fn debug_parse_of_error_long<'s>(
     f: &mut Formatter<'_>,
     err: &ParseOFError<'s>,
 ) -> std::fmt::Result {
@@ -68,7 +110,7 @@ pub fn debug_parse_of_error_multi<'s>(
         sorted.sort_by(|a, b| b.span.location_offset().cmp(&a.span.location_offset()));
 
         writeln!(f, "expect=")?;
-        debug_expect2_multi(f, &sorted, 1)?;
+        debug_expect2_long(f, &sorted, 1)?;
     }
     if !err.suggest2.is_empty() {
         writeln!(f, "suggest=")?;
@@ -85,7 +127,7 @@ fn indent(f: &mut Formatter<'_>, ind: usize) -> fmt::Result {
 
 // expect2
 
-pub fn debug_expect2_multi(
+pub fn debug_expect2_long(
     f: &mut Formatter<'_>,
     exp_vec: &Vec<Expect2<'_>>,
     ind: usize,
@@ -115,7 +157,56 @@ pub fn debug_expect2_multi(
     Ok(())
 }
 
-pub fn debug_expect2_single(
+pub fn debug_expect2_medium(
+    f: &mut Formatter<'_>,
+    exp_vec: &Vec<&Expect2<'_>>,
+    ind: usize,
+) -> fmt::Result {
+    let mut prefix = Vec::new();
+
+    for exp in exp_vec {
+        indent(f, ind)?;
+        write!(f, "{:20}", exp.code)?;
+
+        let (suffix, sigil) = if prefix.is_empty() {
+            prefix.push(exp.parents.clone());
+            (exp.parents.as_slice(), "<<")
+        } else {
+            let suffix = loop {
+                let last = prefix.last().unwrap();
+                match exp.parents.strip_prefix(last.as_slice()) {
+                    None => {
+                        match prefix.pop() {
+                            None => {
+                                prefix.push(exp.parents.clone());
+                                break (exp.parents.as_slice(), "<<");
+                            }
+                            Some(_) => {}
+                        };
+                    }
+                    Some(suffix) => {
+                        prefix.push(exp.parents.clone());
+                        break (suffix, "++");
+                    }
+                };
+            };
+            suffix
+        };
+
+        write!(f, " {} ", sigil)?;
+        for (i, p) in suffix.iter().enumerate() {
+            if i > 0 {
+                write!(f, " ")?;
+            }
+            write!(f, "{}", p)?;
+        }
+        writeln!(f)?;
+    }
+
+    Ok(())
+}
+
+pub fn debug_expect2_short(
     f: &mut Formatter<'_>,
     exp_vec: &Vec<Expect2<'_>>,
     _ind: usize,
