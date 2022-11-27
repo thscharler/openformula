@@ -123,7 +123,7 @@ impl<'s> GeneralExpr<'s> for Expr {
     }
 }
 
-struct CompareExpr;
+pub struct CompareExpr;
 
 impl<'s> CompareExpr {
     fn operator<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFCompOp<'s>> {
@@ -184,7 +184,7 @@ impl<'s> GeneralExpr<'s> for CompareExpr {
     }
 }
 
-struct AddExpr;
+pub struct AddExpr;
 
 impl<'s> AddExpr {
     fn operator<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFAddOp<'s>> {
@@ -243,7 +243,7 @@ impl<'s> GeneralExpr<'s> for AddExpr {
     }
 }
 
-struct MulExpr;
+pub struct MulExpr;
 
 impl<'s> MulExpr {
     fn operator<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFMulOp<'s>> {
@@ -300,7 +300,7 @@ impl<'s> GeneralExpr<'s> for MulExpr {
     }
 }
 
-struct PowExpr;
+pub struct PowExpr;
 
 impl<'s> PowExpr {
     fn operator<'t>(trace: &'t Tracer<'s>, rest: Span<'s>) -> ParseResult<'s, OFPowOp<'s>> {

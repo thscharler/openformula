@@ -1,9 +1,10 @@
 mod spantest;
 
 use openformula::ast::parser::{
-    CellRangeExpr, CellRefExpr, ColRangeExpr, ColTerm, ElementaryExpr, Expr, FnCallExpr,
-    GeneralExpr, GeneralTerm, IriTerm, NamedExpr, NumberExpr, ParenthesesExpr, PostfixExpr,
-    PrefixExpr, ReferenceExpr, RowRangeExpr, RowTerm, SheetNameTerm, StringExpr,
+    AddExpr, CellRangeExpr, CellRefExpr, ColRangeExpr, ColTerm, CompareExpr, ElementaryExpr, Expr,
+    FnCallExpr, GeneralExpr, GeneralTerm, IriTerm, MulExpr, NamedExpr, NumberExpr, ParenthesesExpr,
+    PostfixExpr, PowExpr, PrefixExpr, ReferenceExpr, RowRangeExpr, RowTerm, SheetNameTerm,
+    StringExpr,
 };
 use openformula::ast::tracer::Track;
 use openformula::ast::{OFAst, OFIri, OFSheetName};
@@ -98,11 +99,74 @@ pub fn expr_fail() {
         .q();
 }
 
-// TODO: CompareExpr
-// TODO: AddExpr
-// TODO: MulExpr
-// TODO: PowExpr
-// TODO: PostfixExpr
+#[test]
+pub fn comp() {
+    TestRun::parse("", CompareExpr::parse)
+        .err(OFCComp)
+        .expect(OFCElementary)
+        .q();
+    TestRun::parse("123>3", CompareExpr::parse).okok().q();
+    TestRun::parse("123>", CompareExpr::parse)
+        .err(OFCComp)
+        .expect(OFCElementary)
+        .q();
+    TestRun::parse(">3", CompareExpr::parse)
+        .err(OFCComp)
+        .expect(OFCElementary)
+        .q();
+    TestRun::parse(" 123 > 3 ", CompareExpr::parse).okok().q();
+}
+
+#[test]
+pub fn add() {
+    TestRun::parse("", AddExpr::parse)
+        .err(OFCAdd)
+        .expect(OFCElementary)
+        .q();
+    TestRun::parse("123+3", AddExpr::parse).okok().q();
+    TestRun::parse("123+", AddExpr::parse)
+        .err(OFCAdd)
+        .expect(OFCElementary)
+        .q();
+    TestRun::parse("+3", AddExpr::parse).okok().q();
+    TestRun::parse(" 123 + 3 ", AddExpr::parse).okok().q();
+}
+
+#[test]
+pub fn mul() {
+    TestRun::parse("", MulExpr::parse)
+        .err(OFCMul)
+        .expect(OFCElementary)
+        .q();
+    TestRun::parse("123*3", MulExpr::parse).okok().q();
+    TestRun::parse("123*", MulExpr::parse)
+        .err(OFCMul)
+        .expect(OFCElementary)
+        .q();
+    TestRun::parse("*3", MulExpr::parse)
+        .err(OFCMul)
+        .expect(OFCElementary)
+        .q();
+    TestRun::parse(" 123 * 3 ", MulExpr::parse).okok().q();
+}
+
+#[test]
+pub fn pow() {
+    TestRun::parse("", PowExpr::parse)
+        .err(OFCPow)
+        .expect(OFCElementary)
+        .q();
+    TestRun::parse("123^3", PowExpr::parse).okok().q();
+    TestRun::parse("123^", PowExpr::parse)
+        .err(OFCPow)
+        .expect(OFCElementary)
+        .q();
+    TestRun::parse("^3", PowExpr::parse)
+        .err(OFCPow)
+        .expect(OFCElementary)
+        .q();
+    TestRun::parse(" 123 ^ 3 ", PowExpr::parse).okok().q();
+}
 
 #[test]
 pub fn postfix() {
@@ -116,7 +180,7 @@ pub fn postfix() {
         .q();
     TestRun::parse("5%", PostfixExpr::parse)
         .filter(&filter_ops_and_ref)
-        .fail()
+        .okok()
         .q();
 }
 
