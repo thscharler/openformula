@@ -277,7 +277,7 @@ where
                 println!("=> token={:?} rest=\"{}\"", token, rest);
             }
             Err(e) => {
-                println!("=> error={:#?}", e);
+                println!("=> error={:2?}", e);
             }
         }
         self
@@ -294,7 +294,7 @@ where
             Err(e) => {
                 println!("{:?}", &self.trace);
                 println!("=> error=");
-                println!("{:#?}", e);
+                println!("{:2?}", e);
             }
         }
         self

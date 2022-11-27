@@ -4,7 +4,6 @@ use crate::ast::conv::{ParseColnameError, ParseRownameError};
 use crate::ast::Span;
 use crate::error::OFCode::*;
 use std::error::Error;
-use std::fmt;
 use std::fmt::{Debug, Display, Formatter, Write};
 
 pub struct ParseOFError<'s> {
@@ -250,19 +249,23 @@ impl<'s> ParseOFError<'s> {
     }
 }
 
-impl<'s> Debug for ParseOFError<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if f.alternate() {
-            debug_error::debug_parse_of_error_multi(f, self)
-        } else {
-            debug_error::debug_parse_of_error_single(f, self)
-        }
-    }
-}
-
 impl<'s> Display for ParseOFError<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        debug_error::display_parse_of_error(f, self)
+        write!(f, "{}: ", self.code)?;
+        for (i, exp) in self.expect2.iter().enumerate() {
+            if i == 0 {
+                write!(f, " ")?;
+            }
+            write!(f, "{}:\"{}\"", exp.code, exp.span)?;
+        }
+        // no suggest
+        write!(
+            f,
+            "for span={} \"{}\"",
+            self.span.location_offset(),
+            self.span
+        )?;
+        Ok(())
     }
 }
 
@@ -379,8 +382,6 @@ impl<'s, T> LocateError<'s, T, ParseColnameError> for Result<T, ParseColnameErro
     }
 }
 
-// Suggest2 --------------------------------------------------------------
-
 #[derive(Clone)]
 pub struct Suggest2<'s> {
     pub code: OFCode,
@@ -388,44 +389,12 @@ pub struct Suggest2<'s> {
     pub parents: Vec<OFCode>,
 }
 
-impl<'s> Debug for Suggest2<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:\"{}\"", self.code, self.span)?;
-        if !self.parents.is_empty() {
-            write!(f, "<")?;
-            for p in &self.parents {
-                write!(f, "{} ", p)?;
-            }
-            write!(f, "> ")?;
-        }
-        Ok(())
-    }
-}
-
-// Expect2 ---------------------------------------------------------------
-
 #[derive(Clone)]
 pub struct Expect2<'s> {
     pub code: OFCode,
     pub span: Span<'s>,
     pub parents: Vec<OFCode>,
 }
-
-impl<'s> Debug for Expect2<'s> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:\"{}\"", self.code, self.span)?;
-        if !self.parents.is_empty() {
-            write!(f, "<")?;
-            for p in &self.parents {
-                write!(f, "{} ", p)?;
-            }
-            write!(f, "> ")?;
-        }
-        Ok(())
-    }
-}
-
-// DebugWidth ------------------------------------------------------------
 
 #[derive(Clone, Copy)]
 pub enum DebugWidth {

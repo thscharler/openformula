@@ -1,6 +1,45 @@
 use crate::error::{Expect2, ParseOFError, Suggest2};
 use std::fmt;
-use std::fmt::Formatter;
+use std::fmt::{Debug, Formatter};
+
+impl<'s> Debug for ParseOFError<'s> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match f.width() {
+            None | Some(0) => debug_parse_of_error_single(f, self),
+            Some(1) => debug_parse_of_error_multi(f, self),
+            Some(2) => debug_parse_of_error_multi(f, self),
+            _ => Ok(()),
+        }
+    }
+}
+
+impl<'s> Debug for Suggest2<'s> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:\"{}\"", self.code, self.span)?;
+        if !self.parents.is_empty() {
+            write!(f, "<")?;
+            for p in &self.parents {
+                write!(f, "{} ", p)?;
+            }
+            write!(f, "> ")?;
+        }
+        Ok(())
+    }
+}
+
+impl<'s> Debug for Expect2<'s> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:\"{}\"", self.code, self.span)?;
+        if !self.parents.is_empty() {
+            write!(f, "<")?;
+            for p in &self.parents {
+                write!(f, "{} ", p)?;
+            }
+            write!(f, "> ")?;
+        }
+        Ok(())
+    }
+}
 
 pub fn debug_parse_of_error_single<'s>(
     f: &mut Formatter<'_>,
@@ -8,11 +47,11 @@ pub fn debug_parse_of_error_single<'s>(
 ) -> std::fmt::Result {
     write!(f, "ParseOFError {} \"{}\"", err.code, err.span)?;
     if !err.expect2.is_empty() {
-        writeln!(f, "expect2=")?;
+        write!(f, "expect=")?;
         debug_expect2_single(f, &err.expect2, 1)?;
     }
     if !err.suggest2.is_empty() {
-        write!(f, "suggest2=")?;
+        write!(f, "suggest=")?;
         debug_suggest2_single(f, &err.suggest2, 1)?;
     }
 
@@ -28,33 +67,14 @@ pub fn debug_parse_of_error_multi<'s>(
         let mut sorted = err.expect2.clone();
         sorted.sort_by(|a, b| b.span.location_offset().cmp(&a.span.location_offset()));
 
-        writeln!(f, "expect2=")?;
+        writeln!(f, "expect=")?;
         debug_expect2_multi(f, &sorted, 1)?;
     }
     if !err.suggest2.is_empty() {
-        writeln!(f, "suggest2=")?;
+        writeln!(f, "suggest=")?;
         debug_suggest2_multi(f, &err.suggest2, 1)?;
     }
 
-    Ok(())
-}
-
-pub fn display_parse_of_error<'s>(
-    f: &mut Formatter<'_>,
-    err: &ParseOFError<'s>,
-) -> std::fmt::Result {
-    write!(f, "{}: ", err.code)?;
-    for exp in &err.expect2 {
-        display_expect2_single(f, exp, 0)?;
-        write!(f, " ")?;
-    }
-    // no suggest
-    write!(
-        f,
-        "for span={} \"{}\"",
-        err.span.location_offset(),
-        err.span
-    )?;
     Ok(())
 }
 
@@ -114,15 +134,6 @@ pub fn debug_expect2_single(
         }
     }
 
-    Ok(())
-}
-
-pub fn display_expect2_single(
-    f: &mut Formatter<'_>,
-    exp: &Expect2<'_>,
-    _ind: usize,
-) -> fmt::Result {
-    write!(f, "{}:\"{}\"", exp.code, exp.span)?;
     Ok(())
 }
 
