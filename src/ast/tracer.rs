@@ -7,15 +7,15 @@
 //! use openformula::ast::tracer::Tracer;
 //! use openformula::error::OFCode;
 //! use openformula::ast::tracer::TrackParseResult;
-//! use openformula::parser::{GeneralTerm, IriTerm};
+//! use openformula::parser::{GeneralExpr, ReferenceExpr};
 //!
 //! let trace = Tracer::new();
 //!
-//! fn simple_parse<'s>(trace: &'_ Tracer, span: Span<'s>) -> ParseResult<'s, String> {
+//! fn simple_parse<'s>(trace: &'_ Tracer<'s>, span: Span<'s>) -> ParseResult<'s, String> {
 //!     trace.enter(OFCode::OFCDot, span);
 //!
 //!     // call trace.err() in case of and Result::Err
-//!     IriTerm::parse(trace, span).trace(trace)?;
+//!     ReferenceExpr::parse(trace, span).track(trace)?;
 //!
 //!     // do some parseing
 //!     match dot(span) {

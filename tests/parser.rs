@@ -9,6 +9,7 @@ use openformula::ast::parser::{
 use openformula::ast::tracer::Track;
 use openformula::ast::{OFAst, OFIri, OFSheetName};
 use openformula::error::OFCode::*;
+use openformula::tokens;
 
 use spantest::*;
 

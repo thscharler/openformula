@@ -8,7 +8,7 @@
 //! use openformula::parser::GeneralExpr;
 //!     
 //! let trace = Tracer::new();
-//! let ast = Expr::parse(&trace, Span::new("1+1"))?;
+//! let ast = Expr::parse(&trace, Span::new("1+1")).unwrap();
 //! ```
 
 #![warn(absolute_paths_not_starting_with_crate)]

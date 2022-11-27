@@ -4,14 +4,17 @@ use openformula::ast::{ParseResult, Span};
 use openformula::error::{DebugWidth, OFCode};
 use std::cell::RefCell;
 use std::fmt::{Debug, Display, Formatter};
+use std::time::{Duration, Instant};
 
 type ParserFn<'s, O> = fn(&'_ Tracer<'s>, Span<'s>) -> ParseResult<'s, O>;
+type TokenFn<'s, O> = fn(Span<'s>) -> ParseResult<'s, O>;
 type TestFn<'s, O, V> = fn(&'s O, V) -> bool;
 
 pub struct TestRun<'s, O> {
     pub trace: Tracer<'s>,
     pub span: Span<'s>,
     pub result: ParseResult<'s, O>,
+    pub duration: Duration,
     pub filter: RefCell<&'s dyn Fn(&Track<'_>) -> bool>,
     pub fail: RefCell<bool>,
 }
@@ -67,6 +70,23 @@ where
 {
     const STATE: RunState = RunState::CheckTrace;
 
+    // pub fn token(span: &'s str, fn_test: TokenFn<'s, O>) -> Self {
+    //     let span = Span::new(span);
+    //
+    //     let now = Instant::now();
+    //     let result = fn_test(span);
+    //     let elapsed = now.elapsed();
+    //
+    //     Self {
+    //         trace: Default::default(),
+    //         span,
+    //         result,
+    //         duration: elapsed,
+    //         filter: RefCell::new(&|_| true),
+    //         fail: RefCell::new(false),
+    //     }
+    // }
+
     /// Runs the parser and records the results.
     /// Use ok(), err(), ... to check specifics.
     ///
@@ -75,12 +95,16 @@ where
     pub fn parse(span: &'s str, fn_test: ParserFn<'s, O>) -> Self {
         let span = Span::new(span);
         let trace = Tracer::new();
+
+        let now = Instant::now();
         let result = fn_test(&trace, span);
+        let elapsed = now.elapsed();
 
         Self {
             trace,
             span,
             result,
+            duration: elapsed,
             filter: RefCell::new(&|_| true),
             fail: RefCell::new(false),
         }
@@ -212,11 +236,7 @@ where
             }
             Err(e) => {
                 if !e.is_expected(code) {
-                    println!(
-                        "FAIL: {:?} is not an expected token. [{}]",
-                        code,
-                        e.expect_str()
-                    );
+                    println!("FAIL: {:?} is not an expected token. {:?}", code, e.expect);
                     self.flag_fail();
                 }
             }
@@ -237,11 +257,7 @@ where
             }
             Err(e) => {
                 if !e.is_expected2(code, parent) {
-                    println!(
-                        "FAIL: {:?} is not an expected token. [{}]",
-                        code,
-                        e.expect_str()
-                    );
+                    println!("FAIL: {:?} is not an expected token. {:?}", code, e.expect);
                     self.flag_fail();
                 }
             }
@@ -282,7 +298,11 @@ where
     /// Dump the result.
     pub fn dump(&self) -> &Self {
         println!();
-        println!("when parsing '{}' =>", self.span);
+        println!(
+            "when parsing '{}' in {}ns =>",
+            self.span,
+            self.duration.as_nanos()
+        );
         match &self.result {
             Ok((rest, token)) => {
                 println!("rest {}:\"{}\"", rest.location_offset(), rest);
@@ -309,7 +329,11 @@ where
         }
 
         println!();
-        println!("when parsing '{}' =>", self.span);
+        println!(
+            "when parsing '{}' in {}ns =>",
+            self.span,
+            self.duration.as_nanos()
+        );
         match &self.result {
             Ok((rest, token)) => {
                 println!("{}", Q(self));

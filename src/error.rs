@@ -8,7 +8,7 @@ use crate::ast::conv::{ParseColnameError, ParseRownameError};
 use crate::ast::Span;
 use crate::error::OFCode::*;
 use std::error::Error;
-use std::fmt::{Debug, Display, Formatter, Write};
+use std::fmt::{Debug, Display, Formatter};
 
 /// Error for the Parser.
 pub struct ParseOFError<'s> {
@@ -422,7 +422,7 @@ impl Display for OFCode {
             OFCString => "String",
             OFCStringOp => "StringOp",
         };
-        write!(buf, "{:?}", code)?;
+        write!(f, "{}", code)?;
         Ok(())
     }
 }
