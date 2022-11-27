@@ -1,4 +1,4 @@
-use crate::error::{Expect2, ParseOFError, Suggest2};
+use crate::error::{Expect2, OFCode, ParseOFError, Suggest2};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 
@@ -52,7 +52,7 @@ pub fn debug_parse_of_error_short<'s>(
     }
     if !err.suggest2.is_empty() {
         write!(f, "suggest=")?;
-        debug_suggest2_single(f, &err.suggest2, 1)?;
+        debug_suggest2_short(f, &err.suggest2, 1)?;
     }
 
     Ok(())
@@ -65,6 +65,7 @@ pub fn debug_parse_of_error_medium<'s>(
     writeln!(f, "ParseOFError {} \"{}\"", err.code, err.span)?;
     if !err.expect2.is_empty() {
         let mut sorted = err.expect2.clone();
+        sorted.reverse();
         sorted.sort_by(|a, b| b.span.location_offset().cmp(&a.span.location_offset()));
 
         // per offset
@@ -93,8 +94,34 @@ pub fn debug_parse_of_error_medium<'s>(
         }
     }
     if !err.suggest2.is_empty() {
-        writeln!(f, "suggest=")?;
-        debug_suggest2_multi(f, &err.suggest2, 1)?;
+        let mut sorted = err.suggest2.clone();
+        sorted.reverse();
+        sorted.sort_by(|a, b| b.span.location_offset().cmp(&a.span.location_offset()));
+
+        // per offset
+        let mut grp_offset = 0;
+        let mut grp = Vec::new();
+        let mut subgrp = Vec::new();
+        for exp in &sorted {
+            if exp.span.location_offset() != grp_offset {
+                if subgrp.len() > 0 {
+                    grp.push((grp_offset, subgrp));
+                    subgrp = Vec::new();
+                }
+                grp_offset = exp.span.location_offset();
+            }
+
+            subgrp.push(exp);
+        }
+        if !subgrp.is_empty() {
+            grp.push((grp_offset, subgrp));
+        }
+
+        for (g_off, subgrp) in grp {
+            let first = subgrp.first().unwrap();
+            writeln!(f, "suggest {}:\"{}\"", g_off, first.span)?;
+            debug_suggest2_medium(f, &subgrp, 1)?;
+        }
     }
 
     Ok(())
@@ -114,7 +141,7 @@ pub fn debug_parse_of_error_long<'s>(
     }
     if !err.suggest2.is_empty() {
         writeln!(f, "suggest=")?;
-        debug_suggest2_multi(f, &err.suggest2, 1)?;
+        debug_suggest2_long(f, &err.suggest2, 1)?;
     }
 
     Ok(())
@@ -162,18 +189,14 @@ pub fn debug_expect2_medium(
     exp_vec: &Vec<&Expect2<'_>>,
     ind: usize,
 ) -> fmt::Result {
-    let mut prefix = Vec::new();
+    let mut prefix: Vec<Vec<OFCode>> = Vec::new();
 
     for exp in exp_vec {
         indent(f, ind)?;
         write!(f, "{:20}", exp.code)?;
 
-        let (suffix, sigil) = if prefix.is_empty() {
-            prefix.push(exp.parents.clone());
-            (exp.parents.as_slice(), "<<")
-        } else {
-            let suffix = loop {
-                let last = prefix.last().unwrap();
+        let (suffix, sigil) = loop {
+            if let Some(last) = prefix.last() {
                 match exp.parents.strip_prefix(last.as_slice()) {
                     None => {
                         match prefix.pop() {
@@ -188,9 +211,11 @@ pub fn debug_expect2_medium(
                         prefix.push(exp.parents.clone());
                         break (suffix, "++");
                     }
-                };
-            };
-            suffix
+                }
+            } else {
+                prefix.push(exp.parents.clone());
+                break (exp.parents.as_slice(), "<<");
+            }
         };
 
         write!(f, " {} ", sigil)?;
@@ -230,7 +255,7 @@ pub fn debug_expect2_short(
 
 // suggest2
 
-pub fn debug_suggest2_multi(
+pub fn debug_suggest2_long(
     f: &mut Formatter<'_>,
     sug_vec: &Vec<Suggest2<'_>>,
     ind: usize,
@@ -260,7 +285,54 @@ pub fn debug_suggest2_multi(
     Ok(())
 }
 
-pub fn debug_suggest2_single(
+pub fn debug_suggest2_medium(
+    f: &mut Formatter<'_>,
+    sug_vec: &Vec<&Suggest2<'_>>,
+    ind: usize,
+) -> fmt::Result {
+    let mut prefix: Vec<Vec<OFCode>> = Vec::new();
+
+    for sug in sug_vec {
+        indent(f, ind)?;
+        write!(f, "{:20}", sug.code)?;
+
+        let (suffix, sigil) = loop {
+            if let Some(last) = prefix.last() {
+                match sug.parents.strip_prefix(last.as_slice()) {
+                    None => {
+                        match prefix.pop() {
+                            None => {
+                                prefix.push(sug.parents.clone());
+                                break (sug.parents.as_slice(), "<<");
+                            }
+                            Some(_) => {}
+                        };
+                    }
+                    Some(suffix) => {
+                        prefix.push(sug.parents.clone());
+                        break (suffix, "++");
+                    }
+                }
+            } else {
+                prefix.push(sug.parents.clone());
+                break (sug.parents.as_slice(), "<<");
+            }
+        };
+
+        write!(f, " {} ", sigil)?;
+        for (i, p) in suffix.iter().enumerate() {
+            if i > 0 {
+                write!(f, " ")?;
+            }
+            write!(f, "{}", p)?;
+        }
+        writeln!(f)?;
+    }
+
+    Ok(())
+}
+
+pub fn debug_suggest2_short(
     f: &mut Formatter<'_>,
     sug_vec: &Vec<Suggest2<'_>>,
     _ind: usize,

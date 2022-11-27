@@ -57,6 +57,7 @@ impl<'s> Tracer<'s> {
 
     /// Keep track of this error.
     pub fn stash(&self, err: ParseOFError<'s>) {
+        self.debug(format!("expect {}:\"{}\" ...", err.code, err.span));
         self.add_expect(err.code, err.span);
         self.append_expect(err.expect2);
         self.append_suggest(err.suggest2);
