@@ -1,6 +1,15 @@
 //!
 //! Builds an open formula parser.
 //!
+//! ```
+//! use openformula::ast::Span;
+//! use openformula::ast::tracer::Tracer;
+//! use openformula::parser::Expr;
+//! use openformula::parser::GeneralExpr;
+//!     
+//! let trace = Tracer::new();
+//! let ast = Expr::parse(&trace, Span::new("1+1"))?;
+//! ```
 
 #![warn(absolute_paths_not_starting_with_crate)]
 // NO #![warn(box_pointers)]
@@ -39,6 +48,10 @@
 extern crate core;
 
 pub mod ast;
-pub mod cellref;
 pub mod error;
-pub mod refs;
+
+pub use ast::conv;
+pub use ast::format;
+pub use ast::parser;
+pub use ast::tokens;
+pub use ast::tracer;

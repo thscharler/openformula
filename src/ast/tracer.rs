@@ -1,8 +1,48 @@
 //!
 //! Traces the parser and helps generating errors and suggestions.
 //!
+//! ```
+//! use openformula::ast::{OFAst, ParseResult, Span};
+//! use openformula::ast::tokens::dot;
+//! use openformula::ast::tracer::Tracer;
+//! use openformula::error::OFCode;
+//! use openformula::ast::tracer::TrackParseResult;
+//! use openformula::parser::{GeneralTerm, IriTerm};
+//!
+//! let trace = Tracer::new();
+//!
+//! fn simple_parse<'s>(trace: &'_ Tracer, span: Span<'s>) -> ParseResult<'s, String> {
+//!     trace.enter(OFCode::OFCDot, span);
+//!
+//!     // call trace.err() in case of and Result::Err
+//!     IriTerm::parse(trace, span).trace(trace)?;
+//!
+//!     // do some parseing
+//!     match dot(span) {
+//!         Ok((rest, token)) => {
+//!             return trace.ok(token, rest, "DOT".to_string()); // return whatever
+//!         }
+//!         Err(e) => {
+//!             return trace.err(e);
+//!         }
+//!     }
+//! }
+//! ```
+//!
+//! The necessary frameing are the call to trace.enter() to establish the environment, and
+//! either a call to ok or err at each exit point of the function.
+//!
+//! TrackParseResult can be useful when calling further parse functions. It's method trace()
+//! helps keep track of an early exit via the ? operator.
+//!
+//! Use suggest() for optional parts that should be hinted somewhere.
+//!
+//! Use stash() to store parser errors that might be used later. Eg if none of several
+//! alternatives fit. All stashed parser errors will be collected and attach as Expect value
+//! to a new summary error.
+//!
 
-use crate::ast::tracer3::debug_tracer::debug_tracer;
+use crate::ast::tracer::debug_tracer::debug_tracer;
 use crate::ast::{ParseResult, Span};
 use crate::error::{DebugWidth, Expect, OFCode, ParseOFError, Suggest};
 use std::cell::RefCell;

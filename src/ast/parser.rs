@@ -1,11 +1,15 @@
 //!
 //! Parses and creates the AST.
 //!
-//! The parser and look-ahead functions expect to be called with a clean string with no
-//! leading whitespace. Internal calls are cared for, but the return value is not necessarily
-//! clean itself.
-//!
-//! The look-ahead functions are called internally at certain branching points.
+//! ```
+//! use openformula::ast::Span;
+//! use openformula::ast::tracer::Tracer;
+//! use openformula::parser::Expr;
+//! use openformula::parser::GeneralExpr;
+//!     
+//! let trace = Tracer::new();
+//! let ast = Expr::parse(&trace, Span::new("1+1"))?;
+//! ```
 
 use crate::ast::conv;
 use crate::ast::tokens;
@@ -78,7 +82,7 @@ use crate::error::{LocateError, OFCode, ParseOFError};
 // >, >=        left        Comparison operators equal to, not equal to, less than, less than
 //                          or equal to, greater than, greater than or equal to
 
-/// Trait for a parser.
+/// Trait for one parser function. Returns an AST node.
 pub trait GeneralExpr<'s> {
     /// Get a name for debug.
     fn id() -> OFCode;
@@ -90,7 +94,7 @@ pub trait GeneralExpr<'s> {
     fn parse<'t>(trace: &'t Tracer<'s>, i: Span<'s>) -> ParseResult<'s, Box<OFAst<'s>>>;
 }
 
-///
+/// Trait for parser functions for other terminals. Can return any value.
 pub trait GeneralTerm<'s, O> {
     /// Get a name for debug.
     fn id() -> OFCode;
@@ -1456,7 +1460,7 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
 }
 
 /// Fails if the string was not fully parsed.
-pub fn check_eof<'s>(
+fn check_eof<'s>(
     i: Span<'s>,
     err: fn(span: Span<'s>) -> ParseOFError<'s>,
 ) -> Result<(), ParseOFError<'s>> {

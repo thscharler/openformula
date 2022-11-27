@@ -1,5 +1,5 @@
 //!
-//! AST for OpenFormula
+//! AST for OpenFormula.
 //!
 
 use crate::error::ParseOFError;
@@ -14,9 +14,7 @@ mod debug_ast;
 pub mod format;
 pub mod parser;
 pub mod tokens;
-pub mod tracer3;
-
-pub use tracer3 as tracer;
+pub mod tracer;
 
 /// Input type.
 pub type Span<'a> = LocatedSpan<&'a str>;
@@ -324,7 +322,8 @@ impl<'a> Display for OFAst<'a> {
 }
 
 #[allow(missing_debug_implementations)]
-/// Helper struct that implements Display an calls encode on the contained node.
+/// Helper struct that implements Display an calls encode for the node.
+/// This seems to be the pattern to implement an alternate Display trait ...
 pub struct NodeEncoder<'a>(&'a dyn Node<'a>);
 
 impl<'a> Display for NodeEncoder<'a> {
