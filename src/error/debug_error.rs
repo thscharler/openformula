@@ -1,4 +1,4 @@
-use crate::error::{Expect2, OFCode, ParseOFError, Suggest2};
+use crate::error::{Expect, OFCode, ParseOFError, Suggest};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 
@@ -13,44 +13,44 @@ impl<'s> Debug for ParseOFError<'s> {
     }
 }
 
-impl<'s> Debug for Suggest2<'s> {
+impl<'s> Debug for Suggest<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:\"{}\"", self.code, self.span)?;
         Ok(())
     }
 }
 
-impl<'s> Debug for Expect2<'s> {
+impl<'s> Debug for Expect<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}:\"{}\"", self.code, self.span)?;
         Ok(())
     }
 }
 
-pub fn debug_parse_of_error_short<'s>(
+fn debug_parse_of_error_short<'s>(
     f: &mut Formatter<'_>,
     err: &ParseOFError<'s>,
 ) -> std::fmt::Result {
     write!(f, "ParseOFError {} \"{}\"", err.code, err.span)?;
-    if !err.expect2.is_empty() {
+    if !err.expect.is_empty() {
         write!(f, "expect=")?;
-        debug_expect2_short(f, &err.expect2, 1)?;
+        debug_expect2_short(f, &err.expect, 1)?;
     }
-    if !err.suggest2.is_empty() {
+    if !err.suggest.is_empty() {
         write!(f, "suggest=")?;
-        debug_suggest2_short(f, &err.suggest2, 1)?;
+        debug_suggest2_short(f, &err.suggest, 1)?;
     }
 
     Ok(())
 }
 
-pub fn debug_parse_of_error_medium<'s>(
+fn debug_parse_of_error_medium<'s>(
     f: &mut Formatter<'_>,
     err: &ParseOFError<'s>,
 ) -> std::fmt::Result {
     writeln!(f, "ParseOFError {} \"{}\"", err.code, err.span)?;
-    if !err.expect2.is_empty() {
-        let mut sorted = err.expect2.clone();
+    if !err.expect.is_empty() {
+        let mut sorted = err.expect.clone();
         sorted.reverse();
         sorted.sort_by(|a, b| b.span.location_offset().cmp(&a.span.location_offset()));
 
@@ -60,7 +60,7 @@ pub fn debug_parse_of_error_medium<'s>(
         let mut subgrp = Vec::new();
         for exp in &sorted {
             if exp.span.location_offset() != grp_offset {
-                if subgrp.len() > 0 {
+                if !subgrp.is_empty() {
                     grp.push((grp_offset, subgrp));
                     subgrp = Vec::new();
                 }
@@ -79,8 +79,8 @@ pub fn debug_parse_of_error_medium<'s>(
             debug_expect2_medium(f, &subgrp, 1)?;
         }
     }
-    if !err.suggest2.is_empty() {
-        let mut sorted = err.suggest2.clone();
+    if !err.suggest.is_empty() {
+        let mut sorted = err.suggest.clone();
         sorted.reverse();
         sorted.sort_by(|a, b| b.span.location_offset().cmp(&a.span.location_offset()));
 
@@ -90,7 +90,7 @@ pub fn debug_parse_of_error_medium<'s>(
         let mut subgrp = Vec::new();
         for exp in &sorted {
             if exp.span.location_offset() != grp_offset {
-                if subgrp.len() > 0 {
+                if !subgrp.is_empty() {
                     grp.push((grp_offset, subgrp));
                     subgrp = Vec::new();
                 }
@@ -113,21 +113,21 @@ pub fn debug_parse_of_error_medium<'s>(
     Ok(())
 }
 
-pub fn debug_parse_of_error_long<'s>(
+fn debug_parse_of_error_long<'s>(
     f: &mut Formatter<'_>,
     err: &ParseOFError<'s>,
 ) -> std::fmt::Result {
     writeln!(f, "ParseOFError {} \"{}\"", err.code, err.span)?;
-    if !err.expect2.is_empty() {
-        let mut sorted = err.expect2.clone();
+    if !err.expect.is_empty() {
+        let mut sorted = err.expect.clone();
         sorted.sort_by(|a, b| b.span.location_offset().cmp(&a.span.location_offset()));
 
         writeln!(f, "expect=")?;
         debug_expect2_long(f, &sorted, 1)?;
     }
-    if !err.suggest2.is_empty() {
+    if !err.suggest.is_empty() {
         writeln!(f, "suggest=")?;
-        debug_suggest2_long(f, &err.suggest2, 1)?;
+        debug_suggest2_long(f, &err.suggest, 1)?;
     }
 
     Ok(())
@@ -140,11 +140,7 @@ fn indent(f: &mut Formatter<'_>, ind: usize) -> fmt::Result {
 
 // expect2
 
-pub fn debug_expect2_long(
-    f: &mut Formatter<'_>,
-    exp_vec: &Vec<Expect2<'_>>,
-    ind: usize,
-) -> fmt::Result {
+fn debug_expect2_long(f: &mut Formatter<'_>, exp_vec: &Vec<Expect<'_>>, ind: usize) -> fmt::Result {
     for exp in exp_vec {
         indent(f, ind)?;
         write!(
@@ -170,9 +166,9 @@ pub fn debug_expect2_long(
     Ok(())
 }
 
-pub fn debug_expect2_medium(
+fn debug_expect2_medium(
     f: &mut Formatter<'_>,
-    exp_vec: &Vec<&Expect2<'_>>,
+    exp_vec: &Vec<&Expect<'_>>,
     ind: usize,
 ) -> fmt::Result {
     let mut prefix: Vec<Vec<OFCode>> = Vec::new();
@@ -217,9 +213,9 @@ pub fn debug_expect2_medium(
     Ok(())
 }
 
-pub fn debug_expect2_short(
+fn debug_expect2_short(
     f: &mut Formatter<'_>,
-    exp_vec: &Vec<Expect2<'_>>,
+    exp_vec: &Vec<Expect<'_>>,
     _ind: usize,
 ) -> fmt::Result {
     for exp in exp_vec {
@@ -241,9 +237,9 @@ pub fn debug_expect2_short(
 
 // suggest2
 
-pub fn debug_suggest2_long(
+fn debug_suggest2_long(
     f: &mut Formatter<'_>,
-    sug_vec: &Vec<Suggest2<'_>>,
+    sug_vec: &Vec<Suggest<'_>>,
     ind: usize,
 ) -> fmt::Result {
     for sug in sug_vec {
@@ -271,9 +267,9 @@ pub fn debug_suggest2_long(
     Ok(())
 }
 
-pub fn debug_suggest2_medium(
+fn debug_suggest2_medium(
     f: &mut Formatter<'_>,
-    sug_vec: &Vec<&Suggest2<'_>>,
+    sug_vec: &Vec<&Suggest<'_>>,
     ind: usize,
 ) -> fmt::Result {
     let mut prefix: Vec<Vec<OFCode>> = Vec::new();
@@ -318,9 +314,9 @@ pub fn debug_suggest2_medium(
     Ok(())
 }
 
-pub fn debug_suggest2_short(
+fn debug_suggest2_short(
     f: &mut Formatter<'_>,
-    sug_vec: &Vec<Suggest2<'_>>,
+    sug_vec: &Vec<Suggest<'_>>,
     _ind: usize,
 ) -> fmt::Result {
     for sug in sug_vec {

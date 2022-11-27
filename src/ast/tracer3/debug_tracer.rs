@@ -22,7 +22,7 @@ fn indent(f: &mut Formatter<'_>, ind: usize) -> fmt::Result {
     Ok(())
 }
 
-pub fn debug_tracer(
+pub(crate) fn debug_tracer(
     f: &mut Formatter<'_>,
     w: DebugWidth,
     v: &Tracer<'_>,
@@ -92,7 +92,7 @@ pub fn debug_tracer(
     Ok(())
 }
 
-pub fn debug_track(f: &mut Formatter<'_>, w: DebugWidth, v: &Track<'_>) -> fmt::Result {
+fn debug_track(f: &mut Formatter<'_>, w: DebugWidth, v: &Track<'_>) -> fmt::Result {
     match v {
         Track::Enter(v) => debug_enter(f, w, v),
         Track::Step(v) => debug_step(f, w, v),
@@ -105,14 +105,14 @@ pub fn debug_track(f: &mut Formatter<'_>, w: DebugWidth, v: &Track<'_>) -> fmt::
     }
 }
 
-pub fn debug_enter(f: &mut Formatter<'_>, w: DebugWidth, v: &EnterTrack<'_>) -> fmt::Result {
+fn debug_enter(f: &mut Formatter<'_>, w: DebugWidth, v: &EnterTrack<'_>) -> fmt::Result {
     match w {
         DebugWidth::Short | DebugWidth::Medium => write!(f, "{}: parse \"{}\"", v.func, v.span),
         DebugWidth::Long => write!(f, "{}: parse \"{}\" <<{:?}", v.func, v.span, v.parents),
     }
 }
 
-pub fn debug_step(f: &mut Formatter<'_>, w: DebugWidth, v: &StepTrack<'_>) -> fmt::Result {
+fn debug_step(f: &mut Formatter<'_>, w: DebugWidth, v: &StepTrack<'_>) -> fmt::Result {
     match w {
         DebugWidth::Short | DebugWidth::Medium => {
             write!(f, "{}: {} \"{}\"", v.func, v.step, v.span)
@@ -121,14 +121,14 @@ pub fn debug_step(f: &mut Formatter<'_>, w: DebugWidth, v: &StepTrack<'_>) -> fm
     }
 }
 
-pub fn debug_debug(f: &mut Formatter<'_>, w: DebugWidth, v: &DebugTrack<'_>) -> fmt::Result {
+fn debug_debug(f: &mut Formatter<'_>, w: DebugWidth, v: &DebugTrack<'_>) -> fmt::Result {
     match w {
         DebugWidth::Short | DebugWidth::Medium => write!(f, "{}: {}", v.func, v.dbg),
         DebugWidth::Long => write!(f, "{}: {} <<{:?}", v.func, v.dbg, v.parents),
     }
 }
 
-pub fn debug_expect(f: &mut Formatter<'_>, w: DebugWidth, v: &ExpectTrack<'_>) -> fmt::Result {
+fn debug_expect(f: &mut Formatter<'_>, w: DebugWidth, v: &ExpectTrack<'_>) -> fmt::Result {
     match w {
         DebugWidth::Short => write!(f, "{}: {} expect {:?}", v.func, v.usage, v.list),
         DebugWidth::Medium => write!(f, "{}: {} expect {:?}", v.func, v.usage, v.list),
@@ -136,14 +136,14 @@ pub fn debug_expect(f: &mut Formatter<'_>, w: DebugWidth, v: &ExpectTrack<'_>) -
     }
 }
 
-pub fn debug_suggest(f: &mut Formatter<'_>, w: DebugWidth, v: &SuggestTrack<'_>) -> fmt::Result {
+fn debug_suggest(f: &mut Formatter<'_>, w: DebugWidth, v: &SuggestTrack<'_>) -> fmt::Result {
     match w {
         DebugWidth::Short => write!(f, "{}: {} suggest {:?}", v.func, v.usage, v.list),
         DebugWidth::Medium => write!(f, "{}: {} suggest {:?}", v.func, v.usage, v.list),
         DebugWidth::Long => write!(f, "{}: {} suggest {:?}", v.func, v.usage, v.list),
     }
 }
-pub fn debug_ok(f: &mut Formatter<'_>, w: DebugWidth, v: &OkTrack<'_>) -> fmt::Result {
+fn debug_ok(f: &mut Formatter<'_>, w: DebugWidth, v: &OkTrack<'_>) -> fmt::Result {
     match w {
         DebugWidth::Short | DebugWidth::Medium | DebugWidth::Long => {
             if !v.span.is_empty() {
@@ -156,14 +156,14 @@ pub fn debug_ok(f: &mut Formatter<'_>, w: DebugWidth, v: &OkTrack<'_>) -> fmt::R
     Ok(())
 }
 
-pub fn debug_err(f: &mut Formatter<'_>, w: DebugWidth, v: &ErrTrack<'_>) -> fmt::Result {
+fn debug_err(f: &mut Formatter<'_>, w: DebugWidth, v: &ErrTrack<'_>) -> fmt::Result {
     match w {
         DebugWidth::Short | DebugWidth::Medium => write!(f, "{}: {} ", v.func, v.err),
         DebugWidth::Long => write!(f, "{}: {} <<{:?}", v.func, v.err, v.parents),
     }
 }
 
-pub fn debug_exit(f: &mut Formatter<'_>, w: DebugWidth, v: &ExitTrack<'_>) -> fmt::Result {
+fn debug_exit(f: &mut Formatter<'_>, w: DebugWidth, v: &ExitTrack<'_>) -> fmt::Result {
     match w {
         DebugWidth::Short | DebugWidth::Medium | DebugWidth::Long => {
             write!(f, "return {}: ", v.func)

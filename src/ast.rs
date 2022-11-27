@@ -1036,7 +1036,9 @@ impl<'a> PartialEq for OFNumber<'a> {
 
 /// String
 pub struct OFString<'a> {
+    /// String
     pub str: String,
+    /// Span
     pub span: Span<'a>,
 }
 
@@ -1070,7 +1072,9 @@ impl<'a> PartialEq for OFString<'a> {
 
 /// Represents an external source reference.
 pub struct OFIri<'a> {
+    /// IRI
     pub iri: String,
+    /// Span
     pub span: Span<'a>,
 }
 
@@ -1397,13 +1401,21 @@ impl<'a> PartialEq for OFCellRef<'a> {
 
 /// CellRange
 pub struct OFCellRange<'a> {
+    /// IRI
     pub iri: Option<OFIri<'a>>,
+    /// First table
     pub table: Option<OFSheetName<'a>>,
+    /// Start row
     pub row: OFRow<'a>,
+    /// Start column.
     pub col: OFCol<'a>,
+    /// Second table.
     pub to_table: Option<OFSheetName<'a>>,
+    /// End row.
     pub to_row: OFRow<'a>,
+    /// End column.
     pub to_col: OFCol<'a>,
+    /// Span.
     pub span: Span<'a>,
 }
 

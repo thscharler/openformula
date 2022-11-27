@@ -141,7 +141,7 @@ impl<'a> Debug for OFFnCall<'a> {
 
 // -----------------------------------------------------------------------
 
-pub fn indent(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
+fn indent(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
     writeln!(f)?;
     for _ in 0..indent * 4 {
         write!(f, " ")?;
@@ -149,7 +149,7 @@ pub fn indent(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
     Ok(())
 }
 
-pub fn arrow(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
+fn arrow(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
     writeln!(f)?;
     if indent > 0 {
         for _ in 0..((indent - 1) * 4) {

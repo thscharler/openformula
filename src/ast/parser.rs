@@ -123,6 +123,7 @@ impl<'s> GeneralExpr<'s> for Expr {
     }
 }
 
+/// Compare expression.
 pub struct CompareExpr;
 
 impl<'s> CompareExpr {
@@ -184,6 +185,7 @@ impl<'s> GeneralExpr<'s> for CompareExpr {
     }
 }
 
+/// Add expression.
 pub struct AddExpr;
 
 impl<'s> AddExpr {
@@ -243,6 +245,7 @@ impl<'s> GeneralExpr<'s> for AddExpr {
     }
 }
 
+/// Multiply and divide ops.
 pub struct MulExpr;
 
 impl<'s> MulExpr {
@@ -300,6 +303,7 @@ impl<'s> GeneralExpr<'s> for MulExpr {
     }
 }
 
+/// Exponentation ops.
 pub struct PowExpr;
 
 impl<'s> PowExpr {
@@ -358,6 +362,7 @@ impl<'s> GeneralExpr<'s> for PowExpr {
     }
 }
 
+/// Postfix ops.
 pub struct PostfixExpr;
 
 impl PostfixExpr {
@@ -413,6 +418,7 @@ impl<'s> GeneralExpr<'s> for PostfixExpr {
     }
 }
 
+/// Prefix op.
 pub struct PrefixExpr;
 
 impl PrefixExpr {
@@ -707,6 +713,7 @@ impl<'s> GeneralExpr<'s> for ReferenceExpr {
     }
 }
 
+/// Column part of a reference.
 pub struct ColTerm;
 
 impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
@@ -742,6 +749,7 @@ impl<'s> GeneralTerm<'s, OFCol<'s>> for ColTerm {
     }
 }
 
+/// Row part of a reference.
 pub struct RowTerm;
 
 impl<'s> GeneralTerm<'s, OFRow<'s>> for RowTerm {
@@ -1019,6 +1027,7 @@ impl<'s> GeneralExpr<'s> for RowRangeExpr {
     }
 }
 
+/// Expression in parentheses.
 pub struct ParenthesesExpr;
 
 impl<'s> GeneralExpr<'s> for ParenthesesExpr {
@@ -1218,6 +1227,7 @@ impl<'s> GeneralExpr<'s> for FnCallExpr {
 //                      - ( [A-Za-z]+[0-9]+ )  # means no cell reference
 //                      - ([Tt][Rr][Uu][Ee]) - ([Ff][Aa][Ll][Ss][Ee]) # true or false
 
+/// External reference.
 pub struct IriTerm;
 
 impl<'s> GeneralTerm<'s, Option<OFIri<'s>>> for IriTerm {
@@ -1251,6 +1261,7 @@ impl<'s> GeneralTerm<'s, Option<OFIri<'s>>> for IriTerm {
     }
 }
 
+/// Sheet names.
 pub struct SheetNameTerm;
 
 impl<'s> GeneralTerm<'s, Option<OFSheetName<'s>>> for SheetNameTerm {
@@ -1293,6 +1304,7 @@ impl<'s> GeneralTerm<'s, Option<OFSheetName<'s>>> for SheetNameTerm {
     }
 }
 
+/// ":"
 pub struct ColonTerm;
 
 impl<'s> GeneralTerm<'s, ()> for ColonTerm {
@@ -1320,6 +1332,7 @@ impl<'s> GeneralTerm<'s, ()> for ColonTerm {
     }
 }
 
+/// "."
 pub struct DotTerm;
 
 impl<'s> GeneralTerm<'s, Span<'s>> for DotTerm {
@@ -1344,6 +1357,7 @@ impl<'s> GeneralTerm<'s, Span<'s>> for DotTerm {
     }
 }
 
+/// Defined variable.
 pub struct NamedExpr;
 
 impl<'s> GeneralExpr<'s> for NamedExpr {

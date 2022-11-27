@@ -17,8 +17,8 @@ const DOUBLE_QUOTE: char = '\"';
 const SINGLE_QUOTE: char = '\'';
 
 /// Eats the leading whitespace.
-pub fn eat_space<'a>(i: Span<'a>) -> Span<'a> {
-    match multispace0::<Span<'a>, nom::error::Error<_>>(i) {
+pub fn eat_space(i: Span<'_>) -> Span<'_> {
+    match multispace0::<Span<'_>, nom::error::Error<_>>(i) {
         Ok((rest, _white)) => rest,
         Err(nom::Err::Error(_)) => i,
         Err(nom::Err::Failure(_)) => i,
@@ -32,17 +32,17 @@ pub fn space(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
 }
 
 /// Lookahead for a number
-pub fn lah_number<'a>(i: Span<'a>) -> bool {
-    alt::<Span<'a>, char, nom::error::Error<_>, _>((nchar('.'), one_of("0123456789")))(i).is_ok()
+pub fn lah_number(i: Span<'_>) -> bool {
+    alt::<Span<'_>, char, nom::error::Error<_>, _>((nchar('.'), one_of("0123456789")))(i).is_ok()
 }
 
 /// Lookahead for a string.
-pub fn lah_string<'a>(i: Span<'a>) -> bool {
-    nchar::<Span<'a>, nom::error::Error<_>>('"')(i).is_ok()
+pub fn lah_string(i: Span<'_>) -> bool {
+    nchar::<Span<'_>, nom::error::Error<_>>('"')(i).is_ok()
 }
 
 /// Lookahead for a function name.
-pub fn lah_fn_name<'a>(i: Span<'a>) -> bool {
+pub fn lah_fn_name(i: Span<'_>) -> bool {
     match (*i).chars().next() {
         None => false,
         Some(c) => unicode_ident::is_xid_start(c),
@@ -50,37 +50,37 @@ pub fn lah_fn_name<'a>(i: Span<'a>) -> bool {
 }
 
 /// Parse separator char for function args.
-pub fn lah_dollar_dollar<'a>(rest: Span<'a>) -> bool {
-    tag::<&str, Span<'a>, nom::error::Error<_>>("$$")(rest).is_ok()
+pub fn lah_dollar_dollar(rest: Span<'_>) -> bool {
+    tag::<&str, Span<'_>, nom::error::Error<_>>("$$")(rest).is_ok()
 }
 
 /// Parse separator char for function args.
-pub fn lah_dollar<'a>(rest: Span<'a>) -> bool {
-    tag::<&str, Span<'a>, nom::error::Error<_>>("$")(rest).is_ok()
+pub fn lah_dollar(rest: Span<'_>) -> bool {
+    tag::<&str, Span<'_>, nom::error::Error<_>>("$")(rest).is_ok()
 }
 
 /// Lookahead for a dot.
-pub fn lah_dot<'a>(i: Span<'a>) -> bool {
-    nchar::<Span<'a>, nom::error::Error<_>>('.')(i).is_ok()
+pub fn lah_dot(i: Span<'_>) -> bool {
+    nchar::<Span<'_>, nom::error::Error<_>>('.')(i).is_ok()
 }
 
 /// Lookahead for opening parentheses.
-pub fn lah_parentheses_open<'a>(i: Span<'a>) -> bool {
-    nchar::<Span<'a>, nom::error::Error<_>>('(')(i).is_ok()
+pub fn lah_parentheses_open(i: Span<'_>) -> bool {
+    nchar::<Span<'_>, nom::error::Error<_>>('(')(i).is_ok()
 }
 
 /// Lookahead for any prefix operator.
-pub fn lah_prefix_op<'a>(i: Span<'a>) -> bool {
-    one_of::<Span<'a>, _, nom::error::Error<_>>("+-")(i).is_ok()
+pub fn lah_prefix_op(i: Span<'_>) -> bool {
+    one_of::<Span<'_>, _, nom::error::Error<_>>("+-")(i).is_ok()
 }
 
 /// Tries to ast any postfix operator.
-pub fn lah_postfix_op<'a>(i: Span<'a>) -> bool {
-    one_of::<Span<'a>, _, nom::error::Error<_>>("%")(i).is_ok()
+pub fn lah_postfix_op(i: Span<'_>) -> bool {
+    one_of::<Span<'_>, _, nom::error::Error<_>>("%")(i).is_ok()
 }
 
 /// Simple lookahead for a identifier.
-pub fn lah_identifier<'a>(i: Span<'a>) -> bool {
+pub fn lah_identifier(i: Span<'_>) -> bool {
     match (*i).chars().next() {
         None => false,
         Some(c) => unicode_ident::is_xid_start(c),
@@ -94,12 +94,12 @@ pub fn lah_sheet_name(i: Span<'_>) -> bool {
 }
 
 /// Lookahead for an IRI.
-pub fn lah_iri<'a>(i: Span<'a>) -> bool {
-    nchar::<Span<'a>, nom::error::Error<_>>('\'')(i).is_ok()
+pub fn lah_iri(i: Span<'_>) -> bool {
+    nchar::<Span<'_>, nom::error::Error<_>>('\'')(i).is_ok()
 }
 
 /// Numeric value.
-pub fn number_nom<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn number_nom(input: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     alt((
         // Case one: .42
         recognize(tuple((
@@ -127,37 +127,37 @@ pub fn number_nom<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 }
 
 /// Sequence of digits.
-pub fn decimal<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn decimal(input: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     recognize(many1(one_of("0123456789")))(input)
 }
 
 /// A quote "
-pub fn double_quote_nom<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    recognize(nchar::<Span<'a>, nom::error::Error<Span<'a>>>(DOUBLE_QUOTE))(input)
+pub fn double_quote_nom(input: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
+    recognize(nchar::<Span<'_>, nom::error::Error<Span<'_>>>(DOUBLE_QUOTE))(input)
 }
 
 /// A string containing double "" and ending (excluding) with a quote "
-pub fn double_string_nom<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn double_string_nom(input: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     recognize(many0(alt((
         take_while1(|v| v != DOUBLE_QUOTE),
         recognize(count(
-            nchar::<Span<'a>, nom::error::Error<Span<'a>>>(DOUBLE_QUOTE),
+            nchar::<Span<'_>, nom::error::Error<Span<'_>>>(DOUBLE_QUOTE),
             2,
         )),
     ))))(input)
 }
 
 /// A quote '
-pub fn single_quote_nom<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
-    recognize(nchar::<Span<'a>, nom::error::Error<Span<'a>>>(SINGLE_QUOTE))(input)
+pub fn single_quote_nom(input: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
+    recognize(nchar::<Span<'_>, nom::error::Error<Span<'_>>>(SINGLE_QUOTE))(input)
 }
 
 /// A string containing double ''' and ending (excluding) with a quote '
-pub fn single_string_nom<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn single_string_nom(input: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     recognize(many0(alt((
         take_while1(|v| v != SINGLE_QUOTE),
         recognize(count(
-            nchar::<Span<'a>, nom::error::Error<Span<'a>>>(SINGLE_QUOTE),
+            nchar::<Span<'_>, nom::error::Error<Span<'_>>>(SINGLE_QUOTE),
             2,
         )),
     ))))(input)
@@ -165,7 +165,7 @@ pub fn single_string_nom<'a>(input: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 
 // LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
 /// Function name.
-pub fn fn_name_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn fn_name_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     recognize(tuple((
         take_while1(unicode_ident::is_xid_start),
         take_while(|c: char| unicode_ident::is_xid_continue(c) || c == '_' || c == '.'),
@@ -173,7 +173,7 @@ pub fn fn_name_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 }
 
 /// Parse comparison operators.
-pub fn comparison_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn comparison_op_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     alt((
         tag("="),
         tag("<>"),
@@ -185,97 +185,97 @@ pub fn comparison_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 }
 
 /// Parse string operators.
-pub fn string_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn string_op_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag("&")(i)
 }
 
 /// Parse reference operators.
-pub fn reference_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn reference_op_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag("&")(i)
 }
 
 /// Parse reference intersection.
-pub fn ref_intersection_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn ref_intersection_op_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag("!")(i)
 }
 
 /// Parse concat operator..
-pub fn ref_concat_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn ref_concat_op_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag("~")(i)
 }
 
 /// Parse separator char for function args.
-pub fn dollar_dollar_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn dollar_dollar_nom(rest: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag("$$")(rest)
 }
 
 /// Parse separator char for function args.
-pub fn dollar_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn dollar_nom(rest: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag("$")(rest)
 }
 
 /// Hashtag
-pub fn hashtag_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn hashtag_nom(rest: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag("#")(rest)
 }
 
 /// Parse separator char for function args.
-pub fn semikolon_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn semikolon_nom(rest: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag(";")(rest)
 }
 
 /// Parse dot
-pub fn dot_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn dot_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag(".")(i)
 }
 
 /// Parse colon
-pub fn colon_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn colon_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag(":")(i)
 }
 
 /// Parse open parentheses.
-pub fn parentheses_open_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn parentheses_open_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag("(")(i)
 }
 
 /// Parse closing parentheses.
-pub fn parentheses_close_nom<'a>(rest: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn parentheses_close_nom(rest: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag(")")(rest)
 }
 
 /// Parse open brackets.
-pub fn brackets_open_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn brackets_open_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag("[")(i)
 }
 
 /// Parse closing brackets.
-pub fn brackets_close_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn brackets_close_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag("]")(i)
 }
 
 /// Tries to parses any additive operator.
-pub fn add_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn add_op_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     alt((tag("+"), tag("-")))(i)
 }
 
 /// Tries to parses any multiplicative operator.
-pub fn mul_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn mul_op_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     alt((tag("*"), tag("/")))(i)
 }
 
 /// Tries to parses the power operator.
-pub fn pow_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn pow_op_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag("^")(i)
 }
 
 /// Tries to ast any prefix operator.
-pub fn prefix_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn prefix_op_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     alt((tag("+"), tag("-")))(i)
 }
 
 /// Tries to ast any postfix operator.
-pub fn postfix_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn postfix_op_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     tag("%")(i)
 }
 
@@ -284,7 +284,7 @@ pub fn postfix_op_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 //                      - ( [A-Za-z]+[0-9]+ )  # means no cell reference
 //                      - ([Tt][Rr][Uu][Ee]) - ([Ff][Aa][Ll][Ss][Ee]) # true and false
 /// Identifier.
-pub fn identifier_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+pub fn identifier_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     recognize(tuple((
         take_while1(unicode_ident::is_xid_start),
         take_while(unicode_ident::is_xid_continue),
@@ -293,7 +293,8 @@ pub fn identifier_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
 
 // SheetName ::= QuotedSheetName | '$'? [^\]\. #$']+
 // QuotedSheetName ::= '$'? SingleQuoted
-pub fn sheet_name_nom<'a>(i: Span<'a>) -> IResult<Span<'a>, Span<'a>> {
+/// Sheet name.
+pub fn sheet_name_nom(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
     recognize(many1(none_of("]. #$'")))(i)
 }
 

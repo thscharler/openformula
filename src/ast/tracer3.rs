@@ -1,13 +1,18 @@
+//!
+//! Traces the parser and helps generating errors and suggestions.
+//!
+
 use crate::ast::tracer3::debug_tracer::debug_tracer;
 use crate::ast::{ParseResult, Span};
-use crate::error::{DebugWidth, Expect2, OFCode, ParseOFError, Suggest2};
+use crate::error::{DebugWidth, Expect, OFCode, ParseOFError, Suggest};
 use std::cell::RefCell;
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 
-pub mod debug_tracer;
+mod debug_tracer;
 
+/// Tracing and error collection.
 pub struct Tracer<'s> {
     /// Function call stack.
     func: RefCell<Vec<OFCode>>,
@@ -59,8 +64,8 @@ impl<'s> Tracer<'s> {
     pub fn stash(&self, err: ParseOFError<'s>) {
         self.debug(format!("expect {}:\"{}\" ...", err.code, err.span));
         self.add_expect(err.code, err.span);
-        self.append_expect(err.expect2);
-        self.append_suggest(err.suggest2);
+        self.append_expect(err.expect);
+        self.append_suggest(err.suggest);
     }
 
     /// Write a track for an ok result.
@@ -96,11 +101,11 @@ impl<'s> Tracer<'s> {
 
         let mut exp = self.pop_expect();
         self.track_expect(Usage::Use, exp.list.clone());
-        err.expect2.append(&mut exp.list);
+        err.expect.append(&mut exp.list);
 
         let mut sug = self.pop_suggest();
         self.track_suggest(Usage::Use, sug.list.clone());
-        err.suggest2.append(&mut sug.list);
+        err.suggest.append(&mut sug.list);
 
         self.track_error(&err);
 
@@ -110,6 +115,7 @@ impl<'s> Tracer<'s> {
         Err(err)
     }
 
+    /// Write a debug output of the Tracer state.
     pub fn write_debug(
         &self,
         f: &mut Formatter<'_>,
@@ -141,14 +147,14 @@ impl<'s> Tracer<'s> {
             .last_mut()
             .unwrap()
             .list
-            .push(Expect2 {
+            .push(Expect {
                 code,
                 span,
                 parents: self.parent_vec(),
             })
     }
 
-    fn append_expect(&self, mut expect: Vec<Expect2<'s>>) {
+    fn append_expect(&self, mut expect: Vec<Expect<'s>>) {
         self.expect
             .borrow_mut()
             .last_mut()
@@ -179,14 +185,14 @@ impl<'s> Tracer<'s> {
             .last_mut()
             .unwrap()
             .list
-            .push(Suggest2 {
+            .push(Suggest {
                 code,
                 span,
                 parents: self.parent_vec(),
             })
     }
 
-    fn append_suggest(&self, mut suggest: Vec<Suggest2<'s>>) {
+    fn append_suggest(&self, mut suggest: Vec<Suggest<'s>>) {
         self.suggest
             .borrow_mut()
             .last_mut()
@@ -250,7 +256,7 @@ impl<'s> Tracer<'s> {
         }));
     }
 
-    fn track_suggest(&self, usage: Usage, suggest: Vec<Suggest2<'s>>) {
+    fn track_suggest(&self, usage: Usage, suggest: Vec<Suggest<'s>>) {
         if !suggest.is_empty() {
             self.track.borrow_mut().push(Track::Suggest(SuggestTrack {
                 func: self.func(),
@@ -261,7 +267,7 @@ impl<'s> Tracer<'s> {
         }
     }
 
-    fn track_expect(&self, usage: Usage, expect: Vec<Expect2<'s>>) {
+    fn track_expect(&self, usage: Usage, expect: Vec<Expect<'s>>) {
         if !expect.is_empty() {
             self.track.borrow_mut().push(Track::Expect(ExpectTrack {
                 func: self.func(),
@@ -299,6 +305,12 @@ impl<'s> Tracer<'s> {
     }
 }
 
+impl<'s> Default for Tracer<'s> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // TrackParseResult ------------------------------------------------------
 
 /// Helps with keeping tracks in the parsers.
@@ -323,10 +335,14 @@ impl<'s, 't, O> TrackParseResult<'s, 't, O> for ParseResult<'s, O> {
 
 // Track -----------------------------------------------------------------
 
+/// Hint at how the ExpectTrack and SuggestTrack were used.
 #[derive(Debug)]
 pub enum Usage {
+    /// Newly created, currently in use.
     Track,
+    /// Forgotten.
     Drop,
+    /// Move to a ParseOFError.
     Use,
 }
 
@@ -342,61 +358,99 @@ impl Display for Usage {
 
 /// One per stack frame.
 pub struct ExpectTrack<'s> {
+    /// Function.
     pub func: OFCode,
+    /// Usage flag.
     pub usage: Usage,
-    pub list: Vec<Expect2<'s>>,
+    /// Collected Expect values.
+    pub list: Vec<Expect<'s>>,
+    /// Parser call stack.
     pub parents: Vec<OFCode>,
 }
 
 /// One per stack frame.
 pub struct SuggestTrack<'s> {
+    /// Function
     pub func: OFCode,
+    /// Usage flag.
     pub usage: Usage,
-    pub list: Vec<Suggest2<'s>>,
+    /// Collected Suggest values.
+    pub list: Vec<Suggest<'s>>,
+    /// Parser call stack.
     pub parents: Vec<OFCode>,
 }
 
+/// Track for entering a parser function.
 pub struct EnterTrack<'s> {
+    /// Function
     pub func: OFCode,
+    /// Span
     pub span: Span<'s>,
+    /// Parser call stack.
     pub parents: Vec<OFCode>,
 }
 
+/// Track for step information.
 pub struct StepTrack<'s> {
+    /// Function
     pub func: OFCode,
+    /// Step info.
     pub step: &'static str,
+    /// Span
     pub span: Span<'s>,
+    /// Parser call stack.
     pub parents: Vec<OFCode>,
 }
 
+/// Track for debug information.
 pub struct DebugTrack<'s> {
+    /// Function.
     pub func: OFCode,
+    /// Debug info.
     pub dbg: String,
+    /// Parser call stack.
     pub parents: Vec<OFCode>,
+    /// For the lifetime ...
     pub _phantom: PhantomData<Span<'s>>,
 }
 
+/// Track for ok results.
 pub struct OkTrack<'s> {
+    /// Function.
     pub func: OFCode,
+    /// Span.
     pub span: Span<'s>,
+    /// Remaining span.
     pub rest: Span<'s>,
+    /// Parser call stack.
     pub parents: Vec<OFCode>,
 }
 
+/// Track for err results.
 pub struct ErrTrack<'s> {
+    /// Function.
     pub func: OFCode,
+    /// Span.
     pub span: Span<'s>,
-    pub err: String,
+    /// Error message.
+    pub err: String, // TODO: check
+    /// Parser call stack.
     pub parents: Vec<OFCode>,
 }
 
+/// Track for exiting a parser function.
 pub struct ExitTrack<'s> {
+    /// Function
     pub func: OFCode,
+    /// Parser call stack.
     pub parents: Vec<OFCode>,
+    /// For the lifetime ...
     pub _phantom: PhantomData<Span<'s>>,
 }
 
-#[derive(PartialEq)]
+/// Helper for Track. Not actively used, but can be helpful in filters.
+#[derive(PartialEq, Eq)]
+#[allow(missing_docs)]
 pub enum TrackType {
     Enter,
     Step,
@@ -409,6 +463,7 @@ pub enum TrackType {
 }
 
 /// One track of the parsing trace.
+#[allow(missing_docs)]
 pub enum Track<'s> {
     Enter(EnterTrack<'s>),
     Step(StepTrack<'s>),
@@ -436,6 +491,7 @@ impl<'s> PartialEq<TrackType> for &Track<'s> {
 }
 
 impl<'s> Track<'s> {
+    /// Returns the func value for each branch.
     pub fn func(&self) -> OFCode {
         match self {
             Track::Enter(v) => v.func,
@@ -449,6 +505,7 @@ impl<'s> Track<'s> {
         }
     }
 
+    /// Returns the parser call stack for each branch.
     pub fn parents(&self) -> &Vec<OFCode> {
         match self {
             Track::Enter(v) => &v.parents,

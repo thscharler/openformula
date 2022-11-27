@@ -1,4 +1,8 @@
-pub mod debug_error;
+//!
+//! Contains the ParseOFError and related structs.
+//!
+
+mod debug_error;
 
 use crate::ast::conv::{ParseColnameError, ParseRownameError};
 use crate::ast::Span;
@@ -6,44 +10,55 @@ use crate::error::OFCode::*;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter, Write};
 
+/// Error for the Parser.
 pub struct ParseOFError<'s> {
+    /// Error code.
     pub code: OFCode,
+    /// Error span.
     pub span: Span<'s>,
+    /// Flag for Tracer.
     pub tracing: bool,
-    pub suggest2: Vec<Suggest2<'s>>,
-    pub expect2: Vec<Expect2<'s>>,
+    /// Suggest values.
+    pub suggest: Vec<Suggest<'s>>,
+    /// Expect values.
+    pub expect: Vec<Expect<'s>>,
 }
 
 impl<'s> ParseOFError<'s> {
+    /// New error.
     pub fn new(code: OFCode, span: Span<'s>) -> Self {
         Self {
             code,
             span,
             tracing: false,
-            suggest2: Vec::new(),
-            expect2: Vec::new(),
+            suggest: Vec::new(),
+            expect: Vec::new(),
         }
     }
 
+    /// Special error code. Encodes errors occurring at the margins.
     pub fn is_special(&self) -> bool {
         self.code.is_special()
     }
 
+    /// Error code of the parser.
     pub fn is_parser(&self) -> bool {
         !self.code.is_special()
     }
 
+    /// Was this one of the expected errors.
     pub fn is_expected(&self, code: OFCode) -> bool {
-        for exp in &self.expect2 {
+        for exp in &self.expect {
             if exp.code == code {
                 return true;
             }
         }
-        return false;
+        false
     }
 
+    /// Was this one of the expected errors, and is in the call stack of parent?
     pub fn is_expected2(&self, code: OFCode, parent: OFCode) -> bool {
-        for exp in &self.expect2 {
+        for exp in &self.expect {
             if exp.code == code {
                 for par in &exp.parents {
                     if *par == parent {
@@ -52,15 +67,7 @@ impl<'s> ParseOFError<'s> {
                 }
             }
         }
-        return false;
-    }
-
-    pub fn expect_str(&self) -> String {
-        let mut buf = String::new();
-        for exp in &self.expect2 {
-            let _ = write!(buf, "{} ", exp.code);
-        }
-        buf
+        false
     }
 
     /// Create a ParseOFError from a nom::Err
@@ -79,6 +86,7 @@ impl<'s> ParseOFError<'s> {
 }
 
 // Simple mappings
+#[allow(missing_docs)]
 impl<'s> ParseOFError<'s> {
     pub fn parens(span: Span<'s>) -> ParseOFError<'s> {
         ParseOFError::new(OFCParentheses, span)
@@ -252,7 +260,7 @@ impl<'s> ParseOFError<'s> {
 impl<'s> Display for ParseOFError<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} expects ", self.code)?;
-        for (i, exp) in self.expect2.iter().enumerate() {
+        for (i, exp) in self.expect.iter().enumerate() {
             if i > 0 {
                 write!(f, " ")?;
             }
@@ -271,6 +279,7 @@ impl<'s> Display for ParseOFError<'s> {
 
 impl<'s> Error for ParseOFError<'s> {}
 
+#[allow(missing_docs)]
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Default)]
 pub enum OFCode {
@@ -341,11 +350,13 @@ pub enum OFCode {
 }
 
 impl OFCode {
+    /// Is a 'special' code.
+    /// These are the general codes OFCDefault, OFCNomError, OFCNomFailure, OFCParseIncomplete.
     pub fn is_special(&self) -> bool {
-        match self {
-            OFCDefault | OFCNomError | OFCNomFailure | OFCParseIncomplete => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            OFCDefault | OFCNomError | OFCNomFailure | OFCParseIncomplete
+        )
     }
 }
 
@@ -382,24 +393,43 @@ impl<'s, T> LocateError<'s, T, ParseColnameError> for Result<T, ParseColnameErro
     }
 }
 
+/// Suggestions, optional tokens.
 #[derive(Clone)]
-pub struct Suggest2<'s> {
+pub struct Suggest<'s> {
+    /// Code for the token.
     pub code: OFCode,
+    /// Span
     pub span: Span<'s>,
+    /// Parser call stack.
     pub parents: Vec<OFCode>,
 }
 
+/// Expected tokens.
 #[derive(Clone)]
-pub struct Expect2<'s> {
+pub struct Expect<'s> {
+    /// Code for the token.
     pub code: OFCode,
+    /// Span.
     pub span: Span<'s>,
+    /// Parser call stack.
     pub parents: Vec<OFCode>,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+/// Variants of the debug output.
+/// Can be set by giving a width:
+///
+/// '''
+///     write!(f, "{:2?}", out)?;
+/// '''
+///
+///
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum DebugWidth {
+    /// Debug flag, can be set with width=0.
     Short,
+    /// Debug flag, can be set with width=1.
     Medium,
+    /// Debug flag, can be set with width=2.
     Long,
 }
 

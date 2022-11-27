@@ -27,14 +27,14 @@ pub use nomtokens::{
 };
 
 /// Returns an empty token. But still technically a slice of the given span.
-pub fn empty<'a>(i: Span<'a>) -> Span<'a> {
+pub fn empty(i: Span<'_>) -> Span<'_> {
     i.take(0)
 }
 
 // Number ::= StandardNumber | '.' [0-9]+ ([eE] [-+]? [0-9]+)?
 // StandardNumber ::= [0-9]+ ('.' [0-9]+)? ([eE] [-+]? [0-9]+)?
 /// Any number.
-pub fn number<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn number(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match number_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Char || e.code == OneOf => {
@@ -45,9 +45,7 @@ pub fn number<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Standard string
-pub fn string<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
-    const QUOTE: char = '\"';
-
+pub fn string(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     let (rest, first_quote) = match double_quote_nom(rest) {
         Ok((rest, quote)) => (rest, quote),
         Err(nom::Err::Error(e)) if e.code == Char => return Err(ParseOFError::start_quote(rest)),
@@ -76,7 +74,7 @@ pub fn string<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 
 // LetterXML (LetterXML | DigitXML | '_' | '.' | CombiningCharXML)*
 /// Function name.
-pub fn fn_name<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn fn_name(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match fn_name_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == TakeWhile1 || e.code == TakeWhileMN => {
@@ -87,7 +85,7 @@ pub fn fn_name<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse comparison operators.
-pub fn comparison_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn comparison_op(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match comparison_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::comp_op(rest)),
@@ -96,7 +94,7 @@ pub fn comparison_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse string operators.
-pub fn string_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn string_op(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match string_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::string_op(rest)),
@@ -105,7 +103,7 @@ pub fn string_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse reference operators.
-pub fn reference_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn reference_op(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match reference_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::ref_op(rest)),
@@ -114,7 +112,7 @@ pub fn reference_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse reference intersection.
-pub fn ref_intersection_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn ref_intersection_op(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match ref_intersection_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::ref_intersect_op(rest)),
@@ -123,7 +121,7 @@ pub fn ref_intersection_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse concat operator..
-pub fn ref_concat_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn ref_concat_op(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match ref_concat_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::ref_concat_op(rest)),
@@ -132,7 +130,7 @@ pub fn ref_concat_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse separator char for function args.
-pub fn dollar_dollar<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn dollar_dollar(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match dollar_dollar_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::dollardollar(rest)),
@@ -141,7 +139,7 @@ pub fn dollar_dollar<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse separator char for function args.
-pub fn dollar<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn dollar(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match dollar_dollar_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::dollar(rest)),
@@ -150,7 +148,7 @@ pub fn dollar<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Hashtag
-pub fn hashtag<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn hashtag(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match hashtag_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::hashtag(rest)),
@@ -159,7 +157,7 @@ pub fn hashtag<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse separator char for function args.
-pub fn semikolon<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn semikolon(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match semikolon_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::semikolon(rest)),
@@ -168,7 +166,7 @@ pub fn semikolon<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse dot
-pub fn dot<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn dot(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match dot_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::dot(rest)),
@@ -177,7 +175,7 @@ pub fn dot<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse colon
-pub fn colon<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn colon(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match colon_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::colon(rest)),
@@ -186,7 +184,7 @@ pub fn colon<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse open parentheses.
-pub fn parentheses_open<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn parentheses_open(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match parentheses_open_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::parens_open(rest)),
@@ -195,7 +193,7 @@ pub fn parentheses_open<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse closing parentheses.
-pub fn parentheses_close<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn parentheses_close(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match parentheses_close_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::parens_close(rest)),
@@ -204,7 +202,7 @@ pub fn parentheses_close<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse open brackets.
-pub fn brackets_open<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn brackets_open(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match brackets_open_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::brackets_open(rest)),
@@ -213,7 +211,7 @@ pub fn brackets_open<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Parse closing brackets.
-pub fn brackets_close<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn brackets_close(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match brackets_close_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::brackets_close(rest)),
@@ -222,7 +220,7 @@ pub fn brackets_close<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Tries to parses any additive operator.
-pub fn add_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn add_op(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match add_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::add_op(rest)),
@@ -231,7 +229,7 @@ pub fn add_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Tries to parses any multiplicative operator.
-pub fn mul_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn mul_op(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match mul_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::mul_op(rest)),
@@ -240,7 +238,7 @@ pub fn mul_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Tries to parses the power operator.
-pub fn pow_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn pow_op(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match pow_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::pow_op(rest)),
@@ -249,7 +247,7 @@ pub fn pow_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Tries to ast any prefix operator.
-pub fn prefix_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn prefix_op(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match prefix_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::prefix_op(rest)),
@@ -258,7 +256,7 @@ pub fn prefix_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 }
 
 /// Tries to ast any postfix operator.
-pub fn postfix_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn postfix_op(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match postfix_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Tag => Err(ParseOFError::postfix_op(rest)),
@@ -271,7 +269,7 @@ pub fn postfix_op<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
 //                      - ( [A-Za-z]+[0-9]+ )  # means no cell reference
 //                      - ([Tt][Rr][Uu][Ee]) - ([Ff][Aa][Ll][Ss][Ee]) # true and false
 /// Identifier.
-pub fn identifier<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
+pub fn identifier(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     match identifier_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == TakeWhile1 || e.code == TakeWhileMN => {
@@ -380,9 +378,7 @@ pub fn col(rest: Span<'_>) -> ParseResult<'_, (Option<Span<'_>>, Span<'_>)> {
 /// Parse a quoted string. A double quote within is an escaped quote.
 /// Returns the string within the outer quotes. The double quotes are not
 /// reduced.
-pub fn single_quoted<'a>(rest: Span<'a>) -> ParseResult<'a, Span<'a>> {
-    const QUOTE: char = '\'';
-
+pub fn single_quoted(rest: Span<'_>) -> ParseResult<'_, Span<'_>> {
     let (rest, first_quote) = match single_quote_nom(rest) {
         Ok((rest, quote)) => (rest, quote),
         Err(nom::Err::Error(e)) if e.code == Char => {

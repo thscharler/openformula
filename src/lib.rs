@@ -20,7 +20,7 @@
 // NOT_ACCURATE #![warn(single_use_lifetimes)]
 #![warn(trivial_casts)]
 #![warn(trivial_numeric_casts)]
-#![allow(unreachable_pub)]
+#![warn(unreachable_pub)]
 #![allow(unsafe_code)]
 #![warn(unsafe_op_in_unsafe_fn)]
 #![warn(unstable_features)]
@@ -28,13 +28,13 @@
 // NO #![warn(unused_extern_crates)]
 #![warn(unused_import_braces)]
 #![warn(unused_lifetimes)]
-#![allow(unused_qualifications)]
+#![warn(unused_qualifications)]
 // NO #![warn(unused_results)]
 #![warn(variant_size_differences)]
-#![allow(dead_code)]
-#![allow(clippy::needless_lifetimes)]
+#![deny(dead_code)]
+#![deny(clippy::needless_lifetimes)]
 // TODO: documentation
-#![allow(missing_docs)]
+#![deny(missing_docs)]
 
 extern crate core;
 
