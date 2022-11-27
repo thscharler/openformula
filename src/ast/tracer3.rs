@@ -1,7 +1,9 @@
+use crate::ast::tracer3::debug_tracer::debug_tracer;
 use crate::ast::{ParseResult, Span};
-use crate::error::{Expect2, OFCode, ParseOFError, Suggest2};
+use crate::error::{DebugWidth, Expect2, OFCode, ParseOFError, Suggest2};
 use std::cell::RefCell;
-use std::fmt::Debug;
+use std::fmt;
+use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 
 pub mod debug_tracer;
@@ -99,6 +101,15 @@ impl<'s> Tracer<'s> {
 
         Err(err)
     }
+
+    pub fn write_debug(
+        &self,
+        f: &mut Formatter<'_>,
+        w: DebugWidth,
+        filter: &dyn Fn(&Track<'_>) -> bool,
+    ) -> fmt::Result {
+        debug_tracer(f, w, self, filter)
+    }
 }
 
 // expect
@@ -108,6 +119,7 @@ impl<'s> Tracer<'s> {
             func,
             usage: Usage::Track,
             list: Vec::new(),
+            parents: self.parent_vec(),
         })
     }
 
@@ -145,6 +157,7 @@ impl<'s> Tracer<'s> {
             func,
             usage: Usage::Track,
             list: Vec::new(),
+            parents: self.parent_vec(),
         })
     }
 
@@ -207,7 +220,7 @@ impl<'s> Tracer<'s> {
         self.track.borrow_mut().push(Track::Enter(EnterTrack {
             func: self.func(),
             span,
-            list: self.parent_vec(),
+            parents: self.parent_vec(),
         }));
     }
 
@@ -216,7 +229,7 @@ impl<'s> Tracer<'s> {
             func: self.func(),
             step,
             span,
-            list: self.parent_vec(),
+            parents: self.parent_vec(),
         }));
     }
 
@@ -224,7 +237,7 @@ impl<'s> Tracer<'s> {
         self.track.borrow_mut().push(Track::Debug(DebugTrack {
             func: self.func(),
             dbg,
-            list: self.parent_vec(),
+            parents: self.parent_vec(),
             _phantom: Default::default(),
         }));
     }
@@ -234,6 +247,7 @@ impl<'s> Tracer<'s> {
             func: self.func(),
             usage,
             list: suggest,
+            parents: self.parent_vec(),
         }))
     }
 
@@ -242,6 +256,7 @@ impl<'s> Tracer<'s> {
             func: self.func(),
             usage,
             list: expect,
+            parents: self.parent_vec(),
         }))
     }
 
@@ -250,7 +265,7 @@ impl<'s> Tracer<'s> {
             func: self.func(),
             span,
             rest,
-            list: self.parent_vec(),
+            parents: self.parent_vec(),
         }));
     }
 
@@ -259,13 +274,14 @@ impl<'s> Tracer<'s> {
             func: self.func(),
             span: err.span,
             err: err.to_string(),
-            list: self.parent_vec(),
+            parents: self.parent_vec(),
         }));
     }
 
     fn track_exit(&self) {
         self.track.borrow_mut().push(Track::Exit(ExitTrack {
             func: self.func(),
+            parents: self.parent_vec(),
             _phantom: Default::default(),
         }));
     }
@@ -307,6 +323,7 @@ pub struct ExpectTrack<'s> {
     pub func: OFCode,
     pub usage: Usage,
     pub list: Vec<Expect2<'s>>,
+    pub parents: Vec<OFCode>,
 }
 
 /// One per stack frame.
@@ -314,25 +331,26 @@ pub struct SuggestTrack<'s> {
     pub func: OFCode,
     pub usage: Usage,
     pub list: Vec<Suggest2<'s>>,
+    pub parents: Vec<OFCode>,
 }
 
 pub struct EnterTrack<'s> {
     pub func: OFCode,
     pub span: Span<'s>,
-    pub list: Vec<OFCode>,
+    pub parents: Vec<OFCode>,
 }
 
 pub struct StepTrack<'s> {
     pub func: OFCode,
     pub step: &'static str,
     pub span: Span<'s>,
-    pub list: Vec<OFCode>,
+    pub parents: Vec<OFCode>,
 }
 
 pub struct DebugTrack<'s> {
     pub func: OFCode,
     pub dbg: String,
-    pub list: Vec<OFCode>,
+    pub parents: Vec<OFCode>,
     pub _phantom: PhantomData<Span<'s>>,
 }
 
@@ -340,19 +358,32 @@ pub struct OkTrack<'s> {
     pub func: OFCode,
     pub span: Span<'s>,
     pub rest: Span<'s>,
-    pub list: Vec<OFCode>,
+    pub parents: Vec<OFCode>,
 }
 
 pub struct ErrTrack<'s> {
     pub func: OFCode,
     pub span: Span<'s>,
     pub err: String,
-    pub list: Vec<OFCode>,
+    pub parents: Vec<OFCode>,
 }
 
 pub struct ExitTrack<'s> {
     pub func: OFCode,
+    pub parents: Vec<OFCode>,
     pub _phantom: PhantomData<Span<'s>>,
+}
+
+#[derive(PartialEq)]
+pub enum TrackType {
+    Enter,
+    Step,
+    Debug,
+    Expect,
+    Suggest,
+    Ok,
+    Err,
+    Exit,
 }
 
 /// One track of the parsing trace.
@@ -365,4 +396,47 @@ pub enum Track<'s> {
     Ok(OkTrack<'s>),
     Err(ErrTrack<'s>),
     Exit(ExitTrack<'s>),
+}
+
+impl<'s> PartialEq<TrackType> for &Track<'s> {
+    fn eq(&self, other: &TrackType) -> bool {
+        match self {
+            Track::Enter(_) => *other == TrackType::Enter,
+            Track::Step(_) => *other == TrackType::Step,
+            Track::Debug(_) => *other == TrackType::Debug,
+            Track::Expect(_) => *other == TrackType::Expect,
+            Track::Suggest(_) => *other == TrackType::Suggest,
+            Track::Ok(_) => *other == TrackType::Ok,
+            Track::Err(_) => *other == TrackType::Err,
+            Track::Exit(_) => *other == TrackType::Exit,
+        }
+    }
+}
+
+impl<'s> Track<'s> {
+    pub fn func(&self) -> OFCode {
+        match self {
+            Track::Enter(v) => v.func,
+            Track::Step(v) => v.func,
+            Track::Debug(v) => v.func,
+            Track::Expect(v) => v.func,
+            Track::Suggest(v) => v.func,
+            Track::Ok(v) => v.func,
+            Track::Err(v) => v.func,
+            Track::Exit(v) => v.func,
+        }
+    }
+
+    pub fn parents(&self) -> &Vec<OFCode> {
+        match self {
+            Track::Enter(v) => &v.parents,
+            Track::Step(v) => &v.parents,
+            Track::Debug(v) => &v.parents,
+            Track::Expect(v) => &v.parents,
+            Track::Suggest(v) => &v.parents,
+            Track::Ok(v) => &v.parents,
+            Track::Err(v) => &v.parents,
+            Track::Exit(v) => &v.parents,
+        }
+    }
 }

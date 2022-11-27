@@ -1,4 +1,4 @@
-use crate::error::{Expect2, OFCode, ParseOFError, Suggest2};
+use crate::error::{Expect2, ParseOFError, Suggest2};
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 

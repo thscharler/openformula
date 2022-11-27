@@ -1,8 +1,9 @@
 use openformula::ast::tracer::Tracer;
+use openformula::ast::tracer3::Track;
 use openformula::ast::{ParseResult, Span};
-use openformula::error::OFCode;
+use openformula::error::{DebugWidth, OFCode};
 use std::cell::RefCell;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter};
 
 type ParserFn<'s, O> = fn(&'_ Tracer<'s>, Span<'s>) -> ParseResult<'s, O>;
 type TestFn<'s, O, V> = fn(&'s O, V) -> bool;
@@ -11,6 +12,7 @@ pub struct TestRun<'s, O> {
     pub trace: Tracer<'s>,
     pub span: Span<'s>,
     pub result: ParseResult<'s, O>,
+    pub filter: RefCell<&'s dyn Fn(&Track<'_>) -> bool>,
     pub fail: RefCell<bool>,
 }
 
@@ -79,6 +81,7 @@ where
             trace,
             span,
             result,
+            filter: RefCell::new(&|_| true),
             fail: RefCell::new(false),
         }
     }
@@ -152,6 +155,13 @@ where
                 self.flag_fail();
             }
         }
+        self
+    }
+
+    ///
+    #[must_use]
+    pub fn filter(&self, filter: &'s dyn Fn(&Track<'_>) -> bool) -> &Self {
+        self.filter.replace(filter);
         self
     }
 
@@ -285,14 +295,24 @@ where
 
     /// Dump the result.
     pub fn trace(&self) -> &Self {
+        struct Q<'s, 'x, O>(&'x TestRun<'s, O>);
+
+        impl<'s, 'x, O> Display for Q<'s, 'x, O> {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                self.0
+                    .trace
+                    .write_debug(f, DebugWidth::Medium, &*self.0.filter.borrow())
+            }
+        }
+
         println!("when parsing '{}'", self.span);
         match &self.result {
             Ok((rest, token)) => {
-                println!("{:?}", &self.trace);
+                println!("{}", Q(self));
                 println!("=> token={:?} rest=\"{}\"", token, rest);
             }
             Err(e) => {
-                println!("{:?}", &self.trace);
+                println!("{}", Q(self));
                 println!("=> error=");
                 println!("{:1?}", e);
             }

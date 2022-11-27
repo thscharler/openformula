@@ -23,9 +23,9 @@ impl<'s> Debug for SuggestTrack<'s> {
 impl<'s> Debug for Tracer<'s> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match f.width() {
-            None | Some(0) => debug_tracer(f, DebugWidth::Short, self),
-            Some(1) => debug_tracer(f, DebugWidth::Medium, self),
-            Some(2) => debug_tracer(f, DebugWidth::Long, self),
+            None | Some(0) => debug_tracer(f, DebugWidth::Short, self, &|_| true),
+            Some(1) => debug_tracer(f, DebugWidth::Medium, self, &|_| true),
+            Some(2) => debug_tracer(f, DebugWidth::Long, self, &|_| true),
             _ => Ok(()),
         }
     }
@@ -42,7 +42,12 @@ fn indent(f: &mut Formatter<'_>, ind: usize) -> fmt::Result {
     Ok(())
 }
 
-pub fn debug_tracer(f: &mut Formatter<'_>, w: DebugWidth, v: &Tracer<'_>) -> fmt::Result {
+pub fn debug_tracer(
+    f: &mut Formatter<'_>,
+    w: DebugWidth,
+    v: &Tracer<'_>,
+    filter: &dyn Fn(&Track<'_>) -> bool,
+) -> fmt::Result {
     let mut ind = 0;
 
     writeln!(f, "trace")?;
@@ -50,10 +55,12 @@ pub fn debug_tracer(f: &mut Formatter<'_>, w: DebugWidth, v: &Tracer<'_>) -> fmt
     for t in &*v.track.borrow() {
         match t {
             Track::Enter(_) => {
-                ind += 1;
-                indent(f, ind)?;
-                debug_track(f, w, t)?;
-                writeln!(f)?;
+                if filter(t) {
+                    ind += 1;
+                    indent(f, ind)?;
+                    debug_track(f, w, t)?;
+                    writeln!(f)?;
+                }
             }
             Track::Step(_)
             | Track::Debug(_)
@@ -61,15 +68,19 @@ pub fn debug_tracer(f: &mut Formatter<'_>, w: DebugWidth, v: &Tracer<'_>) -> fmt
             | Track::Suggest(_)
             | Track::Ok(_)
             | Track::Err(_) => {
-                indent(f, ind)?;
-                debug_track(f, w, t)?;
-                writeln!(f)?;
+                if filter(t) {
+                    indent(f, ind)?;
+                    debug_track(f, w, t)?;
+                    writeln!(f)?;
+                }
             }
             Track::Exit(_) => {
-                indent(f, ind)?;
-                debug_track(f, w, t)?;
-                writeln!(f)?;
-                ind -= 1;
+                if filter(t) {
+                    indent(f, ind)?;
+                    debug_track(f, w, t)?;
+                    writeln!(f)?;
+                    ind -= 1;
+                }
             }
         }
     }
@@ -117,7 +128,7 @@ pub fn debug_track(f: &mut Formatter<'_>, w: DebugWidth, v: &Track<'_>) -> fmt::
 pub fn debug_enter(f: &mut Formatter<'_>, w: DebugWidth, v: &EnterTrack<'_>) -> fmt::Result {
     match w {
         DebugWidth::Short | DebugWidth::Medium => write!(f, "{}: \"{}\"", v.func, v.span),
-        DebugWidth::Long => write!(f, "{}: \"{}\" <<{:?}", v.func, v.span, v.list),
+        DebugWidth::Long => write!(f, "{}: \"{}\" <<{:?}", v.func, v.span, v.parents),
     }
 }
 
@@ -126,14 +137,14 @@ pub fn debug_step(f: &mut Formatter<'_>, w: DebugWidth, v: &StepTrack<'_>) -> fm
         DebugWidth::Short | DebugWidth::Medium => {
             write!(f, "{}: {} \"{}\"", v.func, v.step, v.span)
         }
-        DebugWidth::Long => write!(f, "{}: {} \"{}\" <<{:?}", v.func, v.step, v.span, v.list),
+        DebugWidth::Long => write!(f, "{}: {} \"{}\" <<{:?}", v.func, v.step, v.span, v.parents),
     }
 }
 
 pub fn debug_debug(f: &mut Formatter<'_>, w: DebugWidth, v: &DebugTrack<'_>) -> fmt::Result {
     match w {
         DebugWidth::Short | DebugWidth::Medium => write!(f, "{}: {}", v.func, v.dbg),
-        DebugWidth::Long => write!(f, "{}: {} <<{:?}", v.func, v.dbg, v.list),
+        DebugWidth::Long => write!(f, "{}: {} <<{:?}", v.func, v.dbg, v.parents),
     }
 }
 
@@ -175,7 +186,7 @@ pub fn debug_ok(f: &mut Formatter<'_>, w: DebugWidth, v: &OkTrack<'_>) -> fmt::R
 pub fn debug_err(f: &mut Formatter<'_>, w: DebugWidth, v: &ErrTrack<'_>) -> fmt::Result {
     match w {
         DebugWidth::Short | DebugWidth::Medium => write!(f, "{}: err={} ", v.func, v.err),
-        DebugWidth::Long => write!(f, "{}: err={} <<{:?}", v.func, v.err, v.list),
+        DebugWidth::Long => write!(f, "{}: err={} <<{:?}", v.func, v.err, v.parents),
     }
 }
 

@@ -5,10 +5,38 @@ use openformula::ast::parser::{
     GeneralExpr, GeneralTerm, IriTerm, NamedExpr, NumberExpr, ParenthesesExpr, PrefixExpr,
     ReferenceExpr, RowRangeExpr, RowTerm, SheetNameTerm, StringExpr,
 };
+use openformula::ast::tracer::Track;
 use openformula::ast::{OFAst, OFIri, OFSheetName};
 use openformula::error::OFCode::*;
 
 use spantest::*;
+
+fn filter_ops_and_ref(t: &Track<'_>) -> bool {
+    if [
+        OFCPrefix,
+        OFCPrefixOp,
+        OFCPostfix,
+        OFCPostfixOp,
+        OFCPow,
+        OFCPowOp,
+        OFCMul,
+        OFCMulOp,
+        OFCAdd,
+        OFCAddOp,
+        OFCComp,
+        OFCCompOp,
+    ]
+    .contains(&t.func())
+    {
+        return false;
+    }
+
+    if t.func() != OFCReference && t.parents().contains(&OFCReference) {
+        return false;
+    }
+
+    return true;
+}
 
 #[test]
 pub fn expr() {
@@ -52,6 +80,7 @@ pub fn expr_fail() {
     TestRun::parse("22 * FUN ( 77+  ", Expr::parse)
         .err(OFCExpr)
         // TODO: should be ...
+        .filter(&filter_ops_and_ref)
         .fail()
         .q();
     TestRun::parse("22 * FUN ( 77  ", Expr::parse)
