@@ -65,7 +65,7 @@ impl<'s, O> TestRun<'s, O>
 where
     O: Debug,
 {
-    const STATE: RunState = RunState::Dump;
+    const STATE: RunState = RunState::CheckTrace;
 
     /// Runs the parser and records the results.
     /// Use ok(), err(), ... to check specifics.

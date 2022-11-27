@@ -71,8 +71,11 @@ impl<'s> Tracer<'s> {
         self.track_expect(Usage::Drop, expect.list);
         let suggest = self.pop_suggest();
         // Keep suggests, sort them out later.
-        self.append_suggest(suggest.list);
-        //self.track_suggest(Usage::Drop, suggest.list);
+        // Drop at the toplevel if no error occurs?
+        if !self.suggest.borrow().is_empty() {
+            self.append_suggest(suggest.list);
+            //self.track_suggest(Usage::Drop, suggest.list);
+        }
 
         self.track_exit();
         self.pop_func();
