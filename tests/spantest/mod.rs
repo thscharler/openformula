@@ -1,10 +1,9 @@
 #![allow(dead_code)]
 
-use openformula::ast::Span;
-
 mod parser_error;
 mod token_error;
 
+use openformula::iparse::Span;
 pub use parser_error::*;
 pub use token_error::*;
 

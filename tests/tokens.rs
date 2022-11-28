@@ -24,7 +24,7 @@ pub fn test_empty() {
 
 #[test]
 pub fn test_number() {
-    number(Span::new("1")).cok(0, "1");
+    Test::number(Span::new("1")).cok(0, "1");
     number(Span::new(".1")).cok(0, ".1");
     number(Span::new(".1e5")).cok(0, ".1e5");
     number(Span::new(".1e-5")).cok(0, ".1e-5");

@@ -1,21 +1,27 @@
-use openformula::ast::tracer::Tracer;
-use openformula::ast::tracer::Track;
-use openformula::ast::{ParseResult, Span};
-use openformula::error::{DebugWidth, OFCode};
+use openformula::error::OFCode;
+use openformula::iparse::error::DebugWidth;
+use openformula::iparse::tracer::{CTracer, Track};
+use openformula::iparse::{ParseResult, Span, Tracer};
 use std::cell::RefCell;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Formatter};
 use std::time::{Duration, Instant};
 
-type ParserFn<'s, O> = fn(&'_ Tracer<'s>, Span<'s>) -> ParseResult<'s, O>;
-type TokenFn<'s, O> = fn(Span<'s>) -> ParseResult<'s, O>;
+type ParserFn<'s, O> = fn(&'_ CTracer<'s, OFCode>, Span<'s>) -> ParseResult<'s, O, OFCode>;
+type TokenFn<'s, O> = fn(Span<'s>) -> ParseResult<'s, O, OFCode>;
 type TestFn<'s, O, V> = fn(&'s O, V) -> bool;
 
-pub struct TestRun<'s, O> {
-    pub trace: Tracer<'s>,
+/// Test struct.
+///
+/// Start with parse() or token(), use the different test functions and evaluate with q().
+///
+pub struct Test<'s, O> {
+    pub trace: Option<CTracer<'s, OFCode>>,
+    pub trace_filter: RefCell<&'s dyn Fn(&Track<'_, OFCode>) -> bool>,
     pub span: Span<'s>,
-    pub result: ParseResult<'s, O>,
+
+    pub result: ParseResult<'s, O, OFCode>,
     pub duration: Duration,
-    pub filter: RefCell<&'s dyn Fn(&Track<'_>) -> bool>,
+
     pub fail: RefCell<bool>,
 }
 
@@ -64,28 +70,32 @@ enum RunState {
     Trace,
 }
 
-impl<'s, O> TestRun<'s, O>
+impl<'s, O> Test<'s, O>
 where
     O: Debug,
 {
     const STATE: RunState = RunState::CheckTrace;
 
-    // pub fn token(span: &'s str, fn_test: TokenFn<'s, O>) -> Self {
-    //     let span = Span::new(span);
-    //
-    //     let now = Instant::now();
-    //     let result = fn_test(span);
-    //     let elapsed = now.elapsed();
-    //
-    //     Self {
-    //         trace: Default::default(),
-    //         span,
-    //         result,
-    //         duration: elapsed,
-    //         filter: RefCell::new(&|_| true),
-    //         fail: RefCell::new(false),
-    //     }
-    // }
+    /// Runs the token function and records the results.
+    /// Use ok(), err(), ... to check specifics.
+    ///
+    /// Finish the test with q().
+    pub fn token(span: &'s str, fn_test: TokenFn<'s, O>) -> Self {
+        let span = Span::new(span);
+
+        let now = Instant::now();
+        let result = fn_test(span);
+        let elapsed = now.elapsed();
+
+        Self {
+            trace: None,
+            span,
+            result,
+            duration: elapsed,
+            trace_filter: RefCell::new(&|_| true),
+            fail: RefCell::new(false),
+        }
+    }
 
     /// Runs the parser and records the results.
     /// Use ok(), err(), ... to check specifics.
@@ -94,18 +104,18 @@ where
     #[must_use]
     pub fn parse(span: &'s str, fn_test: ParserFn<'s, O>) -> Self {
         let span = Span::new(span);
-        let trace = Tracer::new();
+        let trace = CTracer::new();
 
         let now = Instant::now();
         let result = fn_test(&trace, span);
         let elapsed = now.elapsed();
 
         Self {
-            trace,
+            trace: Some(trace),
             span,
             result,
             duration: elapsed,
-            filter: RefCell::new(&|_| true),
+            trace_filter: RefCell::new(&|_| true),
             fail: RefCell::new(false),
         }
     }
@@ -182,10 +192,10 @@ where
         self
     }
 
-    ///
+    /// Sets a filter on the trace.
     #[must_use]
-    pub fn filter(&self, filter: &'s dyn Fn(&Track<'_>) -> bool) -> &Self {
-        self.filter.replace(filter);
+    pub fn filter(&self, filter: &'s dyn Fn(&Track<'_, OFCode>) -> bool) -> &Self {
+        self.trace_filter.replace(filter);
         self
     }
 
@@ -318,13 +328,15 @@ where
 
     /// Dump the result.
     pub fn trace(&self) -> &Self {
-        struct Q<'s, 'x, O>(&'x TestRun<'s, O>);
+        struct TracerDebug<'a, 'b, 's> {
+            trace: &'a CTracer<'s, OFCode>,
+            track_filter: &'b dyn Fn(&Track<'s, OFCode>) -> bool,
+        }
 
-        impl<'s, 'x, O> Display for Q<'s, 'x, O> {
+        impl<'a, 'b, 's> Debug for TracerDebug<'a, 'b, 's> {
             fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-                self.0
-                    .trace
-                    .write_debug(f, DebugWidth::Medium, &*self.0.filter.borrow())
+                self.trace
+                    .write_debug(f, DebugWidth::Medium, self.track_filter)
             }
         }
 
@@ -336,12 +348,29 @@ where
         );
         match &self.result {
             Ok((rest, token)) => {
-                println!("{}", Q(self));
+                if let Some(trace) = &self.trace {
+                    let trace_filter = self.trace_filter.borrow();
+                    println!(
+                        "{:?}",
+                        TracerDebug {
+                            trace,
+                            track_filter: &*trace_filter
+                        }
+                    );
+                }
                 println!("rest {}:\"{}\"", rest.location_offset(), rest);
                 println!("{:0?}", token);
             }
             Err(e) => {
-                println!("{}", Q(self));
+                if let Some(trace) = &self.trace {
+                    println!(
+                        "{:?}",
+                        TracerDebug {
+                            trace,
+                            track_filter: &*self.trace_filter.borrow()
+                        }
+                    );
+                }
                 println!("error");
                 println!("{:1?}", e);
             }

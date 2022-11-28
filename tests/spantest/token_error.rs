@@ -1,8 +1,7 @@
 use nom::error::ErrorKind;
 use nom::IResult;
-use openformula::ast::{ParseResult, Span};
 use openformula::error::OFCode;
-use openformula::error::OFCode::{OFCNomError, OFCNomFailure};
+use openformula::iparse::{ParseResult, Span};
 
 pub trait CheckOk {
     fn cok(&self, offset: usize, fragment: &str);
@@ -215,7 +214,7 @@ impl<'a> CheckNone for IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
     }
 }
 
-impl<'a> CheckOk for ParseResult<'a, Span<'a>> {
+impl<'a> CheckOk for ParseResult<'a, Span<'a>, OFCode> {
     #[track_caller]
     fn cok(&self, offset: usize, fragment: &str) {
         match self {
@@ -230,7 +229,7 @@ impl<'a> CheckOk for ParseResult<'a, Span<'a>> {
     }
 }
 
-impl<'a> CheckFailToken for ParseResult<'a, Span<'a>> {
+impl<'a> CheckFailToken for ParseResult<'a, Span<'a>, OFCode> {
     #[track_caller]
     fn dump(&self) {
         match self {
@@ -251,12 +250,12 @@ impl<'a> CheckFailToken for ParseResult<'a, Span<'a>> {
                 println!("    rest='{}' token='{}'", rest, token);
                 assert!(false);
             }
-            Err(e) if e.code == OFCNomError => {
+            Err(e) if e.code == OFCode::OFCNomError => {
                 println!("Failed with ErrNomError. To unspecified.");
                 println!("{:?}", e);
                 assert!(false);
             }
-            Err(e) if e.code == OFCNomFailure => {
+            Err(e) if e.code == OFCode::OFCNomFailure => {
                 println!("Failed with ErrNomFailure.");
                 println!("{:?}", e);
                 assert!(false);
@@ -272,7 +271,7 @@ impl<'a> CheckFailToken for ParseResult<'a, Span<'a>> {
     }
 }
 
-impl<'a> CheckOk2 for ParseResult<'a, (Option<Span<'a>>, Span<'a>)> {
+impl<'a> CheckOk2 for ParseResult<'a, (Option<Span<'a>>, Span<'a>), OFCode> {
     #[track_caller]
     fn cok0(&self, offset: usize, fragment: &str) {
         match self {
@@ -305,7 +304,7 @@ impl<'a> CheckOk2 for ParseResult<'a, (Option<Span<'a>>, Span<'a>)> {
     }
 }
 
-impl<'a> CheckFailToken for ParseResult<'a, (Option<Span<'a>>, Span<'a>)> {
+impl<'a> CheckFailToken for ParseResult<'a, (Option<Span<'a>>, Span<'a>), OFCode> {
     #[track_caller]
     fn dump(&self) {
         match self {
@@ -326,12 +325,12 @@ impl<'a> CheckFailToken for ParseResult<'a, (Option<Span<'a>>, Span<'a>)> {
                 println!("    rest='{}' token='{:?}'", rest, token);
                 assert!(false);
             }
-            Err(e) if e.code == OFCNomError => {
+            Err(e) if e.code == OFCode::OFCNomError => {
                 println!("Failed with ErrNomError. To unspecified.");
                 println!("{:?}", e);
                 assert!(false);
             }
-            Err(e) if e.code == OFCNomFailure => {
+            Err(e) if e.code == OFCode::OFCNomFailure => {
                 println!("Failed with ErrNomFailure.");
                 println!("{:?}", e);
                 assert!(false);
@@ -347,7 +346,7 @@ impl<'a> CheckFailToken for ParseResult<'a, (Option<Span<'a>>, Span<'a>)> {
     }
 }
 
-impl<'a> CheckNone for ParseResult<'a, (Option<Span<'a>>, Span<'a>)> {
+impl<'a> CheckNone for ParseResult<'a, (Option<Span<'a>>, Span<'a>), OFCode> {
     #[track_caller]
     fn cnone0(&self) {
         match self {
