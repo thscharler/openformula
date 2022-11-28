@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 type ParserFn<'s, O> = fn(&'_ CTracer<'s, OFCode>, Span<'s>) -> ParseResult<'s, O, OFCode>;
 type TokenFn<'s, O> = fn(Span<'s>) -> ParseResult<'s, O, OFCode>;
-type TestFn<'s, O, V> = fn(&'s O, V) -> bool;
+type TestFn<O, V> = for<'a> fn(&'a O, V) -> bool;
 
 /// Test struct.
 ///
@@ -152,7 +152,7 @@ where
     ///
     /// Finish the test with q()
     #[must_use]
-    pub fn ok<V>(&'s self, eq: TestFn<'s, O, V>, test: V) -> &Self
+    pub fn ok<V>(&'s self, eq: TestFn<O, V>, test: V) -> &Self
     where
         V: Debug + Copy,
         O: Debug,

@@ -3,7 +3,7 @@ mod spantest;
 use crate::spantest::*;
 use nom::error::ErrorKind;
 use openformula::ast::tokens::nomtokens::*;
-use openformula::ast::Span;
+use openformula::iparse::Span;
 
 #[test]
 pub fn test_simple<'a>() {

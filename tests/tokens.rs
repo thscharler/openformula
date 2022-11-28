@@ -1,13 +1,12 @@
 extern crate core;
 
-use crate::spantest::CheckFailToken;
 use crate::spantest::*;
 use openformula::ast::tokens::{
     col, comparison_op, empty, fn_name, iri, number, quoted_sheet_name, row, sheet_name,
     single_quoted, string,
 };
-use openformula::ast::Span;
 use openformula::error::OFCode::*;
+use openformula::iparse::Span;
 
 mod spantest;
 
@@ -22,129 +21,212 @@ pub fn test_empty() {
     ));
 }
 
+// comparison fn
+fn span<'a, 'b, 's>(span: &'a Span<'s>, value: (usize, &'b str)) -> bool {
+    **span == value.1 && span.location_offset() == value.0
+}
+
+// comparison fn for the first part
+fn span_0<'a, 'b, 's>(span: &'a (Option<Span<'s>>, Span<'s>), value: (usize, &'b str)) -> bool {
+    if let Some(span) = &span.0 {
+        **span == value.1 && span.location_offset() == value.0
+    } else {
+        false
+    }
+}
+
+// comparison fn for the first part
+fn span_0_isnone<'a, 's>(span: &'a (Option<Span<'s>>, Span<'s>), _value: ()) -> bool {
+    span.0.is_none()
+}
+
+// comparison fn for the second part
+fn span_1<'a, 'b, 's>(span: &'a (Option<Span<'s>>, Span<'s>), value: (usize, &'b str)) -> bool {
+    *span.1 == value.1 && span.1.location_offset() == value.0
+}
+
 #[test]
 pub fn test_number() {
-    Test::number(Span::new("1")).cok(0, "1");
-    number(Span::new(".1")).cok(0, ".1");
-    number(Span::new(".1e5")).cok(0, ".1e5");
-    number(Span::new(".1e-5")).cok(0, ".1e-5");
-    number(Span::new("1")).cok(0, "1");
-    number(Span::new("1.")).cok(0, "1.");
-    number(Span::new("1.1")).cok(0, "1.1");
-    number(Span::new("1.1e5")).cok(0, "1.1e5");
-    number(Span::new("1.1e-5")).cok(0, "1.1e-5");
-    number(Span::new("1e5")).cok(0, "1e5");
-    number(Span::new("1e-5")).cok(0, "1e-5");
+    Test::token(".1", number).ok(span, (0, ".1")).q();
+    Test::token(".1e5", number).ok(span, (0, ".1e5")).q();
+    Test::token(".1e-5", number).ok(span, (0, ".1e-5")).q();
+    Test::token("1", number).ok(span, (0, "1")).q();
+    Test::token("1.", number).ok(span, (0, "1.")).q();
+    Test::token("1.1", number).ok(span, (0, "1.1")).q();
+    Test::token("1.1e5", number).ok(span, (0, "1.1e5")).q();
+    Test::token("1.1e-5", number).ok(span, (0, "1.1e-5")).q();
+    Test::token("1e5", number).ok(span, (0, "1e5")).q();
+    Test::token("1e-5", number).ok(span, (0, "1e-5")).q();
 
-    number(Span::new("1f-5")).cok(0, "1");
-    number(Span::new("f")).ctok(OFCNumber);
-    number(Span::new(".f")).ctok(OFCNumber);
+    Test::token("1f-5", number).ok(span, (0, "1")).q();
+    Test::token("f", number).err(OFCNumber).q();
+    Test::token(".f", number).err(OFCNumber).q();
 }
 
 #[test]
 pub fn test_string() {
-    string(Span::new("\"\"")).cok(0, "\"\"");
-    string(Span::new("\"A\"")).cok(0, "\"A\"");
-    string(Span::new("\"ABC\"")).cok(0, "\"ABC\"");
-    string(Span::new("\"ABC")).ctok(OFCQuoteEnd);
-    string(Span::new("ABC\"")).ctok(OFCQuoteStart);
-    string(Span::new("ABC")).ctok(OFCQuoteStart);
+    Test::token("\"\"", string).ok(span, (0, "\"\"")).q();
+    Test::token("\"A\"", string).ok(span, (0, "\"A\"")).q();
+    Test::token("\"ABC\"", string).ok(span, (0, "\"ABC\"")).q();
+    Test::token("\"ABC", string).err(OFCQuoteEnd).q();
+    Test::token("ABC\"", string).err(OFCQuoteStart).q();
+    Test::token("ABC", string).err(OFCQuoteStart).q();
 
-    string(Span::new("\"AB\"\"CD\"")).cok(0, "\"AB\"\"CD\"");
-    string(Span::new("\"AB\"CD\"")).cok(0, "\"AB\"");
-    string(Span::new("\"AB\"\"\"CD\"")).cok(0, "\"AB\"\"\"");
+    Test::token("\"AB\"\"CD\"", string)
+        .ok(span, (0, "\"AB\"\"CD\""))
+        .q();
+    Test::token("\"AB\"CD\"", string)
+        .ok(span, (0, "\"AB\""))
+        .q();
+    Test::token("\"AB\"\"\"CD\"", string)
+        .ok(span, (0, "\"AB\"\"\""))
+        .q();
 }
 
 #[test]
 pub fn test_fn_name() {
-    fn_name(Span::new("&")).ctok(OFCFnName);
-    fn_name(Span::new("")).ctok(OFCFnName);
-    fn_name(Span::new("A")).cok(0, "A");
-    fn_name(Span::new("A.B")).cok(0, "A.B");
-    fn_name(Span::new("A_B")).cok(0, "A_B");
+    Test::token("&", fn_name).err(OFCFnName).q();
+    Test::token("", fn_name).err(OFCFnName).q();
+    Test::token("A", fn_name).ok(span, (0, "A")).q();
+    Test::token("A.B", fn_name).ok(span, (0, "A.B")).q();
+    Test::token("A_B", fn_name).ok(span, (0, "A_B")).q();
 }
 
 #[test]
 pub fn test_comparison() {
-    comparison_op(Span::new("&")).ctok(OFCCompOp);
-    comparison_op(Span::new("=")).cok(0, "=");
+    Test::token("&", comparison_op).err(OFCCompOp).q();
+    Test::token("=", comparison_op).ok(span, (0, "=")).q();
 }
 
 #[test]
 pub fn test_sheet_name() {
-    sheet_name(Span::new("")).ctok(OFCSheetName);
-    sheet_name(Span::new("$")).ctok(OFCSheetName);
-    sheet_name(Span::new("$'funinthesun'")).cok0(0, "$");
-    sheet_name(Span::new("$'funinthesun'")).cok1(1, "'funinthesun'");
-    sheet_name(Span::new("$'funinthesun")).ctok(OFCSingleQuoteEnd);
-    sheet_name(Span::new("$funinthesun'")).cok1(1, "funinthesun");
-    sheet_name(Span::new("$funinthesun")).cok1(1, "funinthesun");
-    sheet_name(Span::new("$funinthesun]")).cok1(1, "funinthesun");
-    sheet_name(Span::new("$funinthesun.")).cok1(1, "funinthesun");
-    sheet_name(Span::new("$funinthesun ")).cok1(1, "funinthesun");
-    sheet_name(Span::new("$funinthesun$")).cok1(1, "funinthesun");
-    sheet_name(Span::new("$funinthesun#")).cok1(1, "funinthesun");
+    Test::token("", sheet_name).err(OFCSheetName).q();
+    Test::token("$", sheet_name).err(OFCSheetName).q();
+    Test::token("$'funinthesun'", sheet_name)
+        .ok(span_0, (0, "$"))
+        .ok(span_1, (1, "'funinthesun'"))
+        .q();
+    Test::token("$'funinthesun", sheet_name)
+        .err(OFCSingleQuoteEnd)
+        .q();
+    Test::token("$funinthesun'", sheet_name)
+        .ok(span_1, (1, "funinthesun"))
+        .q();
+    Test::token("$funinthesun", sheet_name)
+        .ok(span_1, (1, "funinthesun"))
+        .q();
+    Test::token("$funinthesun]", sheet_name)
+        .ok(span_1, (1, "funinthesun"))
+        .q();
+    Test::token("$funinthesun.", sheet_name)
+        .ok(span_1, (1, "funinthesun"))
+        .q();
+    Test::token("$funinthesun ", sheet_name)
+        .ok(span_1, (1, "funinthesun"))
+        .q();
+    Test::token("$funinthesun$", sheet_name)
+        .ok(span_1, (1, "funinthesun"))
+        .q();
+    Test::token("$funinthesun#", sheet_name)
+        .ok(span_1, (1, "funinthesun"))
+        .q();
 }
 
 #[test]
 pub fn test_quoted_sheet_name() {
-    quoted_sheet_name(Span::new("")).ctok(OFCSingleQuoteStart);
-    quoted_sheet_name(Span::new("$")).ctok(OFCSingleQuoteStart);
-    quoted_sheet_name(Span::new("$'funinthesun'")).cok0(0, "$");
-    quoted_sheet_name(Span::new("$'funinthesun'")).cok1(1, "'funinthesun'");
-    quoted_sheet_name(Span::new("$'funinthesun")).ctok(OFCSingleQuoteEnd);
-    quoted_sheet_name(Span::new("$funinthesun'")).ctok(OFCSingleQuoteStart);
-    quoted_sheet_name(Span::new("$funinthesun")).ctok(OFCSingleQuoteStart);
+    Test::token("", quoted_sheet_name)
+        .err(OFCSingleQuoteStart)
+        .q();
+    Test::token("$", quoted_sheet_name)
+        .err(OFCSingleQuoteStart)
+        .q();
+    Test::token("$'funinthesun'", quoted_sheet_name)
+        .ok(span_0, (0, "$"))
+        .ok(span_1, (1, "'funinthesun'"))
+        .q();
+    Test::token("$'funinthesun", quoted_sheet_name)
+        .err(OFCSingleQuoteEnd)
+        .q();
+    Test::token("$funinthesun'", quoted_sheet_name)
+        .err(OFCSingleQuoteStart)
+        .q();
+    Test::token("$funinthesun", quoted_sheet_name)
+        .err(OFCSingleQuoteStart)
+        .q();
 }
 
 #[test]
 pub fn test_iri() {
-    iri(Span::new("")).ctok(OFCSingleQuoteStart);
-    iri(Span::new("$")).ctok(OFCSingleQuoteStart);
-    iri(Span::new("'funinthesun'#")).cok(0, "'funinthesun'");
-    iri(Span::new("'funinthesun'")).ctok(OFCHashtag);
-    iri(Span::new("'funinthesun")).ctok(OFCSingleQuoteEnd);
-    iri(Span::new("funinthesun'")).ctok(OFCSingleQuoteStart);
+    Test::token("", iri).err(OFCSingleQuoteStart).q();
+    Test::token("$", iri).err(OFCSingleQuoteStart).q();
+    Test::token("'funinthesun'#", iri)
+        .ok(span, (0, "'funinthesun'"))
+        .q();
+    Test::token("'funinthesun'", iri).err(OFCHashtag).q();
+    Test::token("'funinthesun", iri).err(OFCSingleQuoteEnd).q();
+    Test::token("funinthesun'", iri)
+        .err(OFCSingleQuoteStart)
+        .q();
 }
 
 #[test]
 pub fn test_row() {
-    row(Span::new("")).ctok(OFCDigit);
-    row(Span::new("#5")).ctok(OFCDigit);
-    row(Span::new("123")).cnone0();
-    row(Span::new("123")).cok1(0, "123");
-    row(Span::new("123 ")).cok1(0, "123");
-    row(Span::new("$123")).cok0(0, "$");
-    row(Span::new("$123")).cok1(1, "123");
-    row(Span::new("$")).ctok(OFCDigit);
-    row(Span::new("$a")).ctok(OFCDigit);
+    Test::token("", row).err(OFCDigit).q();
+    Test::token("#5", row).err(OFCDigit).q();
+    Test::token("123", row)
+        .ok(span_0_isnone, ())
+        .ok(span_1, (0, "123"))
+        .q();
+    Test::token("123 ", row).ok(span_1, (0, "123")).q();
+    Test::token("$123", row)
+        .ok(span_0, (0, "$"))
+        .ok(span_1, (1, "123"))
+        .q();
+    Test::token("$", row).err(OFCDigit).q();
+    Test::token("$a", row).err(OFCDigit).q();
 }
 
 #[test]
 pub fn test_col() {
-    col(Span::new("")).ctok(OFCAlpha);
-    col(Span::new("#5")).ctok(OFCAlpha);
-    col(Span::new("123")).ctok(OFCAlpha);
-    col(Span::new("123")).ctok(OFCAlpha);
-    col(Span::new("$123")).ctok(OFCAlpha);
-    col(Span::new("$123")).ctok(OFCAlpha);
-    col(Span::new("$")).ctok(OFCAlpha);
-    col(Span::new("#a")).ctok(OFCAlpha);
-    col(Span::new("$a")).cok0(0, "$");
-    col(Span::new("$a")).cok1(1, "a");
-    col(Span::new("ACF")).cnone0();
-    col(Span::new("ACF")).cok1(0, "ACF");
-    col(Span::new("ACF ")).cok1(0, "ACF");
-    col(Span::new("ACF123")).cok1(0, "ACF");
+    Test::token("", col).err(OFCAlpha).q();
+    Test::token("#5", col).err(OFCAlpha).q();
+    Test::token("123", col).err(OFCAlpha).q();
+    Test::token("123", col).err(OFCAlpha).q();
+    Test::token("$123", col).err(OFCAlpha).q();
+    Test::token("$123", col).err(OFCAlpha).q();
+    Test::token("$", col).err(OFCAlpha).q();
+    Test::token("#a", col).err(OFCAlpha).q();
+    Test::token("$a", col)
+        .ok(span_0, (0, "$"))
+        .ok(span_1, (1, "a"))
+        .q();
+    Test::token("ACF", col)
+        .ok(span_0_isnone, ())
+        .ok(span_1, (0, "ACF"))
+        .q();
+    Test::token("ACF ", col).ok(span_1, (0, "ACF")).q();
+    Test::token("ACF123", col).ok(span_1, (0, "ACF")).q();
 }
 
 #[test]
 pub fn test_single_quoted() {
-    single_quoted(Span::new("")).ctok(OFCSingleQuoteStart);
-    single_quoted(Span::new("'aaa'")).cok(0, "'aaa'");
-    single_quoted(Span::new("'aaa")).ctok(OFCSingleQuoteEnd);
-    single_quoted(Span::new("aaa'")).ctok(OFCSingleQuoteStart);
-    single_quoted(Span::new("'aa''aa'")).cok(0, "'aa''aa'");
-    single_quoted(Span::new("'aa'''aa'")).cok(0, "'aa'''");
-    single_quoted(Span::new("'aa'aa'")).cok(0, "'aa'");
+    Test::token("", single_quoted).err(OFCSingleQuoteStart).q();
+    Test::token("'aaa'", single_quoted)
+        .ok(span, (0, "'aaa'"))
+        .q();
+    Test::token("'aaa", single_quoted)
+        .err(OFCSingleQuoteEnd)
+        .q();
+    Test::token("aaa'", single_quoted)
+        .err(OFCSingleQuoteStart)
+        .q();
+    Test::token("'aa''aa'", single_quoted)
+        .ok(span, (0, "'aa''aa'"))
+        .q();
+    Test::token("'aa'''aa'", single_quoted)
+        .ok(span, (0, "'aa'''"))
+        .q();
+    Test::token("'aa'aa'", single_quoted)
+        .ok(span, (0, "'aa'"))
+        .q();
 }

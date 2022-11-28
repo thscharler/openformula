@@ -47,16 +47,17 @@ pub trait Parser<'s, C: Code, O> {
 /// Traces the parser and helps generating errors and suggestions.
 ///
 /// ```
-/// use openformula::ast::{OFAst, ParseResult, Span};
+/// use openformula::ast::OFAst;
 /// use openformula::ast::tokens::dot;
-/// use openformula::ast::tracer::Tracer;
 /// use openformula::error::OFCode;
-/// use openformula::ast::tracer::TrackParseResult;
-/// use openformula::parser::{GeneralExpr, ReferenceExpr};
+/// use openformula::iparse::tracer::{ CTracer, TrackParseResult };
+/// use openformula::iparse::{Parser, ParseResult, Span, Tracer};
+/// use openformula::parser::ReferenceExpr;
 ///
-/// let trace = Tracer::new();
+/// let trace = CTracer::new();
+/// simple_parse(&trace, Span::new(".A1.")).unwrap();
 ///
-/// fn simple_parse<'s>(trace: &'_ Tracer<'s>, span: Span<'s>) -> ParseResult<'s, String> {
+/// fn simple_parse<'s>(trace: &'_ impl Tracer<'s, OFCode>, span: Span<'s>) -> ParseResult<'s, String, OFCode> {
 ///     trace.enter(OFCode::OFCDot, span);
 ///
 ///     // call trace.err() in case of and Result::Err

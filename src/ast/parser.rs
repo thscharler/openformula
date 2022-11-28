@@ -2,12 +2,11 @@
 //! Parses and creates the AST.
 //!
 //! ```
-//! use openformula::ast::Span;
-//! use openformula::ast::tracer::Tracer;
+//! use openformula::iparse::{Parser, Span, Tracer};
+//! use openformula::iparse::tracer::CTracer;
 //! use openformula::parser::Expr;
-//! use openformula::parser::GeneralExpr;
 //!     
-//! let trace = Tracer::new();
+//! let trace = CTracer::new();
 //! let ast = Expr::parse(&trace, Span::new("1+1")).unwrap();
 //! ```
 
