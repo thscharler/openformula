@@ -1,10 +1,8 @@
-use crate::iparse::error::{DebugWidth, Expect, ParserError, Suggest};
+use crate::iparse::error::{DebugWidth, ParserError};
 use crate::iparse::tracer::Track;
 use nom_locate::LocatedSpan;
-use std::error::Error;
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
-use std::ops::ControlFlow;
 
 /// Code for parser errors and parser functions.
 pub trait Code: Copy + Display + Debug + PartialEq {
@@ -14,10 +12,10 @@ pub trait Code: Copy + Display + Debug + PartialEq {
     const PARSE_INCOMPLETE: Self;
 
     fn is_special(&self) -> bool {
-        matches!(
-            self,
-            Self::DEFAULT | Self::NOM_ERROR | Self::NOM_FAILURE | Self::PARSE_INCOMPLETE
-        )
+        *self == Self::DEFAULT
+            || *self == Self::NOM_ERROR
+            || *self == Self::NOM_FAILURE
+            || *self == Self::PARSE_INCOMPLETE
     }
 }
 
@@ -29,18 +27,65 @@ pub type ParseResult<'s, O, C> = Result<(Span<'s>, O), ParserError<'s, C>>;
 
 /// Trait for one parser function.
 pub trait Parser<'s, C: Code, O> {
+    // TODO : Changeordering O C
     /// Function and error code.
     fn id() -> C;
 
     /// Possible look-ahead.
-    fn lah(_: Span<'s>) -> ControlFlow<(), ()> {
-        ControlFlow::Continue(())
+    fn lah(_: Span<'s>) -> bool {
+        true
     }
+    // fn lah(_: Span<'s>) -> ControlFlow<(), ()> {
+    //     ControlFlow::Continue(())
+    // }
 
     /// Parses the expression.
     fn parse<'t>(trace: &'t impl Tracer<'s, C>, rest: Span<'s>) -> ParseResult<'s, O, C>;
 }
 
+///
+/// Traces the parser and helps generating errors and suggestions.
+///
+/// ```
+/// use openformula::ast::{OFAst, ParseResult, Span};
+/// use openformula::ast::tokens::dot;
+/// use openformula::ast::tracer::Tracer;
+/// use openformula::error::OFCode;
+/// use openformula::ast::tracer::TrackParseResult;
+/// use openformula::parser::{GeneralExpr, ReferenceExpr};
+///
+/// let trace = Tracer::new();
+///
+/// fn simple_parse<'s>(trace: &'_ Tracer<'s>, span: Span<'s>) -> ParseResult<'s, String> {
+///     trace.enter(OFCode::OFCDot, span);
+///
+///     // call trace.err() in case of and Result::Err
+///     ReferenceExpr::parse(trace, span).track(trace)?;
+///
+///     // do some parseing
+///     match dot(span) {
+///         Ok((rest, token)) => {
+///             return trace.ok(token, rest, "DOT".to_string()); // return whatever
+///         }
+///         Err(e) => {
+///             return trace.err(e);
+///         }
+///     }
+/// }
+/// ```
+///
+/// The necessary frameing are the call to trace.enter() to establish the environment, and
+/// either a call to ok or err at each exit point of the function.
+///
+/// TrackParseResult can be useful when calling further parse functions. It's method trace()
+/// helps keep track of an early exit via the ? operator.
+///
+/// Use suggest() for optional parts that should be hinted somewhere.
+///
+/// Use stash() to store parser errors that might be used later. Eg if none of several
+/// alternatives fit. All stashed parser errors will be collected and attach as Expect value
+/// to a new summary error.
+///
 pub trait Tracer<'s, C: Code> {
     fn new() -> Self;
 
@@ -110,11 +155,11 @@ pub mod span {
     }
 }
 
-mod error {
+pub mod error {
     use crate::iparse::{Code, Span};
     use std::error::Error;
     use std::fmt;
-    use std::fmt::{Debug, Display, Formatter};
+    use std::fmt::{Display, Formatter};
 
     /// Error for the Parser.
     pub struct ParserError<'s, C: Code> {
@@ -186,8 +231,8 @@ mod error {
         }
 
         /// ParseIncomplete variant.
-        pub fn parse_incomplete(span: Span<'s>) -> ParseOFError<'s> {
-            ParseOFError::new(C::PARSE_INCOMPLETE, span)
+        pub fn parse_incomplete(span: Span<'s>) -> ParserError<'s, C> {
+            ParserError::new(C::PARSE_INCOMPLETE, span)
         }
     }
 
@@ -919,7 +964,7 @@ pub mod tracer {
     }
 
     impl<'s, 't, O, C: Code> TrackParseResult<'s, 't, O, C> for ParseResult<'s, O, C> {
-        fn track(self, trace: &'t Tracer<'s, C>) -> Self {
+        fn track(self, trace: &'t impl Tracer<'s, C>) -> Self {
             match self {
                 Ok(_) => self,
                 Err(e) => trace.err(e),
@@ -1093,7 +1138,7 @@ pub mod tracer {
         };
         use crate::iparse::Code;
         use std::fmt;
-        use std::fmt::{Debug, Display, Formatter};
+        use std::fmt::Formatter;
 
         fn indent(f: &mut Formatter<'_>, ind: usize) -> fmt::Result {
             write!(f, "{}", " ".repeat(ind * 2))?;
