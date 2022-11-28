@@ -770,6 +770,8 @@ pub fn iri() {
         .q();
 }
 
+type ReportType = CheckTrace;
+
 #[test]
 pub fn sheet_name() {
     fn sheetname<'s>(result: &'s OFSheetName<'s>, test: &'s str) -> bool {
@@ -777,6 +779,10 @@ pub fn sheet_name() {
     }
 
     optional!(opt_sheetname(OFSheetName<'s>, &'s str), sheetname);
+
+    TestN::parse("'sheetname'.", SheetNameTerm::parse)
+        .ok(opt_sheetname, Some("sheetname"))
+        .q::<ReportType>();
 
     Test::parse("'sheetname'.", SheetNameTerm::parse)
         .ok(opt_sheetname, Some("sheetname"))

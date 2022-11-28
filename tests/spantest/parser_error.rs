@@ -2,13 +2,13 @@ use openformula::error::OFCode;
 use openformula::iparse::error::DebugWidth;
 use openformula::iparse::tracer::{CTracer, Track};
 use openformula::iparse::{ParseResult, Span, Tracer};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::fmt::{Debug, Formatter};
 use std::time::{Duration, Instant};
 
 type ParserFn<'s, O> = fn(&'_ CTracer<'s, OFCode>, Span<'s>) -> ParseResult<'s, O, OFCode>;
 type TokenFn<'s, O> = fn(Span<'s>) -> ParseResult<'s, O, OFCode>;
-type TestFn<O, V> = for<'a> fn(&'a O, V) -> bool;
+type CompareFn<O, V> = for<'a> fn(&'a O, V) -> bool;
 
 /// Test struct.
 ///
@@ -22,7 +22,7 @@ pub struct Test<'s, O> {
     pub result: ParseResult<'s, O, OFCode>,
     pub duration: Duration,
 
-    pub fail: RefCell<bool>,
+    pub fail: Cell<bool>,
 }
 
 /// Transform a test-fn so that it can take Option values.
@@ -93,7 +93,7 @@ where
             result,
             duration: elapsed,
             trace_filter: RefCell::new(&|_| true),
-            fail: RefCell::new(false),
+            fail: Cell::new(false),
         }
     }
 
@@ -116,12 +116,12 @@ where
             result,
             duration: elapsed,
             trace_filter: RefCell::new(&|_| true),
-            fail: RefCell::new(false),
+            fail: Cell::new(false),
         }
     }
 
     fn flag_fail(&self) {
-        *self.fail.borrow_mut() = true;
+        self.fail.set(true);
     }
 
     /// Always fails.
@@ -152,7 +152,7 @@ where
     ///
     /// Finish the test with q()
     #[must_use]
-    pub fn ok<V>(&'s self, eq: TestFn<O, V>, test: V) -> &Self
+    pub fn ok<V>(&'s self, eq: CompareFn<O, V>, test: V) -> &Self
     where
         V: Debug + Copy,
         O: Debug,
@@ -205,7 +205,7 @@ where
     #[must_use]
     pub fn errerr(&self) -> &Self {
         match &self.result {
-            Ok((_, _)) => {
+            Ok(_) => {
                 println!("FAIL: Expected error, but was ok!");
                 self.flag_fail();
             }
@@ -220,7 +220,7 @@ where
     #[must_use]
     pub fn err(&self, code: OFCode) -> &Self {
         match &self.result {
-            Ok((_, _)) => {
+            Ok(_) => {
                 println!("FAIL: Expected error, but was ok!");
                 self.flag_fail();
             }
@@ -285,13 +285,13 @@ where
     pub fn q(&self) {
         match Self::STATE {
             RunState::CheckDump => {
-                if *self.fail.borrow() {
+                if self.fail.get() {
                     self.dump();
                     panic!()
                 }
             }
             RunState::CheckTrace => {
-                if *self.fail.borrow() {
+                if self.fail.get() {
                     self.trace();
                     panic!()
                 }
@@ -346,31 +346,24 @@ where
             self.span,
             self.duration.as_nanos()
         );
+
+        if let Some(trace) = &self.trace {
+            let trace_filter = self.trace_filter.borrow();
+            println!(
+                "{:?}",
+                TracerDebug {
+                    trace,
+                    track_filter: &*trace_filter
+                }
+            );
+        }
+
         match &self.result {
             Ok((rest, token)) => {
-                if let Some(trace) = &self.trace {
-                    let trace_filter = self.trace_filter.borrow();
-                    println!(
-                        "{:?}",
-                        TracerDebug {
-                            trace,
-                            track_filter: &*trace_filter
-                        }
-                    );
-                }
                 println!("rest {}:\"{}\"", rest.location_offset(), rest);
                 println!("{:0?}", token);
             }
             Err(e) => {
-                if let Some(trace) = &self.trace {
-                    println!(
-                        "{:?}",
-                        TracerDebug {
-                            trace,
-                            track_filter: &*self.trace_filter.borrow()
-                        }
-                    );
-                }
                 println!("error");
                 println!("{:1?}", e);
             }
