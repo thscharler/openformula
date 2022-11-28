@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use std::time::{Duration, Instant};
 
 pub type TestedFn<I, O, E> = fn(I) -> Result<O, E>;
-
 pub type CompareFn<O, V> = for<'a> fn(&'a O, V) -> bool;
 
 pub struct TestN<P, I, O, E>

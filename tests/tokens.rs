@@ -21,30 +21,6 @@ pub fn test_empty() {
     ));
 }
 
-// comparison fn
-fn span<'a, 'b, 's>(span: &'a Span<'s>, value: (usize, &'b str)) -> bool {
-    **span == value.1 && span.location_offset() == value.0
-}
-
-// comparison fn for the first part
-fn span_0<'a, 'b, 's>(span: &'a (Option<Span<'s>>, Span<'s>), value: (usize, &'b str)) -> bool {
-    if let Some(span) = &span.0 {
-        **span == value.1 && span.location_offset() == value.0
-    } else {
-        false
-    }
-}
-
-// comparison fn for the first part
-fn span_0_isnone<'a, 's>(span: &'a (Option<Span<'s>>, Span<'s>), _value: ()) -> bool {
-    span.0.is_none()
-}
-
-// comparison fn for the second part
-fn span_1<'a, 'b, 's>(span: &'a (Option<Span<'s>>, Span<'s>), value: (usize, &'b str)) -> bool {
-    *span.1 == value.1 && span.1.location_offset() == value.0
-}
-
 #[test]
 pub fn test_number() {
     Test::token(".1", number).ok(span, (0, ".1")).q();
