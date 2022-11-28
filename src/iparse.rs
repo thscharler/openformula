@@ -103,13 +103,15 @@ pub trait Tracer<'s, C: Code> {
 
     fn err<T>(&'_ self, err: ParserError<'s, C>) -> ParseResult<'s, T, C>;
 
-    fn write_debug(
-        &self,
+    fn write_debug<'a, 'b>(
+        &'a self,
         f: &mut Formatter<'_>,
         w: DebugWidth,
-        filter: &dyn Fn(&Track<'_, C>) -> bool,
+        filter: FilterFn<'b, 's, C>,
     ) -> fmt::Result;
 }
+
+pub type FilterFn<'a, 's, C> = &'a dyn for<'t> Fn(&'t Track<'s, C>) -> bool;
 
 pub mod span {
     use crate::iparse::Span;
@@ -650,7 +652,7 @@ pub mod error {
 pub mod tracer {
     use crate::iparse::error::{DebugWidth, Expect, Suggest};
     use crate::iparse::tracer::debug::debug_tracer;
-    use crate::iparse::{Code, ParseResult, ParserError, Span, Tracer};
+    use crate::iparse::{Code, FilterFn, ParseResult, ParserError, Span, Tracer};
     use std::cell::RefCell;
     use std::fmt;
     use std::fmt::{Debug, Display, Formatter};
@@ -759,11 +761,11 @@ pub mod tracer {
         }
 
         /// Write a debug output of the Tracer state.
-        fn write_debug(
-            &self,
+        fn write_debug<'a, 'b>(
+            &'a self,
             f: &mut Formatter<'_>,
             w: DebugWidth,
-            filter: &dyn Fn(&Track<'_, C>) -> bool,
+            filter: FilterFn<'b, 's, C>,
         ) -> fmt::Result {
             debug_tracer(f, w, self, filter)
         }
@@ -1136,7 +1138,7 @@ pub mod tracer {
             CTracer, DebugTrack, EnterTrack, ErrTrack, ExitTrack, ExpectTrack, OkTrack, StepTrack,
             SuggestTrack, Track,
         };
-        use crate::iparse::Code;
+        use crate::iparse::{Code, FilterFn};
         use std::fmt;
         use std::fmt::Formatter;
 
@@ -1145,17 +1147,17 @@ pub mod tracer {
             Ok(())
         }
 
-        pub(crate) fn debug_tracer<'t, C: Code>(
+        pub(crate) fn debug_tracer<'a, 'b, 's, C: Code>(
             f: &mut Formatter<'_>,
             w: DebugWidth,
-            v: &CTracer<'t, C>,
-            filter: &dyn Fn(&Track<'t, C>) -> bool,
+            trace: &'a CTracer<'s, C>,
+            filter: FilterFn<'b, 's, C>,
         ) -> fmt::Result {
             let mut ind = 0;
 
             writeln!(f, "trace")?;
 
-            for t in &*v.track.borrow() {
+            for t in &*trace.track.borrow() {
                 match t {
                     Track::Enter(_) => {
                         if filter(t) {
@@ -1188,25 +1190,25 @@ pub mod tracer {
                 }
             }
 
-            if !v.func.borrow().is_empty() {
+            if !trace.func.borrow().is_empty() {
                 write!(f, "    func=")?;
-                for func in &*v.func.borrow() {
+                for func in &*trace.func.borrow() {
                     write!(f, "{:?} ", func)?;
                 }
                 writeln!(f)?;
             }
 
-            if !v.expect.borrow().is_empty() {
+            if !trace.expect.borrow().is_empty() {
                 write!(f, "    expect=")?;
-                for exp in &*v.expect.borrow() {
+                for exp in &*trace.expect.borrow() {
                     writeln!(f, "{}: {:?}", exp.func, exp.list)?;
                 }
                 writeln!(f)?;
             }
 
-            if !v.suggest.borrow().is_empty() {
+            if !trace.suggest.borrow().is_empty() {
                 write!(f, "    suggest=")?;
-                for sug in &*v.suggest.borrow() {
+                for sug in &*trace.suggest.borrow() {
                     writeln!(f, "{}: {:?}", sug.func, sug.list)?;
                 }
                 writeln!(f)?;
