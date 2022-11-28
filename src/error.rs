@@ -427,6 +427,7 @@ impl Display for OFCode {
     }
 }
 
+// TODO: better name
 /// Adds a span as location and converts the error to our own type..
 pub trait LocateError<'s, T, E> {
     /// Maps some error and adds the information of the span where the error occured.

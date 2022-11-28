@@ -48,6 +48,8 @@ extern crate core;
 
 pub mod ast;
 pub mod error;
+#[allow(missing_docs)]
+pub mod iparse;
 
 pub use ast::conv;
 pub use ast::format;

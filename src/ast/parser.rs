@@ -1459,6 +1459,7 @@ impl<'s> GeneralExpr<'s> for NamedExpr {
     }
 }
 
+// TODO: Move to tokens
 /// Fails if the string was not fully parsed.
 fn check_eof<'s>(
     i: Span<'s>,
