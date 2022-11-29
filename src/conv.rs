@@ -2,7 +2,7 @@
 //! Low level conversions from a Span<'a> to ...
 //!
 
-use crate::ast::Span;
+use crate::iparse::Span;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::num::IntErrorKind;

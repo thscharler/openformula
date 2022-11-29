@@ -10,18 +10,18 @@
 //! let ast = Expr::parse(&trace, Span::new("1+1")).unwrap();
 //! ```
 
-use crate::ast::conv;
-use crate::ast::tokens;
-use crate::ast::tokens::{eat_space, empty};
 use crate::ast::{
     Node, OFAddOp, OFAst, OFCellRange, OFCellRef, OFCol, OFColRange, OFCompOp, OFIri, OFMulOp,
-    OFPostfixOp, OFPowOp, OFPrefixOp, OFRow, OFRowRange, OFSheetName, Span,
+    OFPostfixOp, OFPowOp, OFPrefixOp, OFRow, OFRowRange, OFSheetName,
 };
+use crate::conv;
 use crate::error::OFCode::*;
 use crate::error::{LocateError, OFCode, OFParserError};
 use crate::iparse::span::{span_union, span_union_opt};
 use crate::iparse::tracer::TrackParseResult;
-use crate::iparse::{ParseResult, Parser, Tracer};
+use crate::iparse::{ParseResult, Parser, Span, Tracer};
+use crate::tokens;
+use crate::tokens::{eat_space, empty};
 
 // Expression ::=
 // Whitespace* (

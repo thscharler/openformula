@@ -2,7 +2,6 @@
 //! Contains all token parsers. Operates on and returns only spans.
 //!
 
-use crate::ast::{span_union, Span};
 use crate::error::OFCode::*;
 use crate::error::{OFCode, OFParserError};
 use nom::combinator::opt;
@@ -13,7 +12,8 @@ use nom::InputTake;
 // Still need this pub for the tests to run, but now it's possible to turn
 // the pub of for a compile run.
 pub mod nomtokens;
-use crate::iparse::ParseResult;
+use crate::iparse::span::span_union;
+use crate::iparse::{ParseResult, Span};
 use nomtokens::{
     add_op_nom, brackets_close_nom, brackets_open_nom, col_nom, colon_nom, comparison_op_nom,
     dollar_dollar_nom, dollar_nom, dot_nom, double_quote_nom, double_string_nom, fn_name_nom,

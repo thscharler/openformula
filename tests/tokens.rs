@@ -1,12 +1,12 @@
 extern crate core;
 
 use crate::spantest::*;
-use openformula::ast::tokens::{
+use openformula::error::OFCode::*;
+use openformula::iparse::Span;
+use openformula::tokens::{
     col, comparison_op, empty, fn_name, iri, number, quoted_sheet_name, row, sheet_name,
     single_quoted, string,
 };
-use openformula::error::OFCode::*;
-use openformula::iparse::Span;
 
 mod spantest;
 

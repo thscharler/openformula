@@ -2,8 +2,8 @@ mod spantest;
 
 use crate::spantest::*;
 use nom::error::ErrorKind;
-use openformula::ast::tokens::nomtokens::*;
 use openformula::iparse::Span;
+use openformula::tokens::nomtokens::*;
 
 type R = CheckDump;
 

@@ -4,7 +4,7 @@
 
 mod debug_error;
 
-use crate::ast::conv::{ParseColnameError, ParseRownameError};
+use crate::conv::{ParseColnameError, ParseRownameError};
 use crate::error::OFCode::*;
 use crate::iparse::error::ParserError;
 use crate::iparse::{Code, Span};

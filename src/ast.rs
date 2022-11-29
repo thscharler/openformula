@@ -4,15 +4,11 @@
 
 use crate::iparse::span::span_union;
 use crate::iparse::Span;
-
+use crate::{conv, format, tokens};
 use std::fmt::{Debug, Display, Formatter};
 use std::{fmt, mem};
 
-pub mod conv;
 mod debug_ast;
-pub mod format;
-pub mod parser;
-pub mod tokens;
 
 /// Defines the AST tree.
 #[allow(clippy::enum_variant_names)]
