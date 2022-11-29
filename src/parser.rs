@@ -16,10 +16,10 @@ use crate::ast::{
 };
 use crate::conv;
 use crate::error::OFCode::*;
-use crate::error::{LocateError, OFCode, OFParserError};
+use crate::error::{OFCode, OFParserError};
 use crate::iparse::span::{span_union, span_union_opt};
 use crate::iparse::tracer::TrackParseResult;
-use crate::iparse::{ParseResult, Parser, Span, Tracer};
+use crate::iparse::{IntoParserError, LookAhead, ParseResult, Parser, Span, Tracer};
 use crate::tokens;
 use crate::tokens::{eat_space, empty};
 
@@ -88,12 +88,12 @@ pub type OFParseResult<'s> = ParseResult<'s, Box<OFAst<'s>>, OFCode>;
 /// Any expression.
 pub struct Expr;
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for Expr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for Expr {
     fn id() -> OFCode {
         OFCExpr
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         CompareExpr::lah(i)
     }
 
@@ -105,6 +105,24 @@ impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for Expr {
         }
     }
 }
+
+// pub struct ConcatExpr;
+//
+// impl<'s> ConcatExpr {
+//     fn operator<'t>(
+//         trace: &'t impl Tracer<'s, OFCode>,
+//         rest: Span<'s>,
+//     ) -> ParseResult<'s, OFConcatOp<'s>, OFCode> {
+//         trace.enter(OFCConcatOp, rest);
+//         match tokens::concat_op(rest) {
+//             Ok((rest, tok)) => match *tok {
+//                 "&" => trace.ok(tok, rest, OFConcatOp::Concat(tok)),
+//                 _ => unreachable!(),
+//             },
+//             Err(e) => trace.err(e),
+//         }
+//     }
+// }
 
 /// Compare expression.
 pub struct CompareExpr;
@@ -130,12 +148,12 @@ impl<'s> CompareExpr {
     }
 }
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for CompareExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for CompareExpr {
     fn id() -> OFCode {
         OFCComp
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         AddExpr::lah(i)
     }
 
@@ -194,12 +212,12 @@ impl<'s> AddExpr {
     }
 }
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for AddExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for AddExpr {
     fn id() -> OFCode {
         OFCAdd
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         MulExpr::lah(i)
     }
 
@@ -260,12 +278,12 @@ impl<'s> MulExpr {
     }
 }
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for MulExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for MulExpr {
     fn id() -> OFCode {
         OFCMul
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         PowExpr::lah(i)
     }
 
@@ -320,12 +338,12 @@ impl<'s> PowExpr {
     }
 }
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for PowExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for PowExpr {
     fn id() -> OFCode {
         OFCPow
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         PostfixExpr::lah(i)
     }
 
@@ -383,12 +401,12 @@ impl PostfixExpr {
     }
 }
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for PostfixExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for PostfixExpr {
     fn id() -> OFCode {
         OFCPostfix
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         PrefixExpr::lah(i)
     }
 
@@ -440,13 +458,13 @@ impl PrefixExpr {
     }
 }
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for PrefixExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for PrefixExpr {
     fn id() -> OFCode {
         OFCPrefix
     }
 
-    fn lah(i: Span<'s>) -> bool {
-        tokens::lah_prefix_op(i) || ElementaryExpr::lah(i)
+    fn lah(i: Span<'s>) -> LookAhead {
+        tokens::lah_prefix_op(i) | ElementaryExpr::lah(i)
     }
 
     fn parse<'t>(trace: &'t impl Tracer<'s, OFCode>, rest: Span<'s>) -> OFParseResult<'s> {
@@ -488,17 +506,17 @@ impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for PrefixExpr {
 /// Parser for the lowest expression level.
 pub struct ElementaryExpr;
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for ElementaryExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for ElementaryExpr {
     fn id() -> OFCode {
         OFCElementary
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         NumberExpr::lah(i)
-            || StringExpr::lah(i)
-            || ParenthesesExpr::lah(i)
-            || ReferenceExpr::lah(i)
-            || FnCallExpr::lah(i)
+            | StringExpr::lah(i)
+            | ParenthesesExpr::lah(i)
+            | ReferenceExpr::lah(i)
+            | FnCallExpr::lah(i)
     }
 
     fn parse<'t>(trace: &'t impl Tracer<'s, OFCode>, rest: Span<'s>) -> OFParseResult<'s> {
@@ -577,12 +595,12 @@ impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for ElementaryExpr {
 /// Parser for number.
 pub struct NumberExpr;
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for NumberExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for NumberExpr {
     fn id() -> OFCode {
         OFCNumber
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         tokens::lah_number(i)
     }
 
@@ -608,12 +626,12 @@ impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for NumberExpr {
 /// Parser for strings.
 pub struct StringExpr;
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for StringExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for StringExpr {
     fn id() -> OFCode {
         OFCString
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         tokens::lah_string(i)
     }
 
@@ -652,12 +670,12 @@ impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for StringExpr {
 /// Parses any cell reference.
 pub struct ReferenceExpr;
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for ReferenceExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for ReferenceExpr {
     fn id() -> OFCode {
         OFCReference
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         CellRefExpr::lah(i)
     }
 
@@ -717,12 +735,12 @@ impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for ReferenceExpr {
 /// Column part of a reference.
 pub struct ColTerm;
 
-impl<'s> Parser<'s, OFCode, OFCol<'s>> for ColTerm {
+impl<'s> Parser<'s, OFCol<'s>, OFCode> for ColTerm {
     fn id() -> OFCode {
         OFCCol
     }
 
-    fn lah(_i: Span<'s>) -> bool {
+    fn lah(_i: Span<'s>) -> LookAhead {
         todo!("lah")
     }
 
@@ -745,7 +763,7 @@ impl<'s> Parser<'s, OFCode, OFCol<'s>> for ColTerm {
 
         let col = OFAst::col(
             conv::try_bool_from_abs_flag(col.0),
-            conv::try_u32_from_colname(col.1).locate_err(rest)?,
+            conv::try_u32_from_colname(col.1).parser_error(rest)?,
             unsafe { span_union_opt(col.0, col.1) },
         );
 
@@ -756,12 +774,12 @@ impl<'s> Parser<'s, OFCode, OFCol<'s>> for ColTerm {
 /// Row part of a reference.
 pub struct RowTerm;
 
-impl<'s> Parser<'s, OFCode, OFRow<'s>> for RowTerm {
+impl<'s> Parser<'s, OFRow<'s>, OFCode> for RowTerm {
     fn id() -> OFCode {
         OFCRow
     }
 
-    fn lah(_i: Span<'s>) -> bool {
+    fn lah(_i: Span<'s>) -> LookAhead {
         todo!("lah")
     }
 
@@ -784,7 +802,7 @@ impl<'s> Parser<'s, OFCode, OFRow<'s>> for RowTerm {
 
         let row = OFAst::row(
             conv::try_bool_from_abs_flag(row.0),
-            conv::try_u32_from_rowname(row.1).locate_err(rest)?,
+            conv::try_u32_from_rowname(row.1).parser_error(rest)?,
             unsafe { span_union_opt(row.0, row.1) },
         );
 
@@ -816,13 +834,13 @@ impl CellRefExpr {
     }
 }
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for CellRefExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for CellRefExpr {
     fn id() -> OFCode {
         OFCCellRef
     }
 
-    fn lah(i: Span<'s>) -> bool {
-        tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
+    fn lah(i: Span<'s>) -> LookAhead {
+        tokens::lah_iri(i) | tokens::lah_sheet_name(i) | tokens::lah_dot(i)
     }
 
     #[allow(clippy::manual_map)]
@@ -872,13 +890,13 @@ impl CellRangeExpr {
     }
 }
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for CellRangeExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for CellRangeExpr {
     fn id() -> OFCode {
         OFCCellRange
     }
 
-    fn lah(i: Span<'s>) -> bool {
-        tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
+    fn lah(i: Span<'s>) -> LookAhead {
+        tokens::lah_iri(i) | tokens::lah_sheet_name(i) | tokens::lah_dot(i)
     }
 
     #[allow(clippy::manual_map)]
@@ -935,13 +953,13 @@ impl ColRangeExpr {
     }
 }
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for ColRangeExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for ColRangeExpr {
     fn id() -> OFCode {
         OFCColRange
     }
 
-    fn lah(i: Span<'s>) -> bool {
-        tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
+    fn lah(i: Span<'s>) -> LookAhead {
+        tokens::lah_iri(i) | tokens::lah_sheet_name(i) | tokens::lah_dot(i)
     }
 
     #[allow(clippy::manual_map)]
@@ -996,13 +1014,13 @@ impl RowRangeExpr {
     }
 }
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for RowRangeExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for RowRangeExpr {
     fn id() -> OFCode {
         OFCRowRange
     }
 
-    fn lah(i: Span<'s>) -> bool {
-        tokens::lah_iri(i) || tokens::lah_sheet_name(i) || tokens::lah_dot(i)
+    fn lah(i: Span<'s>) -> LookAhead {
+        tokens::lah_iri(i) | tokens::lah_sheet_name(i) | tokens::lah_dot(i)
     }
 
     #[allow(clippy::manual_map)]
@@ -1037,12 +1055,12 @@ impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for RowRangeExpr {
 /// Expression in parentheses.
 pub struct ParenthesesExpr;
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for ParenthesesExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for ParenthesesExpr {
     fn id() -> OFCode {
         OFCParentheses
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         tokens::lah_parentheses_open(i)
     }
 
@@ -1085,12 +1103,12 @@ impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for ParenthesesExpr {
 #[derive(Debug)]
 pub struct FnCallExpr;
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for FnCallExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for FnCallExpr {
     fn id() -> OFCode {
         OFCFnCall
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         tokens::lah_fn_name(i)
     }
 
@@ -1237,12 +1255,12 @@ impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for FnCallExpr {
 /// External reference.
 pub struct IriTerm;
 
-impl<'s> Parser<'s, OFCode, Option<OFIri<'s>>> for IriTerm {
+impl<'s> Parser<'s, Option<OFIri<'s>>, OFCode> for IriTerm {
     fn id() -> OFCode {
         OFCIri
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         tokens::lah_iri(i)
     }
 
@@ -1274,12 +1292,12 @@ impl<'s> Parser<'s, OFCode, Option<OFIri<'s>>> for IriTerm {
 /// Sheet names.
 pub struct SheetNameTerm;
 
-impl<'s> Parser<'s, OFCode, Option<OFSheetName<'s>>> for SheetNameTerm {
+impl<'s> Parser<'s, Option<OFSheetName<'s>>, OFCode> for SheetNameTerm {
     fn id() -> OFCode {
         OFCSheetName
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         tokens::lah_sheet_name(i)
     }
 
@@ -1317,12 +1335,12 @@ impl<'s> Parser<'s, OFCode, Option<OFSheetName<'s>>> for SheetNameTerm {
 /// ":"
 pub struct ColonTerm;
 
-impl<'s> Parser<'s, OFCode, ()> for ColonTerm {
+impl<'s> Parser<'s, (), OFCode> for ColonTerm {
     fn id() -> OFCode {
         OFCColon
     }
 
-    fn lah(_i: Span<'s>) -> bool {
+    fn lah(_i: Span<'s>) -> LookAhead {
         todo!("lah")
     }
 
@@ -1348,12 +1366,12 @@ impl<'s> Parser<'s, OFCode, ()> for ColonTerm {
 /// "."
 pub struct DotTerm;
 
-impl<'s> Parser<'s, OFCode, Span<'s>> for DotTerm {
+impl<'s> Parser<'s, Span<'s>, OFCode> for DotTerm {
     fn id() -> OFCode {
         OFCDot
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         tokens::lah_dot(i)
     }
 
@@ -1376,16 +1394,16 @@ impl<'s> Parser<'s, OFCode, Span<'s>> for DotTerm {
 /// Defined variable.
 pub struct NamedExpr;
 
-impl<'s> Parser<'s, OFCode, Box<OFAst<'s>>> for NamedExpr {
+impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for NamedExpr {
     fn id() -> OFCode {
         OFCNamed
     }
 
-    fn lah(i: Span<'s>) -> bool {
+    fn lah(i: Span<'s>) -> LookAhead {
         tokens::lah_iri(i)
-            || tokens::lah_sheet_name(i)
-            || tokens::lah_dollar_dollar(i)
-            || tokens::lah_identifier(i)
+            | tokens::lah_sheet_name(i)
+            | tokens::lah_dollar_dollar(i)
+            | tokens::lah_identifier(i)
     }
 
     fn parse<'t>(tracer: &'t impl Tracer<'s, OFCode>, rest: Span<'s>) -> OFParseResult<'s> {

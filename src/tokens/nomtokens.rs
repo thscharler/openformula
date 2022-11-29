@@ -4,7 +4,7 @@
 //! tokens contains the mapping functions to our own errors.
 //!
 
-use crate::iparse::Span;
+use crate::iparse::{LookAhead, Span};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while, take_while1};
 use nom::character::complete::{alpha1, char as nchar, multispace0, none_of, one_of};
@@ -32,26 +32,32 @@ pub fn space(i: Span<'_>) -> IResult<Span<'_>, Span<'_>> {
 }
 
 /// Lookahead for a number
-pub fn lah_number(i: Span<'_>) -> bool {
-    alt::<Span<'_>, char, nom::error::Error<_>, _>((nchar('.'), one_of("0123456789")))(i).is_ok()
+pub fn lah_number(i: Span<'_>) -> LookAhead {
+    alt::<Span<'_>, char, nom::error::Error<_>, _>((nchar('.'), one_of("0123456789")))(i).into()
 }
 
 /// Lookahead for a string.
-pub fn lah_string(i: Span<'_>) -> bool {
-    nchar::<Span<'_>, nom::error::Error<_>>('"')(i).is_ok()
+pub fn lah_string(i: Span<'_>) -> LookAhead {
+    nchar::<Span<'_>, nom::error::Error<_>>('"')(i).into()
 }
 
 /// Lookahead for a function name.
-pub fn lah_fn_name(i: Span<'_>) -> bool {
+pub fn lah_fn_name(i: Span<'_>) -> LookAhead {
     match (*i).chars().next() {
-        None => false,
-        Some(c) => unicode_ident::is_xid_start(c),
+        None => LookAhead::Break,
+        Some(c) => {
+            if unicode_ident::is_xid_start(c) {
+                LookAhead::Parse
+            } else {
+                LookAhead::Break
+            }
+        }
     }
 }
 
 /// Parse separator char for function args.
-pub fn lah_dollar_dollar(rest: Span<'_>) -> bool {
-    tag::<&str, Span<'_>, nom::error::Error<_>>("$$")(rest).is_ok()
+pub fn lah_dollar_dollar(rest: Span<'_>) -> LookAhead {
+    tag::<&str, Span<'_>, nom::error::Error<_>>("$$")(rest).into()
 }
 
 /// Parse separator char for function args.
@@ -60,18 +66,18 @@ pub fn lah_dollar(rest: Span<'_>) -> bool {
 }
 
 /// Lookahead for a dot.
-pub fn lah_dot(i: Span<'_>) -> bool {
-    nchar::<Span<'_>, nom::error::Error<_>>('.')(i).is_ok()
+pub fn lah_dot(i: Span<'_>) -> LookAhead {
+    nchar::<Span<'_>, nom::error::Error<_>>('.')(i).into()
 }
 
 /// Lookahead for opening parentheses.
-pub fn lah_parentheses_open(i: Span<'_>) -> bool {
-    nchar::<Span<'_>, nom::error::Error<_>>('(')(i).is_ok()
+pub fn lah_parentheses_open(i: Span<'_>) -> LookAhead {
+    nchar::<Span<'_>, nom::error::Error<_>>('(')(i).into()
 }
 
 /// Lookahead for any prefix operator.
-pub fn lah_prefix_op(i: Span<'_>) -> bool {
-    one_of::<Span<'_>, _, nom::error::Error<_>>("+-")(i).is_ok()
+pub fn lah_prefix_op(i: Span<'_>) -> LookAhead {
+    one_of::<Span<'_>, _, nom::error::Error<_>>("+-")(i).into()
 }
 
 /// Tries to ast any postfix operator.
@@ -80,22 +86,28 @@ pub fn lah_postfix_op(i: Span<'_>) -> bool {
 }
 
 /// Simple lookahead for a identifier.
-pub fn lah_identifier(i: Span<'_>) -> bool {
+pub fn lah_identifier(i: Span<'_>) -> LookAhead {
     match (*i).chars().next() {
-        None => false,
-        Some(c) => unicode_ident::is_xid_start(c),
+        None => LookAhead::Break,
+        Some(c) => {
+            if unicode_ident::is_xid_start(c) {
+                LookAhead::Parse
+            } else {
+                LookAhead::Break
+            }
+        }
     }
 }
 
 /// Lookahead for a sheet-name
-pub fn lah_sheet_name(i: Span<'_>) -> bool {
+pub fn lah_sheet_name(i: Span<'_>) -> LookAhead {
     // NOTE: none_of("]. #$") is a very wide definition.
-    alt::<_, char, nom::error::Error<_>, _>((nchar('$'), nchar('\''), none_of("]. #$")))(i).is_ok()
+    alt::<_, char, nom::error::Error<_>, _>((nchar('$'), nchar('\''), none_of("]. #$")))(i).into()
 }
 
 /// Lookahead for an IRI.
-pub fn lah_iri(i: Span<'_>) -> bool {
-    nchar::<Span<'_>, nom::error::Error<_>>('\'')(i).is_ok()
+pub fn lah_iri(i: Span<'_>) -> LookAhead {
+    nchar::<Span<'_>, nom::error::Error<_>>('\'')(i).into()
 }
 
 /// Numeric value.

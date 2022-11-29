@@ -7,7 +7,7 @@ mod debug_error;
 use crate::conv::{ParseColnameError, ParseRownameError};
 use crate::error::OFCode::*;
 use crate::iparse::error::ParserError;
-use crate::iparse::{Code, Span};
+use crate::iparse::{Code, IntoParserError, Span};
 use std::fmt::{Debug, Display, Formatter};
 
 /// Standard parser error.
@@ -187,11 +187,8 @@ impl<'s> OFParserError<'s> {
 
 #[allow(missing_docs)]
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug, Eq, PartialEq, Clone, Copy, Default)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum OFCode {
-    #[default]
-    OFCDefault,
-
     /// Nom error.
     OFCNomError,
     /// Nom failure.
@@ -256,7 +253,6 @@ pub enum OFCode {
 }
 
 impl Code for OFCode {
-    const DEFAULT: Self = OFCDefault;
     const NOM_ERROR: Self = OFCNomError;
     const NOM_FAILURE: Self = OFCNomFailure;
     const PARSE_INCOMPLETE: Self = OFCParseIncomplete;
@@ -265,7 +261,6 @@ impl Code for OFCode {
 impl Display for OFCode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let code = match self {
-            OFCDefault => "Default",
             OFCNomError => "NomError",
             OFCNomFailure => "NomFailure",
             OFCParseIncomplete => "ParseIncomplete",
@@ -329,15 +324,8 @@ impl Display for OFCode {
     }
 }
 
-// TODO: better name
-/// Adds a span as location and converts the error to our own type..
-pub trait LocateError<'s, T, E> {
-    /// Maps some error and adds the information of the span where the error occured.
-    fn locate_err(self, span: Span<'s>) -> Result<T, OFParserError<'s>>;
-}
-
-impl<'s, T> LocateError<'s, T, ParseRownameError> for Result<T, ParseRownameError> {
-    fn locate_err(self, span: Span<'s>) -> Result<T, OFParserError<'s>> {
+impl<'s, T> IntoParserError<'s, T, OFCode> for Result<T, ParseRownameError> {
+    fn parser_error(self, span: Span<'s>) -> Result<T, OFParserError<'s>> {
         match self {
             Ok(v) => Ok(v),
             Err(_) => Err(OFParserError::new(OFCRowname, span)),
@@ -345,8 +333,8 @@ impl<'s, T> LocateError<'s, T, ParseRownameError> for Result<T, ParseRownameErro
     }
 }
 
-impl<'s, T> LocateError<'s, T, ParseColnameError> for Result<T, ParseColnameError> {
-    fn locate_err(self, span: Span<'s>) -> Result<T, OFParserError<'s>> {
+impl<'s, T> IntoParserError<'s, T, OFCode> for Result<T, ParseColnameError> {
+    fn parser_error(self, span: Span<'s>) -> Result<T, OFParserError<'s>> {
         match self {
             Ok(v) => Ok(v),
             Err(_) => Err(OFParserError::new(OFCColname, span)),

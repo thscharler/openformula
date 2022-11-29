@@ -3,19 +3,16 @@ use crate::iparse::tracer::Track;
 use nom_locate::LocatedSpan;
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
+use std::ops::BitOr;
 
 /// Code for parser errors and parser functions.
-pub trait Code: Copy + Display + Debug + PartialEq {
-    const DEFAULT: Self;
+pub trait Code: Copy + Display + Debug + Eq {
     const NOM_ERROR: Self;
     const NOM_FAILURE: Self;
     const PARSE_INCOMPLETE: Self;
 
     fn is_special(&self) -> bool {
-        *self == Self::DEFAULT
-            || *self == Self::NOM_ERROR
-            || *self == Self::NOM_FAILURE
-            || *self == Self::PARSE_INCOMPLETE
+        *self == Self::NOM_ERROR || *self == Self::NOM_FAILURE || *self == Self::PARSE_INCOMPLETE
     }
 }
 
@@ -25,22 +22,60 @@ pub type Span<'a> = LocatedSpan<&'a str>;
 /// Result type.
 pub type ParseResult<'s, O, C> = Result<(Span<'s>, O), ParserError<'s, C>>;
 
+/// Adds a span as location and converts the error to a ParserError.
+pub trait IntoParserError<'s, T, C>
+where
+    C: Code,
+{
+    /// Maps some error and adds the information of the span where the error occured.
+    fn parser_error(self, span: Span<'s>) -> Result<T, ParserError<'s, C>>;
+}
+
+/// Result of a lookahead.
+#[derive(PartialEq, Eq)]
+pub enum LookAhead {
+    /// Do parse this branch.
+    Parse,
+    /// Don't parse this branch.
+    Break,
+}
+
 /// Trait for one parser function.
-pub trait Parser<'s, C: Code, O> {
-    // TODO : Changeordering O C
+pub trait Parser<'s, O, C: Code> {
     /// Function and error code.
     fn id() -> C;
 
     /// Possible look-ahead.
-    fn lah(_: Span<'s>) -> bool {
-        true
+    fn lah(_: Span<'s>) -> LookAhead {
+        LookAhead::Parse
     }
-    // fn lah(_: Span<'s>) -> ControlFlow<(), ()> {
-    //     ControlFlow::Continue(())
-    // }
 
     /// Parses the expression.
     fn parse<'t>(trace: &'t impl Tracer<'s, C>, rest: Span<'s>) -> ParseResult<'s, O, C>;
+}
+
+/// Compose look ahead values. BitOr seems plausible.
+impl BitOr for LookAhead {
+    type Output = LookAhead;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        if self == LookAhead::Parse || rhs == LookAhead::Parse {
+            LookAhead::Parse
+        } else {
+            LookAhead::Break
+        }
+    }
+}
+
+/// Any Ok() result means parse, break otherwise.
+impl<T, E> From<Result<T, E>> for LookAhead {
+    fn from(e: Result<T, E>) -> Self {
+        if e.is_ok() {
+            LookAhead::Parse
+        } else {
+            LookAhead::Break
+        }
+    }
 }
 
 ///
@@ -261,6 +296,8 @@ pub mod error {
 
     impl<'s, C: Code> Error for ParserError<'s, C> {}
 
+    /// Use the width in the format string and show different
+    /// output variants. Maps 0, 1, 2 to these flags.
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub enum DebugWidth {
         /// Debug flag, can be set with width=0.
