@@ -1,23 +1,42 @@
-#![allow(dead_code)]
+mod test_framework;
+mod trait_based;
 
-mod parser_error;
-mod test0;
-mod test0_nom;
-mod test0_parser;
-mod test0_span;
-mod test0_token;
-mod token_error;
+pub use test_framework::*;
+pub use trait_based::*;
 
-use openformula::iparse::Span;
-
-pub use parser_error::*;
-pub use test0::*;
-pub use test0_nom::*;
-pub use test0_parser::*;
-pub use test0_span::*;
-pub use test0_token::*;
-pub use token_error::*;
-
-pub fn nul() -> Span<'static> {
-    Span::new("")
+/// Transform a test-fn so that it can take Option values.
+///
+/// '''
+/// fn sheetname<'s>(result: &'s OFSheetName<'s>, test: &'s str) -> bool {
+///     result.name == test
+/// }
+///
+/// optional!(opt_sheetname(OFSheetName<'s>, &'s str), sheetname);
+/// '''
+///
+#[allow(unused_macros)]
+macro_rules! optional {
+    ($name:ident( $O:ty, $V:ty ), $testfn:ident) => {
+        fn $name<'s>(result: &'s Option<$O>, test: Option<$V>) -> bool {
+            match result {
+                None => match test {
+                    None => true,
+                    Some(_v) => false,
+                },
+                Some(o) => match test {
+                    None => false,
+                    Some(v) => {
+                        if !$testfn(o, v) {
+                            false
+                        } else {
+                            true
+                        }
+                    }
+                },
+            }
+        }
+    };
 }
+
+#[allow(unused_imports)]
+pub(crate) use optional;

@@ -1,34 +1,25 @@
-use nom::error::ErrorKind;
 use nom::IResult;
 use openformula::error::OFCode;
 use openformula::iparse::{ParseResult, Span};
 
-pub trait CheckOk {
-    fn cok(&self, offset: usize, fragment: &str);
+pub trait TestSpan {
+    fn ok(&self, offset: usize, fragment: &str) -> &Self;
 }
 
-pub trait CheckOk2 {
-    fn cok0(&self, offset: usize, fragment: &str);
-    fn cok1(&self, offset: usize, fragment: &str);
+pub trait TestSpanPair {
+    fn ok_0(&self, offset: usize, fragment: &str) -> &Self;
+    fn ok_0_isnone(&self) -> &Self;
+    fn ok_1(&self, offset: usize, fragment: &str) -> &Self;
 }
 
-pub trait CheckNone {
-    fn cnone0(&self);
+pub trait TestFail<C> {
+    fn err(&self, code: C) -> &Self;
+    fn dump(&self) -> &Self;
 }
 
-pub trait CheckFailNom {
-    fn dump(&self);
-    fn cnom(&self, kind: ErrorKind);
-}
-
-pub trait CheckFailToken {
-    fn dump(&self);
-    fn ctok(&self, kind: OFCode);
-}
-
-impl<'a> CheckOk for Span<'a> {
+impl<'a> TestSpan for Span<'a> {
     #[track_caller]
-    fn cok(&self, offset: usize, fragment: &str) {
+    fn ok(&self, offset: usize, fragment: &str) -> &Self {
         if *self.fragment() != fragment {
             println!("Fragment fails:");
             println!("    result='{}'", self.fragment());
@@ -41,46 +32,163 @@ impl<'a> CheckOk for Span<'a> {
             println!("    test  ={}", offset);
             assert!(false);
         }
+        self
     }
 }
 
-impl<'a> CheckOk for (Span<'a>, Span<'a>) {
+impl<'a> TestSpan for ParseResult<'a, Span<'a>, OFCode> {
     #[track_caller]
-    fn cok(&self, offset: usize, fragment: &str) {
-        self.1.cok(offset, fragment);
-    }
-}
-
-impl<'a> CheckOk for IResult<Span<'a>, Span<'a>> {
-    #[track_caller]
-    fn cok(&self, offset: usize, fragment: &str) {
+    fn ok(&self, offset: usize, fragment: &str) -> &Self {
         match self {
             Ok((_rest, token)) => {
-                token.cok(offset, fragment);
+                token.ok(offset, fragment);
             }
             Err(e) => {
                 println!("{:?}", e);
                 assert!(false);
             }
         }
+        self
     }
 }
 
-impl<'a> CheckFailNom for IResult<Span<'a>, Span<'a>> {
+impl<'a> TestSpan for (Span<'a>, Span<'a>) {
     #[track_caller]
-    fn dump(&self) {
+    fn ok(&self, offset: usize, fragment: &str) -> &Self {
+        self.1.ok(offset, fragment);
+        self
+    }
+}
+
+impl<'a> TestSpan for IResult<Span<'a>, Span<'a>> {
+    #[track_caller]
+    fn ok(&self, offset: usize, fragment: &str) -> &Self {
         match self {
-            Ok(v) => {
-                println!("Always fail: {:?}", v);
+            Ok((_rest, token)) => {
+                token.ok(offset, fragment);
             }
             Err(e) => {
-                println!("Always fail: {:?}", e);
+                println!("{:?}", e);
+                assert!(false);
             }
         }
+        self
+    }
+}
+
+impl<'a> TestSpanPair for IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
+    #[track_caller]
+    fn ok_0(&self, offset: usize, fragment: &str) -> &Self {
+        match self {
+            Ok((_, (test, _))) => {
+                if let Some(test) = test {
+                    test.ok(offset, fragment);
+                } else {
+                    println!("Was None, should be {} '{}'", offset, fragment);
+                    assert!(false);
+                }
+            }
+            Err(e) => {
+                println!("{:?}", e);
+                assert!(false);
+            }
+        }
+        self
     }
 
     #[track_caller]
-    fn cnom(&self, kind: ErrorKind) {
+    fn ok_0_isnone(&self) -> &Self {
+        match self {
+            Ok((_, (test, _))) => {
+                if let Some(test) = test {
+                    println!(
+                        "Was something {} '{}', should be None",
+                        test.location_offset(),
+                        test.fragment()
+                    );
+                }
+            }
+            Err(e) => {
+                println!("{:?}", e);
+                assert!(false);
+            }
+        }
+        self
+    }
+
+    #[track_caller]
+    fn ok_1(&self, offset: usize, fragment: &str) -> &Self {
+        match self {
+            Ok((_, (_, test))) => {
+                test.ok(offset, fragment);
+            }
+            Err(e) => {
+                println!("{:?}", e);
+                assert!(false);
+            }
+        }
+        self
+    }
+}
+
+impl<'a> TestSpanPair for ParseResult<'a, (Option<Span<'a>>, Span<'a>), OFCode> {
+    #[track_caller]
+    fn ok_0(&self, offset: usize, fragment: &str) -> &Self {
+        match self {
+            Ok((_, (test, _))) => {
+                if let Some(test) = test {
+                    test.ok(offset, fragment);
+                } else {
+                    println!("Was None, should be {} '{}'", offset, fragment);
+                    assert!(false);
+                }
+            }
+            Err(e) => {
+                println!("{:?}", e);
+                assert!(false);
+            }
+        }
+        self
+    }
+
+    #[track_caller]
+    fn ok_0_isnone(&self) -> &Self {
+        match self {
+            Ok((_, (test, _))) => {
+                if let Some(test) = test {
+                    println!(
+                        "Was something {} '{}', should be None",
+                        test.location_offset(),
+                        test.fragment()
+                    );
+                }
+            }
+            Err(e) => {
+                println!("{:?}", e);
+                assert!(false);
+            }
+        }
+        self
+    }
+
+    #[track_caller]
+    fn ok_1(&self, offset: usize, fragment: &str) -> &Self {
+        match self {
+            Ok((_, (_, test))) => {
+                test.ok(offset, fragment);
+            }
+            Err(e) => {
+                println!("{:?}", e);
+                assert!(false);
+            }
+        }
+        self
+    }
+}
+
+impl<'a> TestFail<nom::error::ErrorKind> for IResult<Span<'a>, Span<'a>> {
+    #[track_caller]
+    fn err(&self, kind: nom::error::ErrorKind) -> &Self {
         match self {
             Ok((rest, token)) => {
                 println!("Ok, but should have failed:");
@@ -110,45 +218,11 @@ impl<'a> CheckFailNom for IResult<Span<'a>, Span<'a>> {
                 assert!(false);
             }
         }
-    }
-}
-
-impl<'a> CheckOk2 for IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
-    #[track_caller]
-    fn cok0(&self, offset: usize, fragment: &str) {
-        match self {
-            Ok((_, (test, _))) => {
-                if let Some(test) = test {
-                    test.cok(offset, fragment);
-                } else {
-                    println!("Was None, should be {} '{}'", offset, fragment);
-                    assert!(false);
-                }
-            }
-            Err(e) => {
-                println!("{:?}", e);
-                assert!(false);
-            }
-        }
+        self
     }
 
     #[track_caller]
-    fn cok1(&self, offset: usize, fragment: &str) {
-        match self {
-            Ok((_, (_, test))) => {
-                test.cok(offset, fragment);
-            }
-            Err(e) => {
-                println!("{:?}", e);
-                assert!(false);
-            }
-        }
-    }
-}
-
-impl<'a> CheckFailNom for IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
-    #[track_caller]
-    fn dump(&self) {
+    fn dump(&self) -> &Self {
         match self {
             Ok(v) => {
                 println!("Always fail: {:?}", v);
@@ -157,10 +231,13 @@ impl<'a> CheckFailNom for IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
                 println!("Always fail: {:?}", e);
             }
         }
+        self
     }
+}
 
+impl<'a> TestFail<nom::error::ErrorKind> for IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
     #[track_caller]
-    fn cnom(&self, kind: ErrorKind) {
+    fn err(&self, kind: nom::error::ErrorKind) -> &Self {
         match self {
             Ok((rest, token)) => {
                 println!("Ok, but should have failed:");
@@ -190,48 +267,11 @@ impl<'a> CheckFailNom for IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
                 assert!(false);
             }
         }
+        self
     }
-}
 
-impl<'a> CheckNone for IResult<Span<'a>, (Option<Span<'a>>, Span<'a>)> {
     #[track_caller]
-    fn cnone0(&self) {
-        match self {
-            Ok((_, (test, _))) => {
-                if let Some(test) = test {
-                    println!(
-                        "Was something {} '{}', should be None",
-                        test.location_offset(),
-                        test.fragment()
-                    );
-                }
-            }
-            Err(e) => {
-                println!("{:?}", e);
-                assert!(false);
-            }
-        }
-    }
-}
-
-impl<'a> CheckOk for ParseResult<'a, Span<'a>, OFCode> {
-    #[track_caller]
-    fn cok(&self, offset: usize, fragment: &str) {
-        match self {
-            Ok((_rest, token)) => {
-                token.cok(offset, fragment);
-            }
-            Err(e) => {
-                println!("{:?}", e);
-                assert!(false);
-            }
-        }
-    }
-}
-
-impl<'a> CheckFailToken for ParseResult<'a, Span<'a>, OFCode> {
-    #[track_caller]
-    fn dump(&self) {
+    fn dump(&self) -> &Self {
         match self {
             Ok(v) => {
                 println!("Always fail: {:?}", v);
@@ -240,10 +280,13 @@ impl<'a> CheckFailToken for ParseResult<'a, Span<'a>, OFCode> {
                 println!("Always fail: {:?}", e);
             }
         }
+        self
     }
+}
 
+impl<'a> TestFail<OFCode> for ParseResult<'a, Span<'a>, OFCode> {
     #[track_caller]
-    fn ctok(&self, kind: OFCode) {
+    fn err(&self, kind: OFCode) -> &Self {
         match self {
             Ok((rest, token)) => {
                 println!("Ok, but should have failed:");
@@ -268,45 +311,11 @@ impl<'a> CheckFailToken for ParseResult<'a, Span<'a>, OFCode> {
                 }
             }
         }
-    }
-}
-
-impl<'a> CheckOk2 for ParseResult<'a, (Option<Span<'a>>, Span<'a>), OFCode> {
-    #[track_caller]
-    fn cok0(&self, offset: usize, fragment: &str) {
-        match self {
-            Ok((_, (test, _))) => {
-                if let Some(test) = test {
-                    test.cok(offset, fragment);
-                } else {
-                    println!("Was None, should be {} '{}'", offset, fragment);
-                    assert!(false);
-                }
-            }
-            Err(e) => {
-                println!("{:?}", e);
-                assert!(false);
-            }
-        }
+        self
     }
 
     #[track_caller]
-    fn cok1(&self, offset: usize, fragment: &str) {
-        match self {
-            Ok((_, (_, test))) => {
-                test.cok(offset, fragment);
-            }
-            Err(e) => {
-                println!("{:?}", e);
-                assert!(false);
-            }
-        }
-    }
-}
-
-impl<'a> CheckFailToken for ParseResult<'a, (Option<Span<'a>>, Span<'a>), OFCode> {
-    #[track_caller]
-    fn dump(&self) {
+    fn dump(&self) -> &Self {
         match self {
             Ok(v) => {
                 println!("Always fail: {:?}", v);
@@ -315,10 +324,13 @@ impl<'a> CheckFailToken for ParseResult<'a, (Option<Span<'a>>, Span<'a>), OFCode
                 println!("Always fail: {:?}", e);
             }
         }
+        self
     }
+}
 
+impl<'a> TestFail<OFCode> for ParseResult<'a, (Option<Span<'a>>, Span<'a>), OFCode> {
     #[track_caller]
-    fn ctok(&self, kind: OFCode) {
+    fn err(&self, kind: OFCode) -> &Self {
         match self {
             Ok((rest, token)) => {
                 println!("Ok, but should have failed:");
@@ -343,26 +355,19 @@ impl<'a> CheckFailToken for ParseResult<'a, (Option<Span<'a>>, Span<'a>), OFCode
                 }
             }
         }
+        self
     }
-}
 
-impl<'a> CheckNone for ParseResult<'a, (Option<Span<'a>>, Span<'a>), OFCode> {
     #[track_caller]
-    fn cnone0(&self) {
+    fn dump(&self) -> &Self {
         match self {
-            Ok((_, (test, _))) => {
-                if let Some(test) = test {
-                    println!(
-                        "Was something {} '{}', should be None",
-                        test.location_offset(),
-                        test.fragment()
-                    );
-                }
+            Ok(v) => {
+                println!("Always fail: {:?}", v);
             }
             Err(e) => {
-                println!("{:?}", e);
-                assert!(false);
+                println!("Always fail: {:?}", e);
             }
         }
+        self
     }
 }

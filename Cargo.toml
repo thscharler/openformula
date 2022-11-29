@@ -20,6 +20,3 @@ version = "0.4"
 default-features = false
 features = ["clock", "alloc"]
 
-[dependencies.spreadsheet-ods-cellref]
-version = "0.1.0"
-path = "../spreadsheet-ods-cellref"

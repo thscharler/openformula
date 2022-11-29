@@ -91,16 +91,7 @@ dependencies = [
  "chrono",
  "nom",
  "nom_locate",
- "spreadsheet-ods-cellref",
  "unicode-ident",
-]
-
-[[package]]
-name = "spreadsheet-ods-cellref"
-version = "0.1.0"
-dependencies = [
- "nom",
- "nom_locate",
 ]
 
 [[package]]
