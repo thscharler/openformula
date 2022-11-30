@@ -27,6 +27,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "iparse"
+version = "0.1.0"
+dependencies = [
+ "nom",
+ "nom_locate",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.98"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -89,6 +97,7 @@ name = "openformula"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "iparse",
  "nom",
  "nom_locate",
  "unicode-ident",

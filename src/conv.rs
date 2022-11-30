@@ -2,7 +2,7 @@
 //! Low level conversions from a Span<'a> to ...
 //!
 
-use crate::iparse::Span;
+use iparse::Span;
 use std::error::Error;
 use std::fmt;
 use std::fmt::Display;

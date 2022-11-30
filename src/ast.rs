@@ -2,9 +2,9 @@
 //! AST for OpenFormula.
 //!
 
-use crate::iparse::span::span_union;
-use crate::iparse::Span;
 use crate::{conv, format, tokens};
+use iparse::span::span_union;
+use iparse::Span;
 use std::fmt::{Debug, Display};
 use std::{fmt, mem};
 

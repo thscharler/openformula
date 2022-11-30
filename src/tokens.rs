@@ -3,7 +3,7 @@
 //!
 
 use crate::error::OFCode::*;
-use crate::error::{OFCode, OFParserError};
+use crate::error::{OFCode, OFParserError, OFParserErrorFn};
 use nom::combinator::opt;
 use nom::error::ErrorKind::*;
 use nom::InputTake;
@@ -12,8 +12,8 @@ use nom::InputTake;
 // Still need this pub for the tests to run, but now it's possible to turn
 // the pub of for a compile run.
 pub mod nomtokens;
-use crate::iparse::span::span_union;
-use crate::iparse::{ParseResult, Span};
+use iparse::span::span_union;
+use iparse::{ParseResult, Span};
 use nomtokens::{
     add_op_nom, brackets_close_nom, brackets_open_nom, col_nom, colon_nom, comparison_op_nom,
     dollar_dollar_nom, dollar_nom, dot_nom, double_quote_nom, double_string_nom, fn_name_nom,
@@ -42,7 +42,7 @@ pub fn number(rest: Span<'_>) -> TokenResult<'_> {
     match number_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == Char || e.code == OneOf => {
-            Err(OFParserError::number(rest))
+            Err(OFParserErrorFn::number(rest))
         }
         Err(e) => Err(OFParserError::nom(e)),
     }
@@ -52,14 +52,16 @@ pub fn number(rest: Span<'_>) -> TokenResult<'_> {
 pub fn string(rest: Span<'_>) -> TokenResult<'_> {
     let (rest, first_quote) = match double_quote_nom(rest) {
         Ok((rest, quote)) => (rest, quote),
-        Err(nom::Err::Error(e)) if e.code == Char => return Err(OFParserError::start_quote(rest)),
+        Err(nom::Err::Error(e)) if e.code == Char => {
+            return Err(OFParserErrorFn::start_quote(rest))
+        }
         Err(e) => return Err(OFParserError::nom(e)),
     };
 
     let (rest, _string) = match double_string_nom(rest) {
         Ok((rest, tok)) => (rest, tok),
         Err(nom::Err::Error(e)) if e.code == TakeWhile1 || e.code == Char => {
-            return Err(OFParserError::string(rest));
+            return Err(OFParserErrorFn::string(rest));
         }
         Err(e) => {
             return Err(OFParserError::nom(e));
@@ -68,7 +70,7 @@ pub fn string(rest: Span<'_>) -> TokenResult<'_> {
 
     let (rest, last_quote) = match double_quote_nom(rest) {
         Ok((rest, quote)) => (rest, quote),
-        Err(nom::Err::Error(e)) if e.code == Char => return Err(OFParserError::end_quote(rest)),
+        Err(nom::Err::Error(e)) if e.code == Char => return Err(OFParserErrorFn::end_quote(rest)),
         Err(e) => return Err(OFParserError::nom(e)),
     };
 
@@ -82,7 +84,7 @@ pub fn fn_name(rest: Span<'_>) -> TokenResult<'_> {
     match fn_name_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == TakeWhile1 || e.code == TakeWhileMN => {
-            Err(OFParserError::fn_name(rest))
+            Err(OFParserErrorFn::fn_name(rest))
         }
         Err(e) => Err(OFParserError::nom(e)),
     }
@@ -92,7 +94,7 @@ pub fn fn_name(rest: Span<'_>) -> TokenResult<'_> {
 pub fn comparison_op(rest: Span<'_>) -> TokenResult<'_> {
     match comparison_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::comp_op(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::comp_op(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -101,7 +103,7 @@ pub fn comparison_op(rest: Span<'_>) -> TokenResult<'_> {
 pub fn string_op(rest: Span<'_>) -> TokenResult<'_> {
     match string_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::string_op(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::string_op(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -110,7 +112,7 @@ pub fn string_op(rest: Span<'_>) -> TokenResult<'_> {
 pub fn reference_op(rest: Span<'_>) -> TokenResult<'_> {
     match reference_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::ref_op(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::ref_op(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -119,7 +121,7 @@ pub fn reference_op(rest: Span<'_>) -> TokenResult<'_> {
 pub fn ref_intersection_op(rest: Span<'_>) -> TokenResult<'_> {
     match ref_intersection_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::ref_intersect_op(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::ref_intersect_op(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -128,7 +130,7 @@ pub fn ref_intersection_op(rest: Span<'_>) -> TokenResult<'_> {
 pub fn ref_concat_op(rest: Span<'_>) -> TokenResult<'_> {
     match ref_concat_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::ref_concat_op(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::ref_concat_op(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -137,7 +139,7 @@ pub fn ref_concat_op(rest: Span<'_>) -> TokenResult<'_> {
 pub fn dollar_dollar(rest: Span<'_>) -> TokenResult<'_> {
     match dollar_dollar_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::dollardollar(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::dollardollar(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -146,7 +148,7 @@ pub fn dollar_dollar(rest: Span<'_>) -> TokenResult<'_> {
 pub fn dollar(rest: Span<'_>) -> TokenResult<'_> {
     match dollar_dollar_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::dollar(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::dollar(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -155,7 +157,7 @@ pub fn dollar(rest: Span<'_>) -> TokenResult<'_> {
 pub fn hashtag(rest: Span<'_>) -> TokenResult<'_> {
     match hashtag_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::hashtag(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::hashtag(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -164,7 +166,7 @@ pub fn hashtag(rest: Span<'_>) -> TokenResult<'_> {
 pub fn semikolon(rest: Span<'_>) -> TokenResult<'_> {
     match semikolon_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::semikolon(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::semikolon(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -173,7 +175,7 @@ pub fn semikolon(rest: Span<'_>) -> TokenResult<'_> {
 pub fn dot(rest: Span<'_>) -> TokenResult<'_> {
     match dot_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::dot(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::dot(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -182,7 +184,7 @@ pub fn dot(rest: Span<'_>) -> TokenResult<'_> {
 pub fn colon(rest: Span<'_>) -> TokenResult<'_> {
     match colon_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::colon(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::colon(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -191,7 +193,7 @@ pub fn colon(rest: Span<'_>) -> TokenResult<'_> {
 pub fn parentheses_open(rest: Span<'_>) -> TokenResult<'_> {
     match parentheses_open_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::parens_open(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::parens_open(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -200,7 +202,7 @@ pub fn parentheses_open(rest: Span<'_>) -> TokenResult<'_> {
 pub fn parentheses_close(rest: Span<'_>) -> TokenResult<'_> {
     match parentheses_close_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::parens_close(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::parens_close(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -209,7 +211,7 @@ pub fn parentheses_close(rest: Span<'_>) -> TokenResult<'_> {
 pub fn brackets_open(rest: Span<'_>) -> TokenResult<'_> {
     match brackets_open_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::brackets_open(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::brackets_open(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -218,7 +220,7 @@ pub fn brackets_open(rest: Span<'_>) -> TokenResult<'_> {
 pub fn brackets_close(rest: Span<'_>) -> TokenResult<'_> {
     match brackets_close_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::brackets_close(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::brackets_close(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -227,7 +229,7 @@ pub fn brackets_close(rest: Span<'_>) -> TokenResult<'_> {
 pub fn add_op(rest: Span<'_>) -> TokenResult<'_> {
     match add_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::add_op(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::add_op(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -236,7 +238,7 @@ pub fn add_op(rest: Span<'_>) -> TokenResult<'_> {
 pub fn mul_op(rest: Span<'_>) -> TokenResult<'_> {
     match mul_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::mul_op(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::mul_op(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -245,7 +247,7 @@ pub fn mul_op(rest: Span<'_>) -> TokenResult<'_> {
 pub fn pow_op(rest: Span<'_>) -> TokenResult<'_> {
     match pow_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::pow_op(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::pow_op(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -254,7 +256,7 @@ pub fn pow_op(rest: Span<'_>) -> TokenResult<'_> {
 pub fn prefix_op(rest: Span<'_>) -> TokenResult<'_> {
     match prefix_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::prefix_op(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::prefix_op(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -263,7 +265,7 @@ pub fn prefix_op(rest: Span<'_>) -> TokenResult<'_> {
 pub fn postfix_op(rest: Span<'_>) -> TokenResult<'_> {
     match postfix_op_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::postfix_op(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::postfix_op(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -277,7 +279,7 @@ pub fn identifier(rest: Span<'_>) -> TokenResult<'_> {
     match identifier_nom(rest) {
         Ok((rest, tok)) => Ok((rest, tok)),
         Err(nom::Err::Error(e)) if e.code == TakeWhile1 || e.code == TakeWhileMN => {
-            Err(OFParserError::identifier(rest))
+            Err(OFParserErrorFn::identifier(rest))
         }
         Err(e) => Err(OFParserError::nom(e)),
     }
@@ -290,7 +292,7 @@ pub fn sheet_name(rest: Span<'_>) -> ParseResult<'_, (Option<Span<'_>>, Span<'_>
     let (rest, abs) = match opt(dollar_nom)(rest) {
         Ok((rest, abs)) => (rest, abs),
         Err(nom::Err::Error(e)) if e.code == Tag => {
-            return Err(OFParserError::dollar(rest));
+            return Err(OFParserErrorFn::dollar(rest));
         }
         Err(e) => return Err(OFParserError::nom(e)),
     };
@@ -307,7 +309,7 @@ pub fn sheet_name(rest: Span<'_>) -> ParseResult<'_, (Option<Span<'_>>, Span<'_>
         match sheet_name_nom(rest) {
             Ok((rest, tok)) => (rest, tok),
             Err(nom::Err::Error(e)) if e.code == NoneOf => {
-                return Err(OFParserError::sheet_name(rest));
+                return Err(OFParserErrorFn::sheet_name(rest));
             }
             Err(e) => return Err(OFParserError::nom(e)),
         }
@@ -347,7 +349,7 @@ pub fn iri(rest: Span<'_>) -> TokenResult<'_> {
     let (rest,) = match hashtag_nom(rest) {
         Ok((rest, _hash)) => (rest,),
         Err(nom::Err::Error(e)) if e.code == Tag => {
-            return Err(OFParserError::hashtag(rest));
+            return Err(OFParserErrorFn::hashtag(rest));
         }
         Err(e) => return Err(OFParserError::nom(e)),
     };
@@ -360,9 +362,9 @@ pub fn iri(rest: Span<'_>) -> TokenResult<'_> {
 pub fn row(rest: Span<'_>) -> ParseResult<'_, (Option<Span<'_>>, Span<'_>), OFCode> {
     match row_nom(rest) {
         Ok((rest, (abs, row))) => Ok((rest, (abs, row))),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::dollar(rest)),
-        Err(nom::Err::Error(e)) if e.code == OneOf => Err(OFParserError::digit(rest)),
-        Err(nom::Err::Error(e)) if e.code == Many1 => Err(OFParserError::digit(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::dollar(rest)),
+        Err(nom::Err::Error(e)) if e.code == OneOf => Err(OFParserErrorFn::digit(rest)),
+        Err(nom::Err::Error(e)) if e.code == Many1 => Err(OFParserErrorFn::digit(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -372,8 +374,8 @@ pub fn row(rest: Span<'_>) -> ParseResult<'_, (Option<Span<'_>>, Span<'_>), OFCo
 pub fn col(rest: Span<'_>) -> ParseResult<'_, (Option<Span<'_>>, Span<'_>), OFCode> {
     match col_nom(rest) {
         Ok((rest, (abs, col))) => Ok((rest, (abs, col))),
-        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserError::dollar(rest)),
-        Err(nom::Err::Error(e)) if e.code == Alpha => Err(OFParserError::alpha(rest)),
+        Err(nom::Err::Error(e)) if e.code == Tag => Err(OFParserErrorFn::dollar(rest)),
+        Err(nom::Err::Error(e)) if e.code == Alpha => Err(OFParserErrorFn::alpha(rest)),
         Err(e) => Err(OFParserError::nom(e)),
     }
 }
@@ -386,22 +388,24 @@ pub fn single_quoted(rest: Span<'_>) -> TokenResult<'_> {
     let (rest, first_quote) = match single_quote_nom(rest) {
         Ok((rest, quote)) => (rest, quote),
         Err(nom::Err::Error(e)) if e.code == Char => {
-            return Err(OFParserError::start_single_quote(rest))
+            return Err(OFParserErrorFn::start_single_quote(rest))
         }
         Err(e) => return Err(OFParserError::nom(e)),
     };
 
     let (rest, _string) = match single_string_nom(rest) {
         Ok((rest, tok)) => (rest, tok),
-        Err(nom::Err::Error(e)) if e.code == TakeWhile1 => return Err(OFParserError::string(rest)),
-        Err(nom::Err::Error(e)) if e.code == Char => return Err(OFParserError::string(rest)),
+        Err(nom::Err::Error(e)) if e.code == TakeWhile1 => {
+            return Err(OFParserErrorFn::string(rest))
+        }
+        Err(nom::Err::Error(e)) if e.code == Char => return Err(OFParserErrorFn::string(rest)),
         Err(e) => return Err(OFParserError::nom(e)),
     };
 
     let (rest, last_quote) = match single_quote_nom(rest) {
         Ok((rest, quote)) => (rest, quote),
         Err(nom::Err::Error(e)) if e.code == Char => {
-            return Err(OFParserError::end_single_quote(rest))
+            return Err(OFParserErrorFn::end_single_quote(rest))
         }
         Err(e) => return Err(OFParserError::nom(e)),
     };

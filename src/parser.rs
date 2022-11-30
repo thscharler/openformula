@@ -2,8 +2,8 @@
 //! Parses and creates the AST.
 //!
 //! ```
-//! use openformula::iparse::{Parser, Span, Tracer};
-//! use openformula::iparse::tracer::CTracer;
+//! use iparse::{Parser, Span, Tracer};
+//! use iparse::tracer::CTracer;
 //! use openformula::parser::Expr;
 //!     
 //! let trace = CTracer::new();
@@ -16,12 +16,12 @@ use crate::ast::{
 };
 use crate::conv;
 use crate::error::OFCode::*;
-use crate::error::{OFCode, OFParserError};
-use crate::iparse::span::{span_union, span_union_opt};
-use crate::iparse::tracer::TrackParseResult;
-use crate::iparse::{IntoParserError, LookAhead, ParseResult, Parser, Span, Tracer};
+use crate::error::{OFCode, OFParserError, OFParserErrorFn};
 use crate::tokens;
 use crate::tokens::{eat_space, empty};
+use iparse::span::{span_union, span_union_opt};
+use iparse::tracer::TrackParseResult;
+use iparse::{IntoParserError, LookAhead, ParseResult, Parser, Span, Tracer};
 
 // Expression ::=
 // Whitespace* (
@@ -588,7 +588,7 @@ impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for ElementaryExpr {
             Err(e) => return trace.err(e),
         }
 
-        trace.err(OFParserError::elementary(rest))
+        trace.err(OFParserErrorFn::elementary(rest))
     }
 }
 
@@ -728,7 +728,7 @@ impl<'s> Parser<'s, Box<OFAst<'s>>, OFCode> for ReferenceExpr {
             Err(e) => return trace.err(e),
         }
 
-        trace.err(OFParserError::reference(rest))
+        trace.err(OFParserErrorFn::reference(rest))
     }
 }
 
@@ -879,7 +879,7 @@ impl CellRangeExpr {
 
         match CellRangeExpr::parse(trace, rest) {
             Ok((rest, expr)) => {
-                check_eof(rest, OFParserError::cell_range)?;
+                check_eof(rest, OFParserErrorFn::cell_range)?;
                 let OFAst::NodeCellRange(cell_range) = *expr else {
                     panic!("Expected a CellRange");
                 };
@@ -942,7 +942,7 @@ impl ColRangeExpr {
 
         match Self::parse(trace, rest) {
             Ok((rest, expr)) => {
-                check_eof(rest, OFParserError::col_range)?;
+                check_eof(rest, OFParserErrorFn::col_range)?;
                 let OFAst::NodeColRange(col_range) = *expr else {
                     panic!("Expected a ColRange");
                 };
@@ -1003,7 +1003,7 @@ impl RowRangeExpr {
 
         match Self::parse(trace, i) {
             Ok((rest, expr)) => {
-                check_eof(rest, OFParserError::row_range)?;
+                check_eof(rest, OFParserErrorFn::row_range)?;
                 let OFAst::NodeRowRange(row_range) = *expr else {
                     panic!("Expected a RowRange");
                 };

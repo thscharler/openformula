@@ -6,17 +6,20 @@ mod debug_error;
 
 use crate::conv::{ParseColnameError, ParseRownameError};
 use crate::error::OFCode::*;
-use crate::iparse::error::ParserError;
-use crate::iparse::{Code, IntoParserError, Span};
+use iparse::error::ParserError;
+use iparse::{Code, IntoParserError, Span};
 use std::fmt;
 use std::fmt::{Debug, Display};
 
 /// Standard parser error.
 pub type OFParserError<'s> = ParserError<'s, OFCode>;
 
+/// Constructor fn for ParserError.
+pub struct OFParserErrorFn;
+
 // Simple mappings
 #[allow(missing_docs)]
-impl<'s> OFParserError<'s> {
+impl<'s> OFParserErrorFn {
     pub fn parens(span: Span<'s>) -> OFParserError<'s> {
         OFParserError::new(OFCParentheses, span)
     }
@@ -325,7 +328,7 @@ impl Display for OFCode {
     }
 }
 
-impl<'s, T> IntoParserError<'s, T, OFCode> for Result<T, ParseRownameError> {
+impl<'s, T> IntoParserError<'s, OFCode, T> for Result<T, ParseRownameError> {
     fn parser_error(self, span: Span<'s>) -> Result<T, OFParserError<'s>> {
         match self {
             Ok(v) => Ok(v),
@@ -334,7 +337,7 @@ impl<'s, T> IntoParserError<'s, T, OFCode> for Result<T, ParseRownameError> {
     }
 }
 
-impl<'s, T> IntoParserError<'s, T, OFCode> for Result<T, ParseColnameError> {
+impl<'s, T> IntoParserError<'s, OFCode, T> for Result<T, ParseColnameError> {
     fn parser_error(self, span: Span<'s>) -> Result<T, OFParserError<'s>> {
         match self {
             Ok(v) => Ok(v),

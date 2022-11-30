@@ -2,8 +2,8 @@
 //! Builds an open formula parser.
 //!
 //! ```
-//! use openformula::iparse::{Parser, Span, Tracer};
-//! use openformula::iparse::tracer::CTracer;
+//! use iparse::{Parser, Span, Tracer};
+//! use iparse::tracer::CTracer;
 //! use openformula::parser::Expr;
 //!     
 //! let trace = CTracer::new();
@@ -50,6 +50,5 @@ pub mod conv;
 pub mod error;
 pub mod format;
 #[allow(missing_docs)]
-pub mod iparse;
 pub mod parser;
 pub mod tokens;

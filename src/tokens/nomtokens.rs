@@ -4,7 +4,7 @@
 //! tokens contains the mapping functions to our own errors.
 //!
 
-use crate::iparse::{LookAhead, Span};
+use iparse::{LookAhead, Span};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while, take_while1};
 use nom::character::complete::{alpha1, char as nchar, multispace0, none_of, one_of};

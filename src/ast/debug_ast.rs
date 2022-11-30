@@ -3,7 +3,7 @@ use crate::ast::{
     OFFnCall, OFIri, OFMul, OFNamed, OFNumber, OFParens, OFPostfix, OFPow, OFPrefix, OFRow,
     OFRowRange, OFSheetName, OFSimpleNamed, OFString, Operator, Span,
 };
-use crate::iparse::error::DebugWidth;
+use iparse::error::DebugWidth;
 use std::fmt;
 use std::fmt::{Debug, Display};
 
