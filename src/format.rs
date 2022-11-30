@@ -3,10 +3,9 @@
 //!
 
 use std::fmt;
-use std::fmt::Formatter;
 
 /// Appends the spreadsheet row name
-pub fn fmt_abs(f: &mut Formatter<'_>, abs: bool) -> fmt::Result {
+pub fn fmt_abs(f: &mut impl fmt::Write, abs: bool) -> fmt::Result {
     if abs {
         write!(f, "$")?;
     }
@@ -14,7 +13,7 @@ pub fn fmt_abs(f: &mut Formatter<'_>, abs: bool) -> fmt::Result {
 }
 
 /// Appends the spreadsheet row name
-pub fn fmt_row_name(f: &mut Formatter<'_>, row: u32) -> fmt::Result {
+pub fn fmt_row_name(f: &mut impl fmt::Write, row: u32) -> fmt::Result {
     let mut i = 0;
     let mut dbuf = [0u8; 10];
 
@@ -39,7 +38,7 @@ pub fn fmt_row_name(f: &mut Formatter<'_>, row: u32) -> fmt::Result {
 }
 
 /// Appends the spreadsheet column name.
-pub fn fmt_col_name(f: &mut Formatter<'_>, mut col: u32) -> fmt::Result {
+pub fn fmt_col_name(f: &mut impl fmt::Write, mut col: u32) -> fmt::Result {
     let mut i = 0;
     let mut dbuf = [0u8; 7];
 

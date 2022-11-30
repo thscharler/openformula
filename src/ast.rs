@@ -5,7 +5,7 @@
 use crate::iparse::span::span_union;
 use crate::iparse::Span;
 use crate::{conv, format, tokens};
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display};
 use std::{fmt, mem};
 
 mod debug_ast;
@@ -85,7 +85,7 @@ impl<'a> Node<'a> for OFAst<'a> {
         self.node().span()
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.node().encode(f)
     }
 }
@@ -287,7 +287,7 @@ impl<'a> OFAst<'a> {
 }
 
 impl<'a> Display for OFAst<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             OFAst::NodeEmpty(v) => Display::fmt(v, f),
             OFAst::NodeCompare(v) => Display::fmt(v, f),
@@ -315,8 +315,8 @@ impl<'a> Display for OFAst<'a> {
 pub struct NodeEncoder<'a>(&'a dyn Node<'a>);
 
 impl<'a> Display for NodeEncoder<'a> {
-    /// Calls f with the given Formatter.
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    /// Calls f with the given fmt::Formatter.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.encode(f)
     }
 }
@@ -331,7 +331,7 @@ pub trait Node<'a> {
 
     /// Writes an encoded version of the Node. This is a string, that can be parsed again.
     /// This is mainly the string encoding with double-'
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result;
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 
     /// Recursive call for encode masked in impl Display.
     fn enc(&'a self) -> NodeEncoder<'a>
@@ -383,13 +383,13 @@ impl<'a> Node<'a> for OFEmpty<'a> {
         self.span
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "")
     }
 }
 
 impl<'a> Display for OFEmpty<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "")
     }
 }
@@ -422,7 +422,7 @@ impl<'a> Node<'a> for OFCompare<'a> {
         unsafe { span_union(self.left.span(), self.right.span()) }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{} {} {}",
@@ -450,7 +450,7 @@ impl<'a> BinaryNode<'a> for OFCompare<'a> {
 }
 
 impl<'a> Display for OFCompare<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {} {}", self.left, self.op, self.right)
     }
 }
@@ -510,13 +510,13 @@ impl<'a> Node<'a> for OFCompOp<'a> {
         }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.op())
     }
 }
 
 impl<'a> Display for OFCompOp<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.op())
     }
 }
@@ -543,7 +543,7 @@ impl<'a> Node<'a> for OFAdd<'a> {
         unsafe { span_union(self.left.span(), self.right.span()) }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{} {} {}",
@@ -571,7 +571,7 @@ impl<'a> BinaryNode<'a> for OFAdd<'a> {
 }
 
 impl<'a> Display for OFAdd<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {} {}", self.left, self.op, self.right)
     }
 }
@@ -615,13 +615,13 @@ impl<'a> Node<'a> for OFAddOp<'a> {
         }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.op())
     }
 }
 
 impl<'a> Display for OFAddOp<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.op())
     }
 }
@@ -648,7 +648,7 @@ impl<'a> Node<'a> for OFMul<'a> {
         unsafe { span_union(self.left.span(), self.right.span()) }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{} {} {}",
@@ -676,7 +676,7 @@ impl<'a> BinaryNode<'a> for OFMul<'a> {
 }
 
 impl<'a> Display for OFMul<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {} {}", self.left, self.op, self.right)
     }
 }
@@ -720,13 +720,13 @@ impl<'a> Node<'a> for OFMulOp<'a> {
         }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.op())
     }
 }
 
 impl<'a> Display for OFMulOp<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.op())
     }
 }
@@ -753,7 +753,7 @@ impl<'a> Node<'a> for OFPow<'a> {
         unsafe { span_union(self.left.span(), self.right.span()) }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{} {} {}",
@@ -781,7 +781,7 @@ impl<'a> BinaryNode<'a> for OFPow<'a> {
 }
 
 impl<'a> Display for OFPow<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {} {}", self.left, self.op, self.right)
     }
 }
@@ -818,13 +818,13 @@ impl<'a> Node<'a> for OFPowOp<'a> {
         }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.op())
     }
 }
 
 impl<'a> Display for OFPowOp<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.op())
     }
 }
@@ -849,13 +849,13 @@ impl<'a> Node<'a> for OFPostfix<'a> {
         unsafe { span_union(self.expr.span(), self.op.span()) }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.expr.enc(), self.op.enc())
     }
 }
 
 impl<'a> Display for OFPostfix<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.expr, self.op)
     }
 }
@@ -892,13 +892,13 @@ impl<'a> Node<'a> for OFPostfixOp<'a> {
         }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.op())
     }
 }
 
 impl<'a> Display for OFPostfixOp<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.op())
     }
 }
@@ -923,13 +923,13 @@ impl<'a> Node<'a> for OFPrefix<'a> {
         unsafe { span_union(self.op.span(), self.expr.span()) }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.op.enc(), self.expr.enc())
     }
 }
 
 impl<'a> Display for OFPrefix<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.op, self.expr)
     }
 }
@@ -972,13 +972,13 @@ impl<'a> Node<'a> for OFPrefixOp<'a> {
         }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.op())
     }
 }
 
 impl<'a> Display for OFPrefixOp<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.op())
     }
 }
@@ -1002,13 +1002,13 @@ impl<'a> Node<'a> for OFNumber<'a> {
         self.span
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.num)
     }
 }
 
 impl<'a> Display for OFNumber<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.num)
     }
 }
@@ -1038,13 +1038,13 @@ impl<'a> Node<'a> for OFString<'a> {
         self.span
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\"{}\"", conv::quote_double(&self.str))
     }
 }
 
 impl<'a> Display for OFString<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.str)
     }
 }
@@ -1074,13 +1074,13 @@ impl<'a> Node<'a> for OFIri<'a> {
         self.span
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "'{}'#", conv::quote_single(&self.iri))
     }
 }
 
 impl<'a> Display for OFIri<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "'{}'#", self.iri)
     }
 }
@@ -1112,14 +1112,14 @@ impl<'a> Node<'a> for OFSheetName<'a> {
         self.span
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         format::fmt_abs(f, self.abs)?;
         write!(f, "'{}'.", conv::quote_single(&self.name))
     }
 }
 
 impl<'a> Display for OFSheetName<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         format::fmt_abs(f, self.abs)?;
         write!(f, "'{}'.", self.name)?;
         Ok(())
@@ -1153,7 +1153,7 @@ impl<'a> Node<'a> for OFRow<'a> {
         self.span
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         format::fmt_abs(f, self.abs)?;
         format::fmt_row_name(f, self.row)?;
         Ok(())
@@ -1161,7 +1161,7 @@ impl<'a> Node<'a> for OFRow<'a> {
 }
 
 impl<'a> Display for OFRow<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         format::fmt_abs(f, self.abs)?;
         format::fmt_row_name(f, self.row)?;
         Ok(())
@@ -1195,7 +1195,7 @@ impl<'a> Node<'a> for OFCol<'a> {
         self.span
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         format::fmt_abs(f, self.abs)?;
         format::fmt_col_name(f, self.col)?;
         Ok(())
@@ -1203,7 +1203,7 @@ impl<'a> Node<'a> for OFCol<'a> {
 }
 
 impl<'a> Display for OFCol<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         format::fmt_abs(f, self.abs)?;
         format::fmt_col_name(f, self.col)?;
         Ok(())
@@ -1244,7 +1244,7 @@ impl<'a> Node<'a> for OFSimpleNamed<'a> {
         self.span
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.need_quotes() {
             write!(f, "$$'{}'", conv::quote_single(&self.ident))
         } else {
@@ -1254,7 +1254,7 @@ impl<'a> Node<'a> for OFSimpleNamed<'a> {
 }
 
 impl<'a> Display for OFSimpleNamed<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.need_quotes() {
             write!(f, "$$'{}'", conv::quote_single(&self.ident))
         } else {
@@ -1296,7 +1296,7 @@ impl<'a> Node<'a> for OFNamed<'a> {
         }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(iri) = &self.iri {
             write!(f, "{}", iri)?;
         }
@@ -1309,7 +1309,7 @@ impl<'a> Node<'a> for OFNamed<'a> {
 }
 
 impl<'a> Display for OFNamed<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(iri) = &self.iri {
             write!(f, "{}", iri)?;
         }
@@ -1352,7 +1352,7 @@ impl<'a> Node<'a> for OFCellRef<'a> {
         self.span
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(iri) = &self.iri {
             write!(f, "{}", iri.enc())?;
         }
@@ -1364,7 +1364,7 @@ impl<'a> Node<'a> for OFCellRef<'a> {
 }
 
 impl<'a> Display for OFCellRef<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(iri) = &self.iri {
             write!(f, "{}", iri)?;
         }
@@ -1415,7 +1415,7 @@ impl<'a> Node<'a> for OFCellRange<'a> {
         self.span
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(iri) = &self.iri {
             write!(f, "{}", iri.enc())?;
         }
@@ -1433,7 +1433,7 @@ impl<'a> Node<'a> for OFCellRange<'a> {
 }
 
 impl<'a> Display for OFCellRange<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(iri) = &self.iri {
             write!(f, "{}", iri)?;
         }
@@ -1489,7 +1489,7 @@ impl<'a> Node<'a> for OFRowRange<'a> {
         self.span
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(iri) = &self.iri {
             write!(f, "{}", iri.enc())?;
         }
@@ -1507,7 +1507,7 @@ impl<'a> Node<'a> for OFRowRange<'a> {
 }
 
 impl<'a> Display for OFRowRange<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(iri) = &self.iri {
             write!(f, "{}", iri)?;
         }
@@ -1561,7 +1561,7 @@ impl<'a> Node<'a> for OFColRange<'a> {
         self.span
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(iri) = &self.iri {
             write!(f, "{}", iri.enc())?;
         }
@@ -1579,7 +1579,7 @@ impl<'a> Node<'a> for OFColRange<'a> {
 }
 
 impl<'a> Display for OFColRange<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(iri) = &self.iri {
             write!(f, "{}", iri)?;
         }
@@ -1628,13 +1628,13 @@ impl<'a> Node<'a> for OFParens<'a> {
         unsafe { span_union(self.o, self.c) }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({})", self.expr.enc())
     }
 }
 
 impl<'a> Display for OFParens<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({})", self.expr)
     }
 }
@@ -1663,7 +1663,7 @@ impl<'a> Node<'a> for OFFnCall<'a> {
         unsafe { span_union(self.name.span(), self.c) }
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}(", self.name.enc())?;
         for (i, expr) in self.arg.iter().enumerate() {
             if i > 0 {
@@ -1677,7 +1677,7 @@ impl<'a> Node<'a> for OFFnCall<'a> {
 }
 
 impl<'a> Display for OFFnCall<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}(", self.name)?;
         for (i, expr) in self.arg.iter().enumerate() {
             if i > 0 {
@@ -1711,13 +1711,13 @@ impl<'a> Node<'a> for OFFnName<'a> {
         self.span
     }
 
-    fn encode(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn encode(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
 }
 
 impl<'a> Display for OFFnName<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
 }

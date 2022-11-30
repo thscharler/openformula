@@ -434,7 +434,8 @@ mod parser {
     use openformula::iparse::tracer::{CTracer, Track};
     use openformula::iparse::{ParseResult, Span, Tracer};
     use std::cell::{Cell, RefCell};
-    use std::fmt::{Debug, Formatter};
+    use std::fmt;
+    use std::fmt::Debug;
     use std::time::Instant;
 
     /// Parser function.
@@ -524,9 +525,8 @@ mod parser {
         }
 
         impl<'a, 'b, 's> Debug for TracerDebug<'a, 'b, 's> {
-            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-                self.trace
-                    .write_debug(f, DebugWidth::Medium, self.track_filter)
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                self.trace.write(f, DebugWidth::Medium, self.track_filter)
             }
         }
 

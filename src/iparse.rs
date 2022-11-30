@@ -2,7 +2,7 @@ use crate::iparse::error::{DebugWidth, ParserError};
 use crate::iparse::tracer::Track;
 use nom_locate::LocatedSpan;
 use std::fmt;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display};
 use std::ops::BitOr;
 
 /// Code for parser errors and parser functions.
@@ -139,9 +139,9 @@ pub trait Tracer<'s, C: Code> {
 
     fn err<T>(&'_ self, err: ParserError<'s, C>) -> ParseResult<'s, T, C>;
 
-    fn write_debug<'a, 'b>(
+    fn write<'a, 'b>(
         &'a self,
-        f: &mut Formatter<'_>,
+        o: &mut impl fmt::Write,
         w: DebugWidth,
         filter: FilterFn<'b, 's, C>,
     ) -> fmt::Result;
@@ -373,7 +373,7 @@ pub mod error {
         }
 
         fn debug_parse_of_error_short<'s, C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             err: &ParserError<'s, C>,
         ) -> fmt::Result {
             write!(f, "ParseOFError {} \"{}\"", err.code, err.span)?;
@@ -390,7 +390,7 @@ pub mod error {
         }
 
         fn debug_parse_of_error_medium<'s, C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             err: &ParserError<'s, C>,
         ) -> fmt::Result {
             writeln!(f, "ParseOFError {} \"{}\"", err.code, err.span)?;
@@ -459,7 +459,7 @@ pub mod error {
         }
 
         fn debug_parse_of_error_long<'s, C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             err: &ParserError<'s, C>,
         ) -> fmt::Result {
             writeln!(f, "ParseOFError {} \"{}\"", err.code, err.span)?;
@@ -478,7 +478,7 @@ pub mod error {
             Ok(())
         }
 
-        fn indent(f: &mut Formatter<'_>, ind: usize) -> fmt::Result {
+        fn indent(f: &mut impl fmt::Write, ind: usize) -> fmt::Result {
             write!(f, "{}", " ".repeat(ind * 4))?;
             Ok(())
         }
@@ -486,7 +486,7 @@ pub mod error {
         // expect2
 
         fn debug_expect2_long<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             exp_vec: &Vec<Expect<'_, C>>,
             ind: usize,
         ) -> fmt::Result {
@@ -516,7 +516,7 @@ pub mod error {
         }
 
         fn debug_expect2_medium<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             exp_vec: &Vec<&Expect<'_, C>>,
             ind: usize,
         ) -> fmt::Result {
@@ -563,7 +563,7 @@ pub mod error {
         }
 
         fn debug_expect2_short<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             exp_vec: &Vec<Expect<'_, C>>,
             _ind: usize,
         ) -> fmt::Result {
@@ -587,7 +587,7 @@ pub mod error {
         // suggest2
 
         fn debug_suggest2_long<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             sug_vec: &Vec<Suggest<'_, C>>,
             ind: usize,
         ) -> fmt::Result {
@@ -617,7 +617,7 @@ pub mod error {
         }
 
         fn debug_suggest2_medium<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             sug_vec: &Vec<&Suggest<'_, C>>,
             ind: usize,
         ) -> fmt::Result {
@@ -664,7 +664,7 @@ pub mod error {
         }
 
         fn debug_suggest2_short<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             sug_vec: &Vec<Suggest<'_, C>>,
             _ind: usize,
         ) -> fmt::Result {
@@ -799,13 +799,13 @@ pub mod tracer {
         }
 
         /// Write a debug output of the Tracer state.
-        fn write_debug<'a, 'b>(
+        fn write<'a, 'b>(
             &'a self,
-            f: &mut Formatter<'_>,
+            o: &mut impl fmt::Write,
             w: DebugWidth,
             filter: FilterFn<'b, 's, C>,
         ) -> fmt::Result {
-            debug_tracer(f, w, self, filter)
+            debug_tracer(o, w, self, filter)
         }
     }
 
@@ -1178,15 +1178,14 @@ pub mod tracer {
         };
         use crate::iparse::{Code, FilterFn};
         use std::fmt;
-        use std::fmt::Formatter;
 
-        fn indent(f: &mut Formatter<'_>, ind: usize) -> fmt::Result {
+        fn indent(f: &mut impl fmt::Write, ind: usize) -> fmt::Result {
             write!(f, "{}", " ".repeat(ind * 2))?;
             Ok(())
         }
 
         pub(crate) fn debug_tracer<'a, 'b, 's, C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             w: DebugWidth,
             trace: &'a CTracer<'s, C>,
             filter: FilterFn<'b, 's, C>,
@@ -1256,7 +1255,7 @@ pub mod tracer {
         }
 
         fn debug_track<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             w: DebugWidth,
             v: &Track<'_, C>,
         ) -> fmt::Result {
@@ -1273,7 +1272,7 @@ pub mod tracer {
         }
 
         fn debug_enter<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             w: DebugWidth,
             v: &EnterTrack<'_, C>,
         ) -> fmt::Result {
@@ -1286,7 +1285,7 @@ pub mod tracer {
         }
 
         fn debug_step<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             w: DebugWidth,
             v: &StepTrack<'_, C>,
         ) -> fmt::Result {
@@ -1301,7 +1300,7 @@ pub mod tracer {
         }
 
         fn debug_debug<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             w: DebugWidth,
             v: &DebugTrack<'_, C>,
         ) -> fmt::Result {
@@ -1312,7 +1311,7 @@ pub mod tracer {
         }
 
         fn debug_expect<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             w: DebugWidth,
             v: &ExpectTrack<'_, C>,
         ) -> fmt::Result {
@@ -1324,7 +1323,7 @@ pub mod tracer {
         }
 
         fn debug_suggest<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             w: DebugWidth,
             v: &SuggestTrack<'_, C>,
         ) -> fmt::Result {
@@ -1335,7 +1334,7 @@ pub mod tracer {
             }
         }
         fn debug_ok<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             w: DebugWidth,
             v: &OkTrack<'_, C>,
         ) -> fmt::Result {
@@ -1352,7 +1351,7 @@ pub mod tracer {
         }
 
         fn debug_err<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             w: DebugWidth,
             v: &ErrTrack<'_, C>,
         ) -> fmt::Result {
@@ -1363,7 +1362,7 @@ pub mod tracer {
         }
 
         fn debug_exit<C: Code>(
-            f: &mut Formatter<'_>,
+            f: &mut impl fmt::Write,
             w: DebugWidth,
             v: &ExitTrack<'_, C>,
         ) -> fmt::Result {

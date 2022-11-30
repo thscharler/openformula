@@ -4,7 +4,8 @@
 
 use crate::iparse::Span;
 use std::error::Error;
-use std::fmt::{Display, Formatter};
+use std::fmt;
+use std::fmt::Display;
 use std::num::IntErrorKind;
 use std::str::FromStr;
 
@@ -87,7 +88,7 @@ pub enum ParseRownameError {
 }
 
 impl Display for ParseRownameError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ParseRownameError::Empty => write!(f, "Input was empty")?,
             ParseRownameError::InvalidDigit => write!(f, "Invalid digit")?,
@@ -130,7 +131,7 @@ pub enum ParseColnameError {
 }
 
 impl Display for ParseColnameError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ParseColnameError::InvalidChar(e) => {
                 write!(f, "Invalid char '{}'", e)?;

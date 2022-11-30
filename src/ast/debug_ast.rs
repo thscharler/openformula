@@ -5,143 +5,143 @@ use crate::ast::{
 };
 use crate::iparse::error::DebugWidth;
 use std::fmt;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display};
 
 impl<'a> Debug for OFAst<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_ast(f, DebugWidth::from(f.width()), self, 0)
     }
 }
 
 impl<'a> Debug for OFEmpty<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_empty(f, DebugWidth::from(f.width()), self)
     }
 }
 
 impl<'a> Debug for OFCompare<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_binary(f, DebugWidth::from(f.width()), self, 0)
     }
 }
 
 impl<'a> Debug for OFAdd<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_binary(f, DebugWidth::from(f.width()), self, 0)
     }
 }
 
 impl<'a> Debug for OFMul<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_binary(f, DebugWidth::from(f.width()), self, 0)
     }
 }
 
 impl<'a> Debug for OFPow<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_binary(f, DebugWidth::from(f.width()), self, 0)
     }
 }
 
 impl<'a> Debug for OFPostfix<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_postfix(f, DebugWidth::from(f.width()), self, 0)
     }
 }
 
 impl<'a> Debug for OFPrefix<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_prefix(f, DebugWidth::from(f.width()), self, 0)
     }
 }
 
 impl<'a> Debug for OFNumber<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_elem(f, DebugWidth::from(f.width()), self)
     }
 }
 
 impl<'a> Debug for OFString<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_elem(f, DebugWidth::from(f.width()), self)
     }
 }
 
 impl<'a> Debug for OFIri<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_elem(f, DebugWidth::from(f.width()), self)
     }
 }
 
 impl<'a> Debug for OFSheetName<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_elem(f, DebugWidth::from(f.width()), self)
     }
 }
 
 impl<'a> Debug for OFRow<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_elem(f, DebugWidth::from(f.width()), self)
     }
 }
 
 impl<'a> Debug for OFCol<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_elem(f, DebugWidth::from(f.width()), self)
     }
 }
 
 impl<'a> Debug for OFSimpleNamed<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_elem(f, DebugWidth::from(f.width()), self)
     }
 }
 
 impl<'a> Debug for OFNamed<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_elem(f, DebugWidth::from(f.width()), self)
     }
 }
 
 impl<'a> Debug for OFCellRef<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_elem(f, DebugWidth::from(f.width()), self)
     }
 }
 
 impl<'a> Debug for OFCellRange<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_elem(f, DebugWidth::from(f.width()), self)
     }
 }
 
 impl<'a> Debug for OFRowRange<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_elem(f, DebugWidth::from(f.width()), self)
     }
 }
 
 impl<'a> Debug for OFColRange<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_elem(f, DebugWidth::from(f.width()), self)
     }
 }
 
 impl<'a> Debug for OFParens<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_parens(f, DebugWidth::from(f.width()), self, 0)
     }
 }
 
 impl<'a> Debug for OFFnCall<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_fn_call(f, DebugWidth::from(f.width()), self, 0)
     }
 }
 
 // -----------------------------------------------------------------------
 
-fn indent(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
+fn indent(f: &mut fmt::Formatter<'_>, indent: u32) -> fmt::Result {
     writeln!(f)?;
     for _ in 0..indent * 4 {
         write!(f, " ")?;
@@ -149,7 +149,7 @@ fn indent(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
     Ok(())
 }
 
-fn arrow(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
+fn arrow(f: &mut fmt::Formatter<'_>, indent: u32) -> fmt::Result {
     writeln!(f)?;
     if indent > 0 {
         for _ in 0..((indent - 1) * 4) {
@@ -163,21 +163,21 @@ fn arrow(f: &mut Formatter<'_>, indent: u32) -> fmt::Result {
     Ok(())
 }
 
-fn debug_self<'a>(f: &mut Formatter<'_>, w: DebugWidth, node: &impl Node<'a>) -> fmt::Result {
+fn debug_self<'a>(f: &mut fmt::Formatter<'_>, w: DebugWidth, node: &impl Node<'a>) -> fmt::Result {
     write!(f, "{} ", node.name())?;
     debug_span(f, w, node.span())?;
 
     Ok(())
 }
 
-fn debug_op<'a>(f: &mut Formatter<'_>, w: DebugWidth, op: &impl Operator<'a>) -> fmt::Result {
+fn debug_op<'a>(f: &mut fmt::Formatter<'_>, w: DebugWidth, op: &impl Operator<'a>) -> fmt::Result {
     write!(f, "{} ", op)?;
     debug_span(f, w, op.span())?;
 
     Ok(())
 }
 
-fn debug_elem<'a, T>(f: &mut Formatter<'_>, w: DebugWidth, v: &T) -> fmt::Result
+fn debug_elem<'a, T>(f: &mut fmt::Formatter<'_>, w: DebugWidth, v: &T) -> fmt::Result
 where
     T: Display,
     T: Node<'a>,
@@ -188,7 +188,7 @@ where
     Ok(())
 }
 
-fn debug_span(f: &mut Formatter<'_>, w: DebugWidth, span: Span<'_>) -> fmt::Result {
+fn debug_span(f: &mut fmt::Formatter<'_>, w: DebugWidth, span: Span<'_>) -> fmt::Result {
     if w == DebugWidth::Long {
         write!(f, "{}:\"{}\"", span.location_offset(), *span)
     } else {
@@ -197,7 +197,7 @@ fn debug_span(f: &mut Formatter<'_>, w: DebugWidth, span: Span<'_>) -> fmt::Resu
 }
 
 fn debug_ast<'a, 'b>(
-    f: &mut Formatter<'b>,
+    f: &mut fmt::Formatter<'b>,
     w: DebugWidth,
     ast: &OFAst<'a>,
     indent: u32,
@@ -222,7 +222,11 @@ fn debug_ast<'a, 'b>(
     }
 }
 
-fn debug_empty<'a, 'b>(f: &mut Formatter<'b>, w: DebugWidth, node: &impl Node<'a>) -> fmt::Result {
+fn debug_empty<'a, 'b>(
+    f: &mut fmt::Formatter<'b>,
+    w: DebugWidth,
+    node: &impl Node<'a>,
+) -> fmt::Result {
     debug_self(f, w, node)?;
 
     writeln!(f)?;
@@ -230,7 +234,7 @@ fn debug_empty<'a, 'b>(f: &mut Formatter<'b>, w: DebugWidth, node: &impl Node<'a
 }
 
 fn debug_binary<'a, 'b>(
-    f: &mut Formatter<'b>,
+    f: &mut fmt::Formatter<'b>,
     w: DebugWidth,
     node: &impl BinaryNode<'a>,
     ind: u32,
@@ -247,7 +251,7 @@ fn debug_binary<'a, 'b>(
 }
 
 fn debug_prefix<'a, 'b>(
-    f: &mut Formatter<'b>,
+    f: &mut fmt::Formatter<'b>,
     w: DebugWidth,
     node: &OFPrefix<'a>,
     ind: u32,
@@ -262,7 +266,7 @@ fn debug_prefix<'a, 'b>(
 }
 
 fn debug_postfix<'a, 'b>(
-    f: &mut Formatter<'b>,
+    f: &mut fmt::Formatter<'b>,
     w: DebugWidth,
     node: &OFPostfix<'a>,
     ind: u32,
@@ -277,7 +281,7 @@ fn debug_postfix<'a, 'b>(
 }
 
 fn debug_parens<'a, 'b>(
-    f: &mut Formatter<'b>,
+    f: &mut fmt::Formatter<'b>,
     w: DebugWidth,
     node: &OFParens<'a>,
     ind: u32,
@@ -290,7 +294,7 @@ fn debug_parens<'a, 'b>(
 }
 
 fn debug_fn_call<'a, 'b>(
-    f: &mut Formatter<'b>,
+    f: &mut fmt::Formatter<'b>,
     w: DebugWidth,
     node: &OFFnCall<'a>,
     ind: u32,

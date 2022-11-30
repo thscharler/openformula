@@ -8,7 +8,8 @@ use crate::conv::{ParseColnameError, ParseRownameError};
 use crate::error::OFCode::*;
 use crate::iparse::error::ParserError;
 use crate::iparse::{Code, IntoParserError, Span};
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt;
+use std::fmt::{Debug, Display};
 
 /// Standard parser error.
 pub type OFParserError<'s> = ParserError<'s, OFCode>;
@@ -259,7 +260,7 @@ impl Code for OFCode {
 }
 
 impl Display for OFCode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let code = match self {
             OFCNomError => "NomError",
             OFCNomFailure => "NomFailure",
